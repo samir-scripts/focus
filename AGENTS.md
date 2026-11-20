@@ -37,7 +37,16 @@ npm run build --workspace @focus/desktop
 npm run tauri -- dev
 ```
 
-Inspect the running shell at 960×640, the 635px reflow breakpoint and 200% zoom. Check keyboard interaction, native window controls, contrast in all six Light/Dark palette combinations, reduced motion, forced colors and particle pause persistence. Check bitmap legibility in Browser access, No browsers connected and Browser settings. CI runs the first four checks on GitHub-hosted runners; interactive inspection is manual. The future `npm run package:extensions` and `npm run test:browser` gates begin with the browser implementation, not this shell. Later slices add their exact affected unit, native, browser, installation and live-site gates; do not treat this CI as proof of browser behavior or release qualification.
+Inspect the running shell at 960×640, the 635px reflow breakpoint and 200% zoom. Check keyboard interaction, native window controls, contrast in all six Light/Dark palette combinations, reduced motion, forced colors and particle pause persistence. Check bitmap legibility in Browser access, No browsers connected and Browser settings.
+
+CI runs the shell checks and the packaged browser scenario. Interactive macOS inspection is manual. Run the browser gate on Linux with the prerequisites in [Browser setup](docs/browser-setup.md):
+
+```sh
+cargo build --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --bin focus-native-host --bin focus-fixture-admin
+npm run package:extensions && npm run test:browser -- --case shared-rule
+```
+
+Keep the two tested archives with their SHA-256 hashes and browser versions. The Firefox gate covers temporary installation. Signed Firefox restart and native installer qualification belong to slice 6.
 
 ## Branch protection and promotion
 
