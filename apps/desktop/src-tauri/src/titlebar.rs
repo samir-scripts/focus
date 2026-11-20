@@ -3,12 +3,25 @@ use std::ptr::{null_mut, NonNull};
 
 use block2::RcBlock;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSEvent, NSEventMask, NSWindow, NSWindowButton, NSWindowStyleMask};
+use objc2_app_kit::{NSEvent, NSEventMask, NSView, NSWindow, NSWindowButton, NSWindowStyleMask};
+use objc2_web_kit::WKWebView;
 use tauri::Manager;
 
-// Cocoa points match the macOS toolbar's logical CSS dimensions in App.svelte.
+// Layout dimensions in CSS pixels, before the user applies page zoom.
 const TOOLBAR_HEIGHT: f64 = 46.0;
 const NAVIGATION_WIDTH: f64 = 124.0;
+
+fn page_zoom(view: &NSView) -> Option<f64> {
+    if let Some(webview) = view.downcast_ref::<WKWebView>() {
+        // SAFETY: called from the AppKit mouse monitor on the main thread.
+        return Some(unsafe { webview.pageZoom() });
+    }
+    view.subviews().iter().find_map(|child| page_zoom(&child))
+}
+
+fn inside_drag_region(x: f64, from_top: f64, width: f64, zoom: f64) -> bool {
+    (0.0..TOOLBAR_HEIGHT * zoom).contains(&from_top) && x < width - NAVIGATION_WIDTH * zoom
+}
 
 pub(super) fn install(app: &tauri::App) -> Result<(), Box<dyn Error>> {
     let window = app.get_webview_window("main").ok_or("missing main window")?;
@@ -38,8 +51,12 @@ pub(super) fn install(app: &tauri::App) -> Result<(), Box<dyn Error>> {
         } else {
             bounds.origin.y + bounds.size.height - point.y
         };
-        if !(0.0..TOOLBAR_HEIGHT).contains(&from_top)
-            || point.x >= bounds.origin.x + bounds.size.width - NAVIGATION_WIDTH
+        if !inside_drag_region(
+            point.x - bounds.origin.x,
+            from_top,
+            bounds.size.width,
+            page_zoom(&content).unwrap_or(1.0),
+        )
             || [
                 NSWindowButton::CloseButton,
                 NSWindowButton::MiniaturizeButton,
@@ -73,4 +90,19 @@ pub(super) fn install(app: &tauri::App) -> Result<(), Box<dyn Error>> {
     unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::LeftMouseDown, &handler) }
         .ok_or("could not install the title bar event monitor")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::inside_drag_region;
+
+    #[test]
+    fn separates_zoomed_navigation_and_content_from_draggable_toolbar() {
+        for zoom in [0.8, 1.0, 2.0] {
+            let boundary = 960.0 - 124.0 * zoom;
+            assert!(inside_drag_region(boundary - 1.0, 45.0 * zoom, 960.0, zoom));
+            assert!(!inside_drag_region(boundary, 23.0 * zoom, 960.0, zoom));
+            assert!(!inside_drag_region(100.0, 46.0 * zoom, 960.0, zoom));
+        }
+    }
 }

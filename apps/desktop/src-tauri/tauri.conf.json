@@ -10,11 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "security": {
+      "capabilities": [{ "identifier": "main-page-zoom", "windows": ["main"], "permissions": ["core:webview:allow-set-webview-zoom"] }]
+    },
     "windows": [
       {
         "title": "focus.",
         "width": 960,
         "height": 640,
+        "zoomHotkeysEnabled": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": { "x": 14, "y": 17 }
