@@ -9,7 +9,7 @@
   import { sites } from './sites';
   import BrowserSettings from './BrowserSettings.svelte';
   import PairBrowser from './PairBrowser.svelte';
-  import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState, type Registration } from './browser';
+  import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState } from './browser';
 
   let { browserBridge = isTauri() ? nativeBrowserBridge : null }: { browserBridge?: BrowserBridge | null } = $props();
 
@@ -36,7 +36,6 @@
   let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
   let browserState = $state.raw<BrowserState>();
-  let registrations = $state.raw<Registration[]>([]);
   let browserError = $state('');
   let actionError = $state('');
   let pairError = $state('');
@@ -73,19 +72,6 @@
     const timer = window.setInterval(refresh, 1000);
     return () => window.clearInterval(timer);
   });
-
-  $effect(() => {
-    if (page === 'Settings') void checkRegistrations();
-  });
-
-  async function checkRegistrations() {
-    if (!browserBridge) return;
-    try {
-      registrations = await browserBridge.registrations();
-    } catch {
-      actionError = 'Could not check browser registrations.';
-    }
-  }
 
   async function saveRule(input: HTMLInputElement) {
     if (!browserBridge || !browserState || editingRule) return;
@@ -329,10 +315,12 @@
                 <span>Pause toner particles</span>
               </label>
             </fieldset>
-            <BrowserSettings profiles={browserState?.profiles ?? []} {registrations} check={checkRegistrations} disconnect={revoke} />
           {/if}
         </div>
       {/key}
+      <div class="page" class:reveal={revealPage && page === 'Settings'} hidden={page !== 'Settings'}>
+        <BrowserSettings profiles={browserState?.profiles ?? []} bridge={browserBridge} disconnect={revoke} active={page === 'Settings'} />
+      </div>
     </main>
   </div>
 </div>

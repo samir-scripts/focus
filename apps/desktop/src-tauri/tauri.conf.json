@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && node ../../scripts/stage-desktop-policy-helper.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -28,6 +28,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "linux": {
+      "deb": {
+        "recommends": ["pkexec"],
+        "files": {
+          "/usr/libexec/focus-browser-policy": "target/focus-installer/native/focus-browser-policy"
+        }
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

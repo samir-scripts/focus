@@ -1,4 +1,5 @@
-use focus_core::{db::{Db, Error, Result}, model::{DesktopState, OpenIntent}, protocol, registration};
+use crate::browser_setup;
+use focus_core::{db::{Db, Error, Result}, model::{DesktopState, OpenIntent}, protocol};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -19,8 +20,23 @@ pub async fn browser_state() -> std::result::Result<impl Serialize, &'static str
 }
 
 #[tauri::command]
-pub async fn browser_registrations() -> std::result::Result<Vec<registration::Registration>, &'static str> {
-    tauri::async_runtime::spawn_blocking(registration::checks).await.map_err(|_| Error::Database.code())
+pub async fn scan_browsers() -> Result<browser_setup::Scan, &'static str> {
+    tauri::async_runtime::spawn_blocking(browser_setup::scan).await.map_err(|_| "scan_failed")
+}
+
+#[tauri::command]
+pub async fn start_browser_installation(target_id: String) -> Result<browser_setup::Outcome, &'static str> {
+    browser_change(target_id, false).await
+}
+
+#[tauri::command]
+pub async fn remove_browser_installation(target_id: String) -> Result<browser_setup::Outcome, &'static str> {
+    browser_change(target_id, true).await
+}
+
+async fn browser_change(target_id: String, remove: bool) -> Result<browser_setup::Outcome, &'static str> {
+    tauri::async_runtime::spawn_blocking(move || browser_setup::change(&target_id, remove))
+        .await.map_err(|_| "setup_failed")?.map_err(browser_setup::SetupError::code)
 }
 
 #[tauri::command]

@@ -3,6 +3,7 @@
 #[cfg(target_os = "macos")]
 mod titlebar;
 mod commands;
+mod browser_setup;
 
 use tauri::Manager;
 
@@ -17,7 +18,9 @@ fn main() {
         }))
         .invoke_handler(tauri::generate_handler![
             commands::browser_state,
-            commands::browser_registrations,
+            commands::scan_browsers,
+            commands::start_browser_installation,
+            commands::remove_browser_installation,
             commands::set_hide_shorts,
             commands::decide_browser_pair,
             commands::revoke_browser_profile

@@ -1,6 +1,6 @@
 use crate::model::{Browser, GECKO_ID, HOST_NAME};
 use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{ffi::OsString, fs, io::Read, path::{Path, PathBuf}, sync::LazyLock};
 
@@ -13,11 +13,28 @@ static TEST_ID: LazyLock<String> = LazyLock::new(|| {
     digest[..16].iter().flat_map(|n| [char::from(b'a' + (n >> 4)), char::from(b'a' + (n & 15))]).collect()
 });
 
-pub fn chromium_id() -> Option<&'static str> {
-    if cfg!(debug_assertions) { return Some(TEST_ID.as_str()); }
-    option_env!("FOCUS_CHROMIUM_EXTENSION_ID").filter(|id| id.len() == 32 && id.bytes().all(|c| (b'a'..=b'p').contains(&c))
-        && *id != TEST_ID.as_str())
+pub fn production_chromium_id() -> Option<&'static str> {
+    #[derive(Deserialize)]
+    struct Release<'a> {
+        #[serde(borrow)]
+        chromium: Option<Store<'a>>,
+    }
+    #[derive(Deserialize)]
+    struct Store<'a> {
+        extension_id: &'a str,
+        published: bool,
+        publisher: &'a str,
+        provenance: &'a str,
+    }
+    let release: Release<'_> = serde_json::from_str(include_str!("../../../../../extension/browser-release.json")).ok()?;
+    let release = release.chromium?;
+    let id = release.extension_id;
+    (release.published && !release.publisher.trim().is_empty() && !release.provenance.trim().is_empty()
+        && id.len() == 32 && id.bytes().all(|c| (b'a'..=b'p').contains(&c))
+        && id != TEST_ID.as_str()).then_some(id)
 }
+
+pub fn is_test_chromium_id(id: &str) -> bool { id == TEST_ID.as_str() }
 
 #[derive(Deserialize)]
 struct Manifest {
@@ -41,8 +58,9 @@ fn read_manifest(path: &Path) -> Option<Manifest> {
 }
 
 fn chromium_caller(origin: &str) -> bool {
-    origin.strip_prefix("chrome-extension://").is_some_and(|id| Some(id.trim_end_matches('/')) == chromium_id()
-        && (id.len() == 32 || id.len() == 33))
+    let Some(id) = origin.strip_prefix("chrome-extension://") else { return false };
+    let id = id.strip_suffix('/').unwrap_or(id);
+    Some(id) == production_chromium_id() || (cfg!(debug_assertions) && is_test_chromium_id(id))
 }
 
 // Chrome supplies an origin from its origin allowlist. Firefox supplies both the
@@ -66,43 +84,16 @@ pub fn caller_is_gecko(args: &[OsString]) -> Option<bool> {
     (exe.canonicalize().ok().as_ref() == Some(&target)).then_some(true)
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Registration {
-    pub browser: Browser,
-    pub manifest_path: Option<PathBuf>,
-    pub matched: bool,
-    pub manifest: Option<String>,
-}
-
-pub fn checks() -> Vec<Registration> {
-    let host = std::env::current_exe().ok().map(|exe| exe.with_file_name(format!("focus-native-host{}", std::env::consts::EXE_SUFFIX)));
-    Browser::ALL.into_iter().map(|browser| {
-        let manifest_path = registration_path(browser);
-        let matched = manifest_path.as_deref().and_then(read_manifest).is_some_and(|manifest| {
-            let valid_host = manifest.path.file_stem().and_then(|stem| stem.to_str()) == Some("focus-native-host");
-            valid_host && if browser.is_gecko() {
-                manifest.allowed_extensions.as_slice() == [GECKO_ID] && manifest.allowed_origins.is_empty()
-            } else {
-                let Some(id) = chromium_id() else { return false; };
-                manifest.allowed_origins.as_slice() == [format!("chrome-extension://{id}/")] && manifest.allowed_extensions.is_empty()
-            }
-        });
-        let manifest = host.as_deref().and_then(|host| manifest_example(browser, host));
-        Registration { browser, manifest_path, matched, manifest }
-    }).collect()
-}
-
-fn manifest_example(browser: Browser, host: &Path) -> Option<String> {
+pub fn manifest_for(browser: Browser, host: &Path) -> Option<Vec<u8>> {
     let mut manifest = serde_json::json!({
         "name": HOST_NAME, "description": "focus. local bridge", "type": "stdio", "path": host,
     });
     if browser.is_gecko() {
         manifest["allowed_extensions"] = serde_json::json!([GECKO_ID]);
     } else {
-        manifest["allowed_origins"] = serde_json::json!([format!("chrome-extension://{}/", chromium_id()?)]);
+        manifest["allowed_origins"] = serde_json::json!([format!("chrome-extension://{}/", production_chromium_id()?)]);
     }
-    serde_json::to_string_pretty(&manifest).ok()
+    serde_json::to_vec_pretty(&manifest).ok()
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -116,7 +107,7 @@ fn registration_home() -> Option<PathBuf> {
     dirs::home_dir()
 }
 
-fn registration_path(browser: Browser) -> Option<PathBuf> {
+pub fn registration_path(browser: Browser) -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     let dir = registration_home()?.join("Library/Application Support").join(match browser {
         Browser::Chrome => "Google/Chrome/NativeMessagingHosts",

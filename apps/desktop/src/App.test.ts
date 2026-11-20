@@ -44,7 +44,9 @@ describe('desktop shell', () => {
     let revision = 0;
     render(App, { browserBridge: {
       state: async () => ({ revision, hideShorts: enabled, pending: [], profiles: [], open: null }),
-      registrations: async () => [],
+      scan: async () => ({ supported: true, targets: [] }),
+      install: async () => 'cancelled',
+      removeInstallation: async () => 'cancelled',
       setHideShorts: async (expected: number, next: boolean) => {
         expect(expected).toBe(revision);
         enabled = next;
@@ -68,7 +70,9 @@ describe('desktop shell', () => {
         profiles: [{ id: 'sample', label: 'Test browser', browser: 'chrome', online: true, ackRevision: 7,
           origins: ['https://www.youtube.com/*', 'https://youtu.be/*', 'https://reddit.com/*'] }],
       }),
-      registrations: async () => [],
+      scan: async () => ({ supported: true, targets: [] }),
+      install: async () => 'cancelled',
+      removeInstallation: async () => 'cancelled',
       setHideShorts: async () => {},
       decidePair: async () => {},
       revoke: async () => {},

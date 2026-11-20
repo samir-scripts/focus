@@ -6,6 +6,7 @@
   "exports": {
     "./tokens.css": "./src/tokens.css",
     "./TypewriterMark.svelte": "./src/TypewriterMark.svelte",
-    "./SiteMark.svelte": "./src/SiteMark.svelte"
+    "./SiteMark.svelte": "./src/SiteMark.svelte",
+    "./BrowserMark.svelte": "./src/BrowserMark.svelte"
   }
 }

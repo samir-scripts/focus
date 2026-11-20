@@ -7,7 +7,18 @@ export const browsers = {
 export type Browser = keyof typeof browsers;
 export type Pair = { id: string; label: string; browser: Browser };
 export type Profile = Pair & { online: boolean; ackRevision: number | null; origins: string[] };
-export type Registration = { browser: Browser; matched: boolean; manifestPath: string | null; manifest: string | null };
+export type InstallCapability = 'store' | 'managed' | 'managedPending' | 'managedCleanup' | 'managedOrphan' | 'missingArtifact' |
+  'invalidArtifact' | 'missingBridge' | 'missingAuthorization' | 'sharedTarget' |
+  'managedElsewhere' | 'conflictingSetup' | 'missingPortal' | 'unverifiedChannel';
+export type BrowserTarget = {
+  id: string;
+  browser: Browser;
+  source: 'bundle' | 'native' | 'snap' | 'flatpak' | 'standalone';
+  label: string;
+  capability: InstallCapability;
+};
+export type BrowserScan = { supported: boolean; targets: BrowserTarget[] };
+export type InstallOutcome = 'storeOpened' | 'signedPending' | 'policyRemoved' | 'cancelled';
 export type BrowserState = {
   revision: number;
   hideShorts: boolean;
@@ -18,7 +29,9 @@ export type BrowserState = {
 
 export interface BrowserBridge {
   state: () => Promise<BrowserState>;
-  registrations: () => Promise<Registration[]>;
+  scan: () => Promise<BrowserScan>;
+  install: (targetId: string) => Promise<InstallOutcome>;
+  removeInstallation: (targetId: string) => Promise<InstallOutcome>;
   setHideShorts: (expectedRevision: number, enabled: boolean) => Promise<void>;
   decidePair: (id: string, approved: boolean, label: string | null) => Promise<void>;
   revoke: (id: string) => Promise<void>;
@@ -26,7 +39,9 @@ export interface BrowserBridge {
 
 export const nativeBrowserBridge: BrowserBridge = {
   state: () => invoke('browser_state'),
-  registrations: () => invoke('browser_registrations'),
+  scan: () => invoke('scan_browsers'),
+  install: (targetId) => invoke('start_browser_installation', { targetId }),
+  removeInstallation: (targetId) => invoke('remove_browser_installation', { targetId }),
   setHideShorts: (expectedRevision, enabled) => invoke('set_hide_shorts', { expectedRevision, enabled }),
   decidePair: (id, approved, label) => invoke('decide_browser_pair', { id, approved, label }),
   revoke: (id) => invoke('revoke_browser_profile', { id }),
