@@ -1,5 +1,13 @@
 # Third-party notices
 
+## Browser marks
+
+The browser names and marks in Settings identify software installed on the device. Each trademark belongs to its owner.
+
+- **Brave** uses the monochrome lion from Brave Software's Leo design system, revision `401210744dcf5eac7f6b4f26b8839e97d65b2929`. The local SVG preserves the path and inherits the theme foreground. This SVG is available under the Mozilla Public License 2.0. [Original SVG](https://github.com/brave/leo/blob/401210744dcf5eac7f6b4f26b8839e97d65b2929/icons/brave-icon-monochrome.svg) · [License](https://github.com/brave/leo/blob/401210744dcf5eac7f6b4f26b8839e97d65b2929/LICENSE.md)
+- **Chromium** uses the Chromium Authors' product mark, revision `bfe4d0f3141035d46858b92f00807452ca7bf1e9`. The theme supplies the ink. Opacity distinguishes the original segments and the canvas shows through the center ring. [Original SVG](https://chromium.googlesource.com/chromium/src/+/bfe4d0f3141035d46858b92f00807452ca7bf1e9/chrome/app/theme/chromium/product_logo.svg) · [Bundled BSD license](packages/ui/src/assets/browsers/CHROMIUM-LICENSE.txt)
+- **Chrome**, **Firefox**, and **Zen** use original focus. lettermarks CH, FX, and ZN. Google's brand guidance, Mozilla's compatibility guidance, and Zen's noncommercial logo license informed that choice. [Google product marks](https://about.google/brand-resource-center/products-and-services/) · [Mozilla trademark guidelines](https://www.mozilla.org/en-US/foundation/trademarks/policy/) · [Zen branding license](https://github.com/zen-browser/branding-archive)
+
 ## Font Awesome Free brand icons
 
 The YouTube, Instagram, X, Reddit, Facebook, TikTok, WhatsApp and Google icons in `packages/ui/src/SiteMark.svelte` are from Font Awesome Free 6.7.2, Copyright Fonticons, Inc. (https://fontawesome.com), licensed under Creative Commons Attribution 4.0 International: https://creativecommons.org/licenses/by/4.0/. Source: https://github.com/FortAwesome/Font-Awesome/tree/6.7.2/svgs/brands. The paths are unmodified and rendered in monochrome for theme contrast. Trademarks belong to their respective owners and identify services only, not affiliation or endorsement.
