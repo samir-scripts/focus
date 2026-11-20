@@ -50,12 +50,13 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - name: Install Linux native build dependencies
+      - name: Install Linux native and browser test dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            unzip xvfb xdotool
+            unzip xvfb xdotool \
+            python3-pyatspi at-spi2-core dbus-daemon libnss3-tools openssl
       - name: Provision Chromium and check runner Firefox
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/focus-playwright
@@ -69,6 +70,7 @@ jobs:
       - name: Test native bridge and packaged extensions
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/focus-playwright
+          FOCUS_PYTHON: /usr/bin/python3
         run: |
           set -u
           export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
