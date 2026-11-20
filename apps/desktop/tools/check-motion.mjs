@@ -55,7 +55,31 @@ try {
       await new Promise(resolve => setTimeout(resolve, 60));
     }
   }
+  await command('Page.enable');
+  await command('Page.addScriptToEvaluateOnNewDocument', { source: `
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
+    window.isTauri = true;
+  ` });
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 480, height: 320, deviceScaleFactor: 1, mobile: false
+  });
   await command('Page.navigate', { url: 'http://localhost:1420/' });
+  await until("Boolean(document.querySelector('.toolbar.native-mac'))");
+  const scroll = await evaluate(`(() => {
+    const workspace = document.querySelector('.workspace');
+    workspace.scrollTop = 100;
+    return {
+      toolbarWidth: document.querySelector('.toolbar').getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+      workspaceTop: workspace.scrollTop,
+      rootHeight: document.scrollingElement.scrollHeight,
+      viewportHeight: window.innerHeight
+    };
+  })()`);
+  assert.equal(scroll.workspaceTop, 100, 'The workspace must scroll independently of the native toolbar');
+  assert.equal(scroll.rootHeight, scroll.viewportHeight, 'The window must not have a root scrollbar');
+  assert.equal(scroll.toolbarWidth, scroll.viewportWidth, 'The native toolbar must span the viewport');
+  console.log('The native toolbar spans the viewport while the workspace scrolls.');
   const drift = "document.getAnimations().filter(a => a.animationName?.includes('drift-toner'))";
   await until(drift + ".some(a => a.playState === 'running')");
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
@@ -73,5 +97,5 @@ try {
     browser.kill();
     await stopped;
   }
-  await rm(profile, { recursive: true, force: true });
+  await rm(profile, { recursive: true, force: true, maxRetries: 5 });
 }

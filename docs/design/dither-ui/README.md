@@ -17,4 +17,10 @@ Actual macOS app captures are available for [Sites at 960×640](native/native-si
 
 The native review covered all six palette and appearance combinations, keyboard focus, and pointer navigation with the content scrolled at double zoom. The small detail heading uses Focus Bitmap Bold. The disconnected status and settings button use Focus Bitmap Regular. The native toolbar stays pinned while the library stacks and the paper fills the viewport.
 
-With the desktop dev server running on port 1420, run `node apps/desktop/tools/check-motion.mjs` for the browser-level reduced-motion and forced-colors regression check. It uses an isolated Chromium profile. Set `CHROME_BIN` to select an installed browser. The normal unit suite covers pause persistence and saved palette settings.
+With the desktop dev server running on port 1420, run `node apps/desktop/tools/check-motion.mjs` to check toolbar layout, reduced motion, and forced colors in Chromium. The check uses an isolated profile. Set `CHROME_BIN` to select an installed browser. The normal unit suite covers pause persistence and saved palette settings.
+
+### Slice 1 closeout
+
+The clean install, Svelte checks, eight unit tests, production build, locked Rust workspace test, and Tauri dev startup passed. The Chromium check passed five consecutive runs with the standalone Vite dev server. A separate run stalled in Chromium during native app startup.
+
+The macOS debug bundle was reviewed at 960×640, at the 635px breakpoint, and at 200% page zoom. At 200%, the workspace scrollbar stayed below the toolbar and both the left edge and center of Sites opened the view. The prior click location at (709, 44) was outside the button and could drag the window. The review also covered keyboard focus, the traffic lights, all six Light/Dark palette combinations, and toner pause persistence after relaunch.

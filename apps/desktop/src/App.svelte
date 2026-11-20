@@ -220,6 +220,7 @@
   }
 
   .shell { display: flex; flex-direction: column; min-height: 100dvh; }
+  .shell:has(> .toolbar.native-mac) { height: 100dvh; }
   .toner-paused { --toner-play-state: paused; }
 
   .toolbar, .library, main { isolation: isolate; position: relative; }
@@ -235,11 +236,13 @@
   }
 
   /* AppKit scales the 46px toolbar and 124px navigation hit region with page zoom. */
-  .toolbar.native-mac { position: sticky; top: 0; z-index: 1; box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
+  .toolbar.native-mac { flex: none; box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
   .toolbar.native-mac nav { flex: none; flex-wrap: nowrap; }
   .toolbar.native-mac .brand { padding-inline: 3px 12px; }
 
   .workspace { flex: 1; display: flex; flex-direction: column; }
+  /* Keep the scrollbar below the toolbar so AppKit and the navigation share the same right edge. */
+  .toolbar.native-mac + .workspace { overflow: auto; }
   .with-library { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
 
   .brand {
