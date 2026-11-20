@@ -6,9 +6,26 @@ afterEach(() => {
   cleanup();
   window.localStorage.clear();
   document.documentElement.dataset.theme = 'system';
+  delete document.documentElement.dataset.paletteLight;
+  delete document.documentElement.dataset.paletteDark;
 });
 
 describe('desktop shell', () => {
+  it('provides named icon controls and marks the current page', async () => {
+    render(App);
+    const navigation = within(screen.getByRole('navigation', { name: 'Main' }));
+    for (const name of ['Sites', 'Statistics', 'Settings']) {
+      const button = navigation.getByRole('button', { name });
+      expect(button.textContent?.trim()).toBe('');
+      expect(button.querySelector('svg')).toBeTruthy();
+    }
+    expect(navigation.getByRole('button', { name: 'Sites' }).getAttribute('aria-current')).toBe('page');
+    const settings = navigation.getByRole('button', { name: 'Settings' });
+    await fireEvent.click(settings);
+    expect(settings.getAttribute('aria-current')).toBe('page');
+    expect(navigation.getByRole('button', { name: 'Sites' }).getAttribute('aria-current')).toBeNull();
+  });
+
   it('moves between branded site rows and shows the selected hostname', async () => {
     render(App);
     const library = within(screen.getByRole('region', { name: 'Site library' }));
@@ -49,5 +66,64 @@ describe('desktop shell', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     await fireEvent.click(screen.getByRole('radio', { name: 'System' }));
     expect(document.documentElement.dataset.theme).toBe('system');
+  });
+
+  it('edits the inactive palette independently and restores both choices', async () => {
+    window.localStorage.setItem('focus.appearance', 'dark');
+    const shell = render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const picker = (mode: string) => screen.getByRole('button', { name: new RegExp(`^${mode} palette`) });
+    expect(picker('Dark').textContent).toContain('Sage');
+    await fireEvent.click(picker('Light'));
+    await fireEvent.click(screen.getByRole('radio', { name: 'Cobalt' }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(picker('Dark').textContent).toContain('Sage');
+    await fireEvent.click(picker('Dark'));
+    expect(picker('Light').getAttribute('aria-expanded')).toBe('false');
+    await fireEvent.click(screen.getByRole('radio', { name: 'Plum' }));
+    await fireEvent.click(screen.getByRole('radio', { name: 'Light' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
+    shell.unmount();
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(picker('Light').textContent).toContain('Cobalt');
+    expect(picker('Dark').textContent).toContain('Plum');
+    expect((screen.getByRole('checkbox', { name: 'Print illustrations' }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('discards an unknown palette without discarding the other preference', async () => {
+    window.localStorage.setItem('focus.palette.light', 'unknown');
+    window.localStorage.setItem('focus.palette.dark', 'plum');
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByRole('button', { name: /^Light palette/ }).textContent).toContain('Sage');
+    expect(screen.getByRole('button', { name: /^Dark palette/ }).textContent).toContain('Plum');
+  });
+
+  it('removes both impressions when disabled and keeps them off on restart', async () => {
+    const shell = render(App);
+    const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+    const impression = () => screen.getByRole('main').querySelector('[data-print]');
+
+    expect(impression()?.getAttribute('aria-hidden')).toBe('true');
+    await open('Statistics');
+    expect(impression()).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'No time recorded' })).toBeTruthy();
+    await open('Settings');
+    expect(impression()).toBeNull();
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
+    await open('Statistics');
+    expect(impression()).toBeNull();
+    await open('Sites');
+    expect(impression()).toBeNull();
+
+    shell.unmount();
+    render(App);
+    expect(impression()).toBeNull();
+    await open('Settings');
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
+    await open('Sites');
+    expect(impression()).not.toBeNull();
   });
 });

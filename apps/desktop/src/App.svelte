@@ -2,48 +2,60 @@
   import { tick } from 'svelte';
   import SiteMark from '@focus/ui/SiteMark.svelte';
   import TypewriterMark from '@focus/ui/TypewriterMark.svelte';
+  import { isTauri } from '@tauri-apps/api/core';
+  import { palettes, readAppearance, saveAppearance, type Mode, type Palette, type PaletteMode } from './appearance';
+  import PrintImpression from './PrintImpression.svelte';
   import { sites } from './sites';
 
   const pages = ['Sites', 'Statistics', 'Settings'] as const;
-  const appearances = [
+  const nativeMacToolbar = isTauri() && navigator.platform.startsWith('Mac');
+  const modes = [
     { value: 'system', label: 'System' },
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
   ] as const;
   type Page = (typeof pages)[number];
-  type Appearance = (typeof appearances)[number]['value'];
-  const appearanceKey = 'focus.appearance';
-
-  function readAppearance(): Appearance {
-    try {
-      const saved = window.localStorage.getItem(appearanceKey);
-      return saved === 'light' || saved === 'dark' ? saved : 'system';
-    } catch {
-      return 'system';
-    }
-  }
+  const paletteModes = [
+    { value: 'light', label: 'Light palette' },
+    { value: 'dark', label: 'Dark palette' },
+  ] as const;
+  const paletteIds = Object.keys(palettes) as Palette[];
 
   let page = $state<Page>('Sites');
   let site = $state.raw<(typeof sites)[number]>(sites[0]);
+  let revealPage = $state(false);
+  let revealSite = $state(false);
   let appearance = $state(readAppearance());
+  let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
 
   $effect(() => {
-    document.documentElement.dataset.theme = appearance;
+    const root = document.documentElement;
+    root.dataset.theme = appearance.mode;
+    root.dataset.paletteLight = appearance.light;
+    root.dataset.paletteDark = appearance.dark;
   });
 
-  function setAppearance(value: Appearance) {
-    appearance = value;
-    try {
-      if (value === 'system') window.localStorage.removeItem(appearanceKey);
-      else window.localStorage.setItem(appearanceKey, value);
-    } catch {
-      // The selection still applies for this window if storage is unavailable.
-    }
+  function setMode(mode: Mode) {
+    appearance.mode = mode;
+    saveAppearance('mode', mode);
   }
 
-  async function openPage(next: Page) {
+  function setPalette(mode: PaletteMode, palette: Palette) {
+    appearance[mode] = palette;
+    saveAppearance(mode, palette);
+  }
+
+  function setPrintIllustrations(enabled: boolean) {
+    appearance.printIllustrations = enabled;
+    saveAppearance('printIllustrations', enabled);
+  }
+
+  async function openPage(next: Page, event: MouseEvent) {
     if (next === page) return;
+    revealPage = event.detail > 0;
+    revealSite = false;
+    openPalette = null;
     page = next;
     await tick();
     heading?.focus();
@@ -51,12 +63,24 @@
 </script>
 
 <div class="shell">
-  <header class="toolbar">
+  <header class="toolbar" class:native-mac={nativeMacToolbar}>
     <div class="brand"><TypewriterMark size={22} /> <span>focus.</span></div>
-    <nav aria-label="Main">
+    <nav aria-label="Main" class:move-indicator={revealPage} style:--active-index={pages.indexOf(page)}>
       {#each pages as entry}
-        <button type="button" aria-current={page === entry ? 'page' : undefined} onclick={() => openPage(entry)}>
-          {entry}
+        <button type="button" aria-label={entry} title={entry} aria-current={page === entry ? 'page' : undefined}
+          onclick={(event) => openPage(entry, event)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            {#if entry === 'Sites'}
+              <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+              <path d="M4 9.5h16M9.5 10v9" />
+            {:else if entry === 'Statistics'}
+              <path d="M5 19v-5m7 5V9m7 10V4" stroke-width="2.5" />
+            {:else}
+              <path d="M10 3.5h4l.6 2.4 1.7 1 2.4-.7 2 3.5-1.8 1.7v2l1.8 1.7-2 3.5-2.4-.7-1.7 1-.6 2.4h-4l-.6-2.4-1.7-1-2.4.7-2-3.5 1.8-1.7v-2L3.3 9.7l2-3.5 2.4.7 1.7-1z" />
+              <circle cx="12" cy="12.4" r="2.7" />
+            {/if}
+          </svg>
         </button>
       {/each}
     </nav>
@@ -69,7 +93,11 @@
         <ul>
           {#each sites as entry (entry.id)}
             <li>
-              <button type="button" aria-pressed={site === entry} onclick={() => (site = entry)}>
+              <button type="button" aria-pressed={site === entry} onclick={(event) => {
+                if (site === entry) return;
+                revealSite = event.detail > 0;
+                site = entry;
+              }}>
                 <span class="site-mark"><SiteMark id={entry.id} size={20} /></span>
                 <span>{entry.label}</span>
               </button>
@@ -81,40 +109,81 @@
 
     <main>
       {#key page}
-        <div class="page">
+        <div class="page" class:reveal={revealPage && page === 'Settings'}>
           {#if page === 'Sites'}
-            <header class="page-heading site-heading">
-              <span class="site-mark"><SiteMark id={site.id} size={27} /></span>
-              <div>
-                <h1 tabindex="-1" bind:this={heading}>{site.label}</h1>
-                <p class="host">{site.hostname}</p>
-              </div>
+            <header class="page-heading site-title-row">
+              {#key site.id}
+                <div class="site-heading" class:reveal={revealPage || revealSite}>
+                  <span class="site-mark"><SiteMark id={site.id} size={27} /></span>
+                  <div>
+                    <h1 tabindex="-1" bind:this={heading}>{site.label}</h1>
+                    <p class="host">{site.hostname}</p>
+                  </div>
+                </div>
+              {/key}
+              {#if appearance.printIllustrations}
+                <div class="impression margin"><PrintImpression variant="margin" /></div>
+              {/if}
             </header>
-            <section class="details access-row">
+            <section class="details access-row" class:reveal={revealPage}>
               <div>
                 <h2>Browser access</h2>
                 <p class="connection"><span aria-hidden="true"></span>No browsers connected</p>
               </div>
-              <button type="button" class="outline" onclick={() => openPage('Settings')}>Browser settings</button>
+              <button type="button" class="outline" onclick={(event) => openPage('Settings', event)}>Browser settings</button>
             </section>
           {:else if page === 'Statistics'}
-            <header class="page-heading"><h1 tabindex="-1" bind:this={heading}>Statistics</h1></header>
-            <section class="details">
-              <h2>No time recorded</h2>
+            <header class="page-heading" class:reveal={revealPage}>
+              <h1 tabindex="-1" bind:this={heading}>Statistics</h1>
+            </header>
+            <section class="details statistics-empty">
+              <h2 class:reveal={revealPage}>No time recorded</h2>
+              {#if appearance.printIllustrations}
+                <div class="impression sheet"><PrintImpression variant="sheet" /></div>
+              {/if}
             </section>
           {:else}
             <header class="page-heading"><h1 tabindex="-1" bind:this={heading}>Settings</h1></header>
             <fieldset>
               <legend>Appearance</legend>
               <div class="appearances">
-                {#each appearances as option}
+                {#each modes as option}
                   <label>
-                    <input type="radio" name="appearance" value={option.value} checked={appearance === option.value}
-                      onchange={() => setAppearance(option.value)} />
+                    <input type="radio" name="appearance" value={option.value} checked={appearance.mode === option.value}
+                      onchange={() => setMode(option.value)} />
                     <span>{option.label}</span>
                   </label>
                 {/each}
               </div>
+              {#each paletteModes as { value, label }}
+                <div class="palette-picker">
+                  <button type="button" class="palette-trigger" aria-expanded={openPalette === value}
+                    aria-controls={`${value}-palettes`} onclick={() => openPalette = openPalette === value ? null : value}>
+                    <span>{label}</span>
+                    <span class="palette-value">
+                      <span class="swatch" data-swatch={`${appearance[value]}-${value}`} aria-hidden="true"></span>
+                      {palettes[appearance[value]]}
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"
+                        aria-hidden="true" focusable="false"><path d="m2.5 4.5 3.5 3.5 3.5-3.5" /></svg>
+                    </span>
+                  </button>
+                  <fieldset class="palette-options" id={`${value}-palettes`} aria-label={label} hidden={openPalette !== value}>
+                    {#each paletteIds as id}
+                      <label class="preference">
+                        <input type="radio" name={`${value}-palette`} value={id} checked={appearance[value] === id}
+                          onchange={() => setPalette(value, id)} />
+                        <span class="swatch" data-swatch={`${id}-${value}`} aria-hidden="true"></span>
+                        <span>{palettes[id]}</span>
+                      </label>
+                    {/each}
+                  </fieldset>
+                </div>
+              {/each}
+              <label class="preference print-preference">
+                <input type="checkbox" checked={appearance.printIllustrations}
+                  onchange={(event) => setPrintIllustrations(event.currentTarget.checked)} />
+                <span>Print illustrations</span>
+              </label>
             </fieldset>
             <section class="details">
               <h2>Browsers</h2>
@@ -138,12 +207,17 @@
   .shell { display: flex; flex-direction: column; min-height: 100dvh; }
 
   .toolbar {
-    display: grid;
-    grid-template-columns: 196px minmax(0, 1fr);
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
     min-height: 46px;
     background: var(--canvas);
     border-bottom: 1px solid var(--divider);
   }
+
+  /* The macOS event monitor reserves this toolbar's top 46pt and rightmost 124pt. */
+  .toolbar.native-mac { box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
+  .toolbar.native-mac nav { flex: none; flex-wrap: nowrap; }
 
   .workspace { flex: 1; }
   .with-library { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
@@ -159,7 +233,17 @@
     letter-spacing: -0.04em;
   }
 
-  nav { display: flex; gap: 2px; align-items: stretch; padding-inline: 12px; }
+  nav {
+    --nav-target: 36px;
+    --nav-gap: 2px;
+    --nav-start: 4px;
+    --indicator-width: 18px;
+    position: relative;
+    display: flex;
+    gap: var(--nav-gap);
+    align-items: center;
+    padding-inline: var(--nav-start) 8px;
+  }
   ul { display: grid; margin: 0; padding: 0; list-style: none; }
   li { min-width: 0; }
 
@@ -174,44 +258,66 @@
     color: inherit;
     font: inherit;
     cursor: pointer;
-    transition: background-color var(--motion-interaction) var(--ease);
   }
 
-  nav button { position: relative; color: var(--muted); width: auto; font-size: 14px; }
-  nav button[aria-current] { color: var(--ink); font-weight: 650; }
-  nav button[aria-current]::after {
+  nav button {
+    position: relative;
+    justify-content: center;
+    width: var(--nav-target);
+    height: var(--nav-target);
+    padding: 0;
+    border-radius: var(--radius-control);
+    color: var(--muted);
+  }
+  nav button[aria-current] { color: var(--ink); background: var(--selected); }
+  nav button:focus-visible { outline-offset: -2px; }
+  nav::after {
     content: '';
     position: absolute;
-    inset: auto 12px 0;
+    inset: auto auto 0 calc(var(--nav-start) + (var(--nav-target) - var(--indicator-width)) / 2);
+    width: var(--indicator-width);
     height: 2px;
     background: var(--accent);
+    pointer-events: none;
+    transform: translateX(calc(var(--active-index) * (var(--nav-target) + var(--nav-gap))));
   }
   li button { width: 100%; min-height: 42px; gap: 12px; font-size: 15px; font-weight: 500; }
   li button:focus-visible { outline-offset: -4px; }
   .site-mark { display: grid; place-items: center; flex: none; color: var(--muted); }
   [aria-pressed='true'] .site-mark, .site-heading .site-mark { color: var(--ink); }
-  button:hover { background: var(--hover); }
+  li button:is(:hover, :active) .site-mark { color: var(--on-accent); }
   li button[aria-pressed='true'] {
     background: var(--selected);
     box-shadow: inset 2px 0 var(--accent);
     font-weight: 650;
   }
 
+  button:is(:hover, :active), nav button[aria-current]:is(:hover, :active),
+  li button[aria-pressed='true']:is(:hover, :active), .appearances label:is(:hover, :active) {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  nav button:is(:hover, :active):focus-visible, li button:is(:hover, :active):focus-visible {
+    outline-color: var(--on-accent);
+  }
+
   .library { padding: 12px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); }
   .library h2 { margin: 0 14px 8px; font-size: 14px; color: var(--muted); }
 
   main { padding: 24px; min-width: 0; background: var(--surface); }
-  .page { max-width: 760px; animation: enter var(--motion-view) var(--ease) both; }
-  @keyframes enter {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  .page { max-width: 760px; }
 
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
   h1, h2, p { margin: 0; }
   h1 { font-size: 28px; font-weight: 620; line-height: 1.2; letter-spacing: -0.025em; }
   h1:focus { outline: none; }
-  .site-heading { display: flex; align-items: center; gap: 12px; }
+  .site-title-row, .statistics-empty { display: flex; justify-content: space-between; gap: 16px; }
+  .site-title-row { align-items: center; }
+  .site-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .site-heading > div { min-width: 0; }
+  .impression { pointer-events: none; }
+  .margin { flex: none; }
+  .sheet { width: 192px; max-width: 100%; }
   h2, legend { font-size: 16px; font-weight: 620; }
   p { margin-top: 4px; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
   .host { font-family: 'Mona Sans Mono', ui-monospace, monospace; font-size: 14px; }
@@ -223,31 +329,96 @@
   fieldset { border: 0; padding: 0; min-width: 0; }
   legend { padding: 0; margin-bottom: 8px; }
   .appearances { display: flex; width: fit-content; max-width: 100%; }
-  label { position: relative; display: flex; align-items: center; min-height: 36px; padding: 4px 16px; border: 1px solid var(--edge); font-size: 14px; cursor: pointer; }
-  label:first-child { border-radius: var(--radius-control) 0 0 var(--radius-control); }
-  label:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
-  label + label { border-inline-start: 0; }
-  label:hover, label:has(:checked) { background: var(--selected); }
-  label:focus-within { z-index: 1; outline: 2px solid var(--accent); outline-offset: 3px; }
-  input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+  .appearances label { position: relative; display: flex; align-items: center; min-height: 36px; padding: 4px 16px; border: 1px solid var(--edge); font-size: 14px; cursor: pointer; }
+  .appearances label:first-child { border-radius: var(--radius-control) 0 0 var(--radius-control); }
+  .appearances label:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+  .appearances label + label { border-inline-start: 0; }
+  .appearances label:has(:checked):not(:hover, :active) { background: var(--selected); }
+  .appearances label:focus-within { z-index: 1; outline: 2px solid var(--accent); outline-offset: 3px; }
+  .appearances input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+
+  .palette-picker, .print-preference { border-block-end: 1px solid var(--divider); }
+  .appearances + .palette-picker { margin-block-start: 12px; }
+  .palette-trigger {
+    width: 100%;
+    min-height: 44px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+  .palette-trigger:focus-visible { outline-offset: -2px; }
+  .palette-trigger:is(:hover, :active):focus-visible { outline-color: var(--on-accent); }
+  .palette-trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
+  .palette-value { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 22px;
+    height: 14px;
+    border: 1px solid var(--swatch-ink);
+    background: var(--swatch-paper);
+  }
+  .swatch::after { content: ''; width: 10px; height: 2px; background: var(--swatch-ink); }
+  .palette-options { margin: 0; padding-inline-start: 8px; }
+  .preference {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding-inline: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .preference:has(:checked):not(.print-preference) { background: var(--selected); }
+  .preference:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .preference input { flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
   @media (max-width: 635px) {
     .toolbar { display: flex; flex-wrap: wrap; }
     .brand { min-height: 44px; }
-    nav { min-height: 44px; flex-wrap: wrap; }
+    nav { min-height: 44px; }
     .with-library { display: flex; flex-direction: column; }
     .library { padding: 8px 12px; border-inline-end: 0; border-bottom: 1px solid var(--divider); }
     ul { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 4px; }
     main { padding: 16px; }
     li button { gap: 8px; padding-inline: 8px; }
+    .impression.margin { display: none; }
+    .statistics-empty { flex-direction: column; }
   }
 
   @media (max-width: 340px) {
+    .toolbar.native-mac .brand { padding-inline: 6px; }
     ul { grid-template-columns: minmax(0, 1fr); }
-    label { padding-inline: 10px; }
+    .appearances label { padding-inline: 10px; }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .page, button { animation: none; transition: none; }
+  @media (forced-colors: active) {
+    .impression { display: none; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    nav.move-indicator::after { transition: transform var(--motion-interaction) var(--ease); }
+    .reveal {
+      transform-origin: top left;
+      animation: settle var(--motion-view) var(--ease);
+    }
+    @keyframes settle {
+      from { opacity: .65; transform: scale(.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    button, .appearances label {
+      --press-duration: var(--motion-interaction);
+      transition:
+        background-color var(--motion-hover) ease-in-out,
+        color var(--motion-hover) ease-in-out,
+        transform var(--press-duration) var(--ease);
+    }
+    li .site-mark { transition: color var(--motion-hover) ease-in-out; }
+    button:active, .appearances label:active {
+      --press-duration: var(--motion-press);
+      transform: translateY(1px);
+    }
   }
 </style>
