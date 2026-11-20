@@ -6,7 +6,6 @@ pub const HOST_NAME: &str = "com.focus_local.bridge";
 pub const GECKO_ID: &str = "focus@focus-local";
 pub const YOUTUBE: &str = "youtube";
 pub const HIDE_SHORTS: &str = "youtube.hide-shorts";
-pub const SHORTS_HOSTS: [&str; 3] = ["youtube.com", "www.youtube.com", "m.youtube.com"];
 pub const POLL_SECONDS: u64 = 2;
 pub const LEASE_SECONDS: u64 = 9;
 pub const PAIR_SECONDS: u64 = 120;
@@ -46,10 +45,6 @@ pub fn origin_host(origin: &str) -> Option<&str> {
 
 pub fn valid_origin(origin: &str) -> bool {
     origin_host(origin).is_some_and(|host| SITES.iter().any(|site| site.hosts.contains(&host)))
-}
-
-pub fn shorts_origin(origin: &str) -> bool {
-    origin_host(origin).is_some_and(|host| SHORTS_HOSTS.contains(&host))
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]

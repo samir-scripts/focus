@@ -1,0 +1,4 @@
+html[data-focus-shorts-discovery] ytd-reel-shelf-renderer,
+html[data-focus-shorts-discovery] ytd-rich-shelf-renderer[is-shorts],
+html[data-focus-shorts-discovery] ytm-reel-shelf-renderer,
+html[data-focus-shorts-active] [data-focus-shorts] { display: none !important; }

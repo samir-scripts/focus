@@ -22,6 +22,7 @@ CREATE TABLE profile (
 );
 CREATE TABLE pending_pair (
     id TEXT PRIMARY KEY, label TEXT NOT NULL, browser TEXT NOT NULL,
+    request_id TEXT NOT NULL UNIQUE,
     token_hash BLOB NOT NULL, expires_at INTEGER NOT NULL,
     denied INTEGER NOT NULL DEFAULT 0 CHECK (denied IN (0, 1))
 );

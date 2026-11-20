@@ -72,9 +72,11 @@ pub struct Registration {
     pub browser: Browser,
     pub manifest_path: Option<PathBuf>,
     pub matched: bool,
+    pub manifest: Option<String>,
 }
 
 pub fn checks() -> Vec<Registration> {
+    let host = std::env::current_exe().ok().map(|exe| exe.with_file_name(format!("focus-native-host{}", std::env::consts::EXE_SUFFIX)));
     Browser::ALL.into_iter().map(|browser| {
         let manifest_path = registration_path(browser);
         let matched = manifest_path.as_deref().and_then(read_manifest).is_some_and(|manifest| {
@@ -86,26 +88,56 @@ pub fn checks() -> Vec<Registration> {
                 manifest.allowed_origins.as_slice() == [format!("chrome-extension://{id}/")] && manifest.allowed_extensions.is_empty()
             }
         });
-        Registration { browser, manifest_path, matched }
+        let manifest = host.as_deref().and_then(|host| manifest_example(browser, host));
+        Registration { browser, manifest_path, matched, manifest }
     }).collect()
+}
+
+fn manifest_example(browser: Browser, host: &Path) -> Option<String> {
+    let mut manifest = serde_json::json!({
+        "name": HOST_NAME, "description": "focus. local bridge", "type": "stdio", "path": host,
+    });
+    if browser.is_gecko() {
+        manifest["allowed_extensions"] = serde_json::json!([GECKO_ID]);
+    } else {
+        manifest["allowed_origins"] = serde_json::json!([format!("chrome-extension://{}/", chromium_id()?)]);
+    }
+    serde_json::to_string_pretty(&manifest).ok()
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn registration_home() -> Option<PathBuf> {
+    #[cfg(debug_assertions)]
+    if let Some(data) = std::env::var_os("FOCUS_DATA_DIR") {
+        let home = std::env::var_os("FOCUS_REGISTRATION_HOME").map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(data).join("registration-home"));
+        return home.is_absolute().then_some(home);
+    }
+    dirs::home_dir()
 }
 
 fn registration_path(browser: Browser) -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
-    let dir = dirs::home_dir()?.join("Library/Application Support").join(match browser {
+    let dir = registration_home()?.join("Library/Application Support").join(match browser {
         Browser::Chrome => "Google/Chrome/NativeMessagingHosts",
         Browser::Chromium => "Chromium/NativeMessagingHosts",
         Browser::Brave => "BraveSoftware/Brave-Browser/NativeMessagingHosts",
-        Browser::Firefox => "Mozilla/NativeMessagingHosts",
-        Browser::Zen => "Zen/NativeMessagingHosts",
+        Browser::Firefox | Browser::Zen => "Mozilla/NativeMessagingHosts",
     });
     #[cfg(target_os = "linux")]
-    let dir = match browser {
-        Browser::Chrome => dirs::config_dir()?.join("google-chrome/NativeMessagingHosts"),
-        Browser::Chromium => dirs::config_dir()?.join("chromium/NativeMessagingHosts"),
-        Browser::Brave => dirs::config_dir()?.join("BraveSoftware/Brave-Browser/NativeMessagingHosts"),
-        Browser::Firefox => dirs::home_dir()?.join(".mozilla/native-messaging-hosts"),
-        Browser::Zen => dirs::home_dir()?.join(".zen/native-messaging-hosts"),
+    let dir = {
+        let home = registration_home()?;
+        let config = if cfg!(debug_assertions) && std::env::var_os("FOCUS_DATA_DIR").is_some() {
+            home.join(".config")
+        } else {
+            dirs::config_dir()?
+        };
+        match browser {
+            Browser::Chrome => config.join("google-chrome/NativeMessagingHosts"),
+            Browser::Chromium => config.join("chromium/NativeMessagingHosts"),
+            Browser::Brave => config.join("BraveSoftware/Brave-Browser/NativeMessagingHosts"),
+            Browser::Firefox | Browser::Zen => home.join(".mozilla/native-messaging-hosts"),
+        }
     };
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     { Some(dir.join(FILENAME)) }

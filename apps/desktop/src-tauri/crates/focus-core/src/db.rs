@@ -3,6 +3,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior::Immed
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, time::Duration};
 use subtle::ConstantTimeEq;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -68,7 +69,7 @@ impl Db {
 
     pub fn policy(&self) -> Result<(u64, bool)> { policy(&self.0) }
 
-    pub fn begin_pair(&mut self, id: &str, browser: Browser, label: &str, token: &str) -> Result<bool> {
+    pub fn begin_pair(&mut self, id: &str, browser: Browser, label: &str, token: &str) -> Result<()> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         let now = model::now();
         tx.execute("DELETE FROM pending_pair WHERE expires_at <= ?1", [now])?;
@@ -81,29 +82,30 @@ impl Db {
         if let Some((kind, previous_label, hash, denied)) = existing {
             verify_token(&hash, token)?;
             if kind != browser.as_str() || previous_label != label { return Err(Error::Unauthorized); }
-            return if denied { Err(Error::Denied) } else { Ok(false) };
+            return if denied { Err(Error::Denied) } else { Ok(()) };
         }
         let count: u32 = tx.query_row("SELECT count(*) FROM pending_pair WHERE denied=0", [], |r| r.get(0))?;
         if count >= 16 { return Err(Error::PairLimit); }
         let hash = Sha256::digest(token);
-        tx.execute("INSERT INTO pending_pair(id,browser,label,token_hash,expires_at) VALUES(?1,?2,?3,?4,?5)",
-            params![id, browser.as_str(), label, hash.as_slice(), now + model::PAIR_SECONDS])?;
+        let request_id = Uuid::new_v4().to_string();
+        tx.execute("INSERT INTO pending_pair(id,browser,label,token_hash,expires_at,request_id) VALUES(?1,?2,?3,?4,?5,?6)",
+            params![id, browser.as_str(), label, hash.as_slice(), now + model::PAIR_SECONDS, request_id])?;
         tx.commit()?;
-        Ok(true)
+        Ok(())
     }
 
-    pub fn decide_pair(&mut self, id: &str, approve: bool, label: Option<&str>) -> Result<()> {
+    pub fn decide_pair(&mut self, request_id: &str, approve: bool, label: Option<&str>) -> Result<()> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         let now = model::now();
         let changed = if approve {
             tx.execute("INSERT INTO profile(id,label,browser,token_hash)
-                SELECT id,COALESCE(?3,label),browser,token_hash FROM pending_pair WHERE id=?1 AND expires_at>?2 AND denied=0",
-                params![id, now, label])?
+                SELECT id,COALESCE(?3,label),browser,token_hash FROM pending_pair WHERE request_id=?1 AND expires_at>?2 AND denied=0",
+                params![request_id, now, label])?
         } else {
-            tx.execute("UPDATE pending_pair SET denied=1 WHERE id=?1 AND expires_at>?2 AND denied=0", params![id, now])?
+            tx.execute("UPDATE pending_pair SET denied=1 WHERE request_id=?1 AND expires_at>?2 AND denied=0", params![request_id, now])?
         };
         if changed == 0 { return Err(Error::Invalid); }
-        if approve { tx.execute("DELETE FROM pending_pair WHERE id=?1", [id])?; }
+        if approve { tx.execute("DELETE FROM pending_pair WHERE request_id=?1", [request_id])?; }
         tx.commit()?;
         Ok(())
     }
@@ -191,7 +193,7 @@ impl Db {
         let now = model::now();
         let (revision, hide_shorts) = policy(&tx)?;
         let pending = {
-            let mut q = tx.prepare("SELECT id,label,browser FROM pending_pair WHERE expires_at>?1 AND denied=0 ORDER BY rowid")?;
+            let mut q = tx.prepare("SELECT request_id,label,browser FROM pending_pair WHERE expires_at>?1 AND denied=0 ORDER BY rowid")?;
             let rows = q.query_map([now], |r| Ok(PairLabel { id: r.get(0)?, label: r.get(1)?, browser: r.get(2)? }))?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };

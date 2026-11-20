@@ -51,10 +51,13 @@ fn approval_binds_each_request_and_policy_persists_without_profiles() {
     assert_eq!(h.pair(PROFILE,TOKEN)["ok"], true);
     assert_eq!(h.pair(OTHER,OTHER_TOKEN)["ok"], true);
     let pending: Value = serde_json::from_slice(&h.admin(&["state"]).stdout).unwrap();
-    assert_eq!(pending["pending"][0], json!({"id":PROFILE,"label":"Local profile","browser":"firefox"}));
-    assert_eq!(pending["pending"][1]["id"], OTHER);
+    let request = pending["pending"][0]["id"].as_str().unwrap();
+    assert_eq!(pending["pending"][0]["label"], "Local profile");
+    assert_eq!(pending["pending"][0]["browser"], "firefox");
+    assert_ne!(pending["pending"][1]["id"], request);
     assert_eq!(h.pair(PROFILE,OTHER_TOKEN)["error"]["code"], "unauthorized");
-    assert!(h.admin(&["approve",PROFILE]).status.success());
+    assert!(!h.admin(&["approve", PROFILE]).status.success());
+    assert!(h.admin(&["approve", request, "Edited label"]).status.success());
     assert_eq!(h.op("hello",json!({"profileId":OTHER,"token":OTHER_TOKEN}))["error"]["code"], "pair_pending");
     assert_eq!(h.op("hello",json!({"profileId":PROFILE,"token":OTHER_TOKEN}))["error"]["code"], "unauthorized");
     assert_eq!(h.op("hello",json!({"profileId":PROFILE,"token":TOKEN}))["body"]["revision"], 1);
@@ -67,6 +70,7 @@ fn approval_binds_each_request_and_policy_persists_without_profiles() {
     h.host.wait().unwrap();
     let state: Value = serde_json::from_slice(&h.admin(&["state"]).stdout).unwrap();
     assert_eq!(state["hideShorts"], true);
+    assert_eq!(state["profiles"][0]["label"], "Edited label");
     assert!(h.admin(&["rule", "1", "false"]).status.success());
 }
 
@@ -78,7 +82,8 @@ fn rejects_protocol_mismatch_and_revoked_profiles() {
     hello["v"] = json!(2);
     assert_eq!(h.request(hello), fixture["versionMismatch"]);
     assert_eq!(h.pair(PROFILE,TOKEN)["ok"], true);
-    assert!(h.admin(&["approve",PROFILE]).status.success());
+    let state: Value = serde_json::from_slice(&h.admin(&["state"]).stdout).unwrap();
+    assert!(h.admin(&["approve", state["pending"][0]["id"].as_str().unwrap()]).status.success());
     assert_eq!(h.request(fixture["hello"].clone())["ok"], true);
     assert!(h.admin(&["revoke",PROFILE]).status.success());
     assert_eq!(h.op("snapshot",json!({"afterRevision":null}))["error"]["code"], "unpaired");

@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "focus.",
+  "version": "0.1.0",
+  "description": "Apply your focus. preferences in this browser profile.",
+  "permissions": ["storage", "nativeMessaging", "scripting", "alarms"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "focus.", "default_popup": "popup.html" },
+  "incognito": "not_allowed"
+}

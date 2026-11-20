@@ -12,13 +12,18 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "npm run check --workspace @focus/desktop",
+    "check": "npm run check --workspace @focus/desktop && npm run check --workspace @focus/extension",
     "test:unit": "vitest run --config apps/desktop/vite.config.ts",
+    "package:extensions": "node scripts/package-extensions.mjs",
+    "test:browser": "node tests/browser/run.mjs",
     "tauri": "npm run tauri --workspace @focus/desktop --"
   },
   "devDependencies": {
     "@testing-library/svelte": "^5.3.1",
     "jsdom": "^26.1.0",
-    "vitest": "^3.2.7"
+    "playwright": "1.65.1",
+    "selenium-webdriver": "4.51.0",
+    "vitest": "^3.2.7",
+    "web-ext": "10.8.0"
   }
 }
