@@ -8,7 +8,7 @@ LinkedIn is represented by a neutral monogram rather than its logo: its [guideli
 
 ## Original print artwork
 
-The desktop paper grain and particle tiles are from the approved `focus-bitmap-particles.html` study. `python3.12 apps/desktop/tools/build-paper-stock.py /path/to/focus-bitmap-particles.html` renders the study's fibre pattern and seeded toner positions to the bundled alpha masks using Pillow; no artwork is fetched or generated at runtime.
+The vector paper grain and seeded particle shapes are original artwork from the approved focus. design study. The grain tile is editable SVG. Run `python3 apps/desktop/tools/build-paper-stock.py` to rebuild the three SVG flake tiles offline.
 
 ## Mona Sans and Mona Sans Mono
 

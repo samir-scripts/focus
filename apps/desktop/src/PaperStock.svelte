@@ -29,8 +29,8 @@
   .stock::before {
     content: '';
     opacity: var(--grain-opacity, var(--grain-paper));
-    -webkit-mask: url('./assets/paper-grain.png') 0 0 / 109px 113px repeat;
-    mask: url('./assets/paper-grain.png') 0 0 / 109px 113px repeat;
+    -webkit-mask: url('./assets/paper-grain.svg') 0 0 / 109px 113px repeat;
+    mask: url('./assets/paper-grain.svg') 0 0 / 109px 113px repeat;
   }
 
   .toner {
@@ -41,15 +41,29 @@
     mask: var(--tile) var(--toner-origin, 0 0) / var(--tile-width) 594px repeat;
   }
 
-  .slow { --tile: url('./assets/toner-slow.png'); --drift-time: 77s; --sway: 3px; }
-  .mid { --tile: url('./assets/toner-mid.png'); --drift-time: 57s; --sway: -6px; }
-  .quick { --tile: url('./assets/toner-quick.png'); --drift-time: 43s; --sway: 7px; }
+  .slow { --tile: url('./assets/toner-slow.svg'); --drift-time: 77s; --sway: 3px; }
+  .mid { --tile: url('./assets/toner-mid.svg'); --drift-time: 57s; --sway: -6px; }
+  .quick { --tile: url('./assets/toner-quick.svg'); --drift-time: 43s; --sway: 7px; }
 
   @media (prefers-reduced-motion: no-preference) {
     .toner {
       animation: drift-toner var(--drift-time) linear infinite;
       animation-play-state: var(--toner-play-state, running);
     }
+  }
+
+  /* The fastest third slowly thins and returns, even across a whole repeating tile. */
+  @media (prefers-reduced-motion: no-preference) {
+    .toner.quick {
+      animation-name: drift-toner, toner-density;
+      animation-duration: var(--drift-time), 26s;
+      animation-timing-function: linear, ease-in-out;
+    }
+  }
+
+  @keyframes toner-density {
+    0%, 100% { opacity: var(--toner-opacity); }
+    45%, 55% { opacity: 0; }
   }
 
   @keyframes drift-toner {

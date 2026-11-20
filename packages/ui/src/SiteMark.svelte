@@ -20,9 +20,19 @@
   <svg width={size} height={size} viewBox={mark.viewBox} fill="currentColor" aria-hidden="true" focusable="false"><path d={mark.path} /></svg>
 {:else if id === 'linkedin'}
   <!-- A neutral domain monogram, not the LinkedIn logo. -->
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+  <svg class="original-mark" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
     <path d="M2 5h3v11h6v3H2zm12 0h8v2.5h-2.5v9H22V19h-8v-2.5h2.5v-9H14z" />
   </svg>
 {:else}
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z" /></svg>
+  <svg class="original-mark" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z" /></svg>
 {/if}
+
+<style>
+  /* Only the original monograms and symbols take the printed screen. */
+  @media (forced-colors: none) {
+    .original-mark {
+      mask-image: url('./assets/mark-screen.svg');
+      mask-size: 4px 4px;
+    }
+  }
+</style>

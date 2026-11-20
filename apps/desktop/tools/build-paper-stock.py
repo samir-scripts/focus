@@ -1,37 +1,21 @@
-"""Make alpha tiles from the approved focus-bitmap-particles.html proof with Pillow."""
+"""Rebuild the three vector flake tiles from the approved study's seeded geometry."""
 
-import argparse
-import re
 from math import cos, pi, sin, sqrt
 from pathlib import Path
 
-from PIL import Image, ImageDraw
-
 ASSETS = Path(__file__).resolve().parents[1] / 'src' / 'assets'
-ASSETS.mkdir(exist_ok=True)
 
 
 def write_tile(name, size, boxes):
-    scale = 10
-    image = Image.new('L', (size[0] * scale, size[1] * scale))
-    draw = ImageDraw.Draw(image)
-    for x, y, width, height, alpha in boxes:
-        left, top = round(x * scale), round(y * scale)
-        right, bottom = round((x + width) * scale), round((y + height) * scale)
-        if right > left and bottom > top:
-            draw.rectangle((left, top, right-1, bottom-1), fill=alpha)
-    alpha = image.resize((size[0] * 2, size[1] * 2), Image.Resampling.BOX)
-    tile = Image.new('LA', alpha.size, (255, 0))
-    tile.putalpha(alpha)
-    tile.save(ASSETS / f'{name}.png', optimize=True)
-
-
-def fibre(proof):
-    pattern = re.search(r'<pattern id="fp-fibre"[^>]*>\s*<path d="([^"]+)"', proof).group(1)
-    number = r'(\d+(?:\.\d+)?)'
-    boxes = re.findall(fr'M{number} {number}h{number}v{number}h-\d+(?:\.\d+)?z', pattern)
-    assert len(boxes) == pattern.count('M')
-    write_tile('paper-grain', (109, 113), [(*map(float, box), 255) for box in boxes])
+    width, height = size
+    paths = {}
+    for x, y, w, h, alpha in boxes:
+        paths.setdefault(alpha, []).append(f'M{x:.1f} {y:.1f}h{w:.1f}v{h:.1f}h-{w:.1f}z')
+    lines = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}">']
+    for alpha, fragments in paths.items():
+        lines.append(f'  <path opacity="{alpha / 255:.3f}" d="{"".join(fragments)}"/>')
+    lines.append('</svg>')
+    (ASSETS / f'{name}.svg').write_text('\n'.join(lines) + '\n')
 
 
 def toner():
@@ -68,7 +52,4 @@ def toner():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('proof', type=Path)
-    fibre(parser.parse_args().proof.read_text())
     toner()
