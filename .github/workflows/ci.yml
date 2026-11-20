@@ -2,9 +2,9 @@ name: Focus CI
 
 on:
   pull_request:
-    branches: [main, staging, release]
+    branches: [dev, stage, release]
   push:
-    branches: [staging]
+    branches: [stage]
 
 permissions:
   contents: read
@@ -53,9 +53,9 @@ jobs:
         run: |
           set -eu
           case "$BASE_BRANCH" in
-            main) exit 0 ;;
-            staging) expected=main ;;
-            release) expected=staging ;;
+            dev) exit 0 ;;
+            stage) expected=dev ;;
+            release) expected=stage ;;
             *) exit 1 ;;
           esac
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
