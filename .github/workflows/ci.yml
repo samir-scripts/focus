@@ -2,9 +2,9 @@ name: Focus CI
 
 on:
   pull_request:
-    branches: [main, staging, release]
+    branches: [dev, stage, release]
   push:
-    branches: [staging]
+    branches: [stage]
 
 permissions:
   contents: read
@@ -35,6 +35,67 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: cargo test --locked --workspace
 
+  packaged_browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Install Linux native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            unzip xvfb xdotool
+      - name: Provision Chromium and check runner Firefox
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/focus-playwright
+        run: |
+          npm exec --no -- playwright install --with-deps chromium
+          chromium="$(node -p "require('playwright').chromium.executablePath()")"
+          "$chromium" --version
+          firefox --version
+          geckodriver --version
+          npm exec --no -- web-ext --version
+      - name: Test native bridge and packaged extensions
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/focus-playwright
+        run: |
+          set -u
+          export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          export CARGO_TARGET_DIR="$PWD/apps/desktop/src-tauri/target"
+          HOME="$(mktemp -d "$RUNNER_TEMP/focus-browser.XXXXXX")"
+          export HOME
+          export XDG_CONFIG_HOME="$HOME/config" XDG_DATA_HOME="$HOME/data"
+          export XDG_CACHE_HOME="$HOME/cache" XDG_STATE_HOME="$HOME/state"
+          export TMPDIR="$HOME/tmp"
+          mkdir "$TMPDIR"
+
+          cargo test --locked --workspace --manifest-path apps/desktop/src-tauri/Cargo.toml
+          cargo build --locked --profile dev --bin focus-native-host --bin focus-fixture-admin \
+            --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+          npm run package:extensions
+          chromium_zip=artifacts/extensions/focus-chromium.zip
+          firefox_zip=artifacts/extensions/focus-firefox.zip
+          for archive in "$chromium_zip" "$firefox_zip"; do
+            unzip -tq "$archive"
+            unzip -Z1 "$archive" | grep -Fx 'manifest.json'
+          done
+          sha256sum "$chromium_zip" "$firefox_zip" | tee "$TMPDIR/extensions.sha256"
+          npm run test:browser -- --case shared-rule
+          sha256sum --check "$TMPDIR/extensions.sha256"
+
   promotion:
     runs-on: ubuntu-latest
     steps:
@@ -53,9 +114,9 @@ jobs:
         run: |
           set -eu
           case "$BASE_BRANCH" in
-            main) exit 0 ;;
-            staging) expected=main ;;
-            release) expected=staging ;;
+            dev) exit 0 ;;
+            stage) expected=dev ;;
+            release) expected=stage ;;
             *) exit 1 ;;
           esac
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
@@ -64,13 +125,17 @@ jobs:
 
   required:
     if: always()
-    needs: [javascript, native, promotion]
+    needs: [javascript, native, packaged_browser, promotion]
     runs-on: ubuntu-latest
     steps:
       - name: Require every job to succeed
         env:
           JAVASCRIPT: ${{ needs.javascript.result }}
           NATIVE: ${{ needs.native.result }}
+          PACKAGED_BROWSER: ${{ needs.packaged_browser.result }}
           PROMOTION: ${{ needs.promotion.result }}
         run: |
-          test "$JAVASCRIPT" = success && test "$NATIVE" = success && test "$PROMOTION" = success
+          test "$JAVASCRIPT" = success &&
+            test "$NATIVE" = success &&
+            test "$PACKAGED_BROWSER" = success &&
+            test "$PROMOTION" = success
