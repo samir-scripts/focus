@@ -100,7 +100,7 @@
     {#if page === 'Sites'}
       <section class="library" aria-labelledby="library-heading">
         <PaperStock particles />
-        <h2 id="library-heading">Site library</h2>
+        <h2 id="library-heading">Site Library</h2>
         <ul>
           {#each sites as entry (entry.id)}
             <li>
@@ -234,12 +234,12 @@
     border-bottom: 1px solid var(--divider);
   }
 
-  /* The macOS event monitor reserves this toolbar's top 46pt and rightmost 124pt. */
-  .toolbar.native-mac { box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
+  /* AppKit scales the 46px toolbar and 124px navigation hit region with page zoom. */
+  .toolbar.native-mac { position: sticky; top: 0; z-index: 1; box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
   .toolbar.native-mac nav { flex: none; flex-wrap: nowrap; }
   .toolbar.native-mac .brand { padding-inline: 3px 12px; }
 
-  .workspace { flex: 1; }
+  .workspace { flex: 1; display: flex; flex-direction: column; }
   .with-library { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
 
   .brand {
@@ -321,7 +321,7 @@
   .library { padding: 16px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); --toner-origin: -117px -48px; }
   .library h2 { margin: 0 14px 4px; font-size: 15px; color: var(--ink); }
 
-  main { padding: 24px; min-width: 0; background: var(--surface); }
+  main { flex: 1; padding: 24px; min-width: 0; background: var(--surface); }
   .page { max-width: 760px; }
 
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }

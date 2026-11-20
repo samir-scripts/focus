@@ -28,7 +28,7 @@ describe('desktop shell', () => {
 
   it('moves between branded site rows and shows the selected hostname', async () => {
     render(App);
-    const library = within(screen.getByRole('region', { name: 'Site library' }));
+    const library = within(screen.getByRole('region', { name: 'Site Library' }));
     const rows = library.getAllByRole('button');
     const names = ['YouTube', 'Reddit', 'Instagram', 'X / Twitter', 'Facebook', 'TikTok', 'LinkedIn', 'WhatsApp Web', 'Google Search'];
     expect(rows).toEqual(names.map((name) => library.getByRole('button', { name })));
