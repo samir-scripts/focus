@@ -1,0 +1,49 @@
+{
+  "case": "shared-rule",
+  "platform": "linux",
+  "artifacts": {
+    "chromium": {
+      "file": "artifacts/extensions/focus-chromium.zip",
+      "sha256": "cc2f2a211b1266a1282d2af3ab4c37feac39d777b60e9323bafcc2593b4eb29e"
+    },
+    "firefox": {
+      "file": "artifacts/extensions/focus-firefox.zip",
+      "sha256": "a4b3aee3eeda1df346bb8462721838ac805dd8e1bfc895128cc192a547324874"
+    }
+  },
+  "browsers": {
+    "chromium": "Google Chrome for Testing 159.0.8154.6",
+    "firefox": "160.0.1"
+  },
+  "fixture": "YouTube test aliases served by private loopback HTTPS; other destinations rejected",
+  "checks": [
+    "pair both profiles with explicit approval and no default site grants",
+    "enable once and grant only Chromium",
+    "grant Firefox and protect ordinary content on each alias",
+    "partial origin revocation restores only that origin",
+    "regrant and restart Chromium with the enabled rule",
+    "host unavailable preserves last policy",
+    "disable restores pages in both connected browsers",
+    "desktop unpair clears connected policy",
+    "Firefox temporary reinstallation starts as a new installation"
+  ],
+  "status": "passed",
+  "firefoxRestart": "temporary ZIP installation only; not signed-install persistence evidence",
+  "partialAccess": [
+    {
+      "browser": "Chromium",
+      "origin": "https://www.youtube.com/*",
+      "shorts": "restored on the open tab"
+    },
+    {
+      "browser": "Chromium",
+      "origin": "https://m.youtube.com/*",
+      "shorts": "still hidden"
+    },
+    {
+      "browser": "Firefox",
+      "origin": "https://www.youtube.com/*",
+      "shorts": "still hidden"
+    }
+  ]
+}
