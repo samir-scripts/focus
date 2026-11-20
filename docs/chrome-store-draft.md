@@ -1,12 +1,14 @@
 # Chrome Web Store draft
 
+The publisher dashboard saved version `0.1.0` as **Draft** on November 20, 2026. Google assigned item ID `gjopbhkkemlhggdbpfhmmmlmamdigehg`. The uploaded ZIP has SHA-256 `992cebfbb54fcdf7d3f3e6db7e00528f79ba6f5a995ca26a6197629a2ef01d72`. The draft includes the English description, store icon, and first screenshot.
+
 ## Store listing
 
 **Name**  focus.
 
-**Summary**  Hide YouTube Shorts from discovery pages in the Chrome profiles you choose. Requires the focus. desktop app.
+**Summary from the uploaded manifest**  Apply your focus. preferences in this browser profile.
 
-**Category**  Productivity
+**Category**  Productivity → Tools
 
 **Description**
 
