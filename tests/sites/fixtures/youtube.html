@@ -1,11 +1,15 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>YouTube fixture</title></head><body>
 <nav><ytd-guide-entry-renderer id="shorts-nav"><a href="/shorts/">Shorts</a></ytd-guide-entry-renderer><ytd-guide-entry-renderer id="subscriptions-nav"><a href="/feed/subscriptions">Subscriptions</a></ytd-guide-entry-renderer></nav>
+<form id="site-search" action="/results"><label>Search <input name="search_query"></label></form>
 <main>
 <ytd-rich-shelf-renderer id="shorts-shelf" is-shorts><a href="/shorts/one">Short</a></ytd-rich-shelf-renderer>
 <ytd-rich-item-renderer id="shorts-card"><ytd-reel-item-renderer><a href="/shorts/two">Short</a></ytd-reel-item-renderer></ytd-rich-item-renderer>
 <ytd-rich-item-renderer id="ordinary-video"><a href="/watch?v=one">Video</a></ytd-rich-item-renderer>
 <ytd-rich-item-renderer id="playlist"><a href="/playlist?list=one">Playlist</a></ytd-rich-item-renderer>
 <a id="direct-short" href="/shorts/direct">Direct link</a>
+<!-- Original one-second gray clip, generated with ffmpeg -f lavfi -i color=c=gray:s=32x32:r=5 -t 1 -an -c:v libvpx. -->
+<video id="playback" controls muted playsinline src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAJFEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggElTbuMU6uEHFO7a1OsggIv7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjIuMTIuMTAyV0GNTGF2ZjYyLjEyLjEwMkSJiECPQAAAAAAAFlSua8iuAQAAAAAAAD/XgQFzxYgpKnxMn7sXL5yBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAvrwgDgkLCBILqBIJqBAlWwhFW5gQESVMNn/HNzoGPAgGfImkWjh0VOQ09ERVJEh41MYXZmNjIuMTIuMTAyc3PWY8CLY8WIKSp8TJ+7Fy9nyKFFo4dFTkNPREVSRIeUTGF2YzYyLjI4LjEwMiBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAxLjAwMDAwMDAwMAAfQ7Z1QIPngQCjooEAAIAwAgCdASogACAAAEcIhYWIhYSIAgIAB5Eo2WD+aACjlYEAyACxAQAFEKwAGAAYWC/0AAhwAKOVgQGQALEBAAUQrAAYABhYL/QACHAAo5WBAlgAsQEABRCsABgAGFgv9AAIcACjlYEDIACxAQAFEKwAGAAYWC/0AAhwABxTu2uRu4+zgQC3iveBAfGCAabwgQM="></video>
+<section id="comments" aria-label="Comments"><p>Ordinary comments</p></section>
 </main>
 </body></html>

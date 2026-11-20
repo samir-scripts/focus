@@ -35,7 +35,8 @@
     pairing = true; message = '';
     chrome.runtime.sendMessage({ type: 'pair', browser, label }, (result: { ok?: boolean; error?: string }) => {
       pairing = false;
-      message = result?.ok ? 'Confirm this profile in focus.' : (result?.error || 'Could not connect to focus.');
+      message = result?.ok ? 'Confirm this profile in focus.'
+        : result?.error === 'version_mismatch' ? '' : 'Could not connect to focus.';
       refresh();
     });
   }

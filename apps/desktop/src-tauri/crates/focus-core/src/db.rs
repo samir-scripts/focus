@@ -1,9 +1,11 @@
 use crate::model::{self, Browser, DesktopState, OpenIntent, PairLabel, ProfileStatus};
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior::Immediate};
+use rusqlite::{params, types::ValueRef, Connection, ErrorCode, OptionalExtension, TransactionBehavior::Immediate};
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::Path, thread, time::{Duration, Instant}};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
+
+const BUSY_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -27,16 +29,36 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct Db(Connection);
 
+fn enable_wal(db: &Connection) -> Result<()> {
+    // SQLite may skip its busy handler while changing the journal mode.
+    let deadline = Instant::now() + BUSY_TIMEOUT;
+    loop {
+        db.busy_timeout(deadline.saturating_duration_since(Instant::now()))?;
+        let mode = db.pragma_update_and_check(None, "journal_mode", "WAL", |row| {
+            Ok(row.get_ref(0)? == ValueRef::Text(b"wal"))
+        });
+        match mode {
+            Ok(true) => return Ok(()),
+            Ok(false) => (),
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if matches!(error.code, ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => (),
+            Err(error) => return Err(error.into()),
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() { return Err(Error::Database); }
+        thread::sleep(remaining.min(Duration::from_millis(25)));
+    }
+}
+
 impl Db {
     pub fn open_default() -> Result<Self> { Self::open(&model::data_path()?) }
 
     pub fn open(path: &Path) -> Result<Self> {
         fs::create_dir_all(path.parent().ok_or(Error::Database)?)?;
         let mut db = Connection::open(path)?;
-        db.busy_timeout(Duration::from_secs(3))?;
+        enable_wal(&db)?;
+        db.busy_timeout(BUSY_TIMEOUT)?;
         db.pragma_update(None, "foreign_keys", "ON")?;
-        // This is a no-op once the WAL mode has been established for the file.
-        db.pragma_update(None, "journal_mode", "WAL")?;
         let version = |db: &Connection| db.pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0));
         if version(&db)? == 0 {
             let tx = db.transaction_with_behavior(Immediate)?;
