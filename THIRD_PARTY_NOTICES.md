@@ -10,6 +10,8 @@ LinkedIn is represented by a neutral monogram rather than its logo: its [guideli
 
 The bundled variable WOFF2 fonts were copied from the sibling Grace project, whose font provenance identifies the GitHub Mona Sans project: https://github.com/github/mona-sans. The fonts are distributed under the following license.
 
+The separately named **Focus Bitmap Display** and **Focus Bitmap Wordmark** fonts are bitmap-outline derivatives of those same Mona fonts, distributed under the same SIL OFL. `python3.12 packages/ui/tools/build-bitmap-fonts.py` regenerates them offline with fontTools and Pillow (with WOFF2-capable FreeType). The **Focus Bitmap Regular** and **Bold** faces are original: their small letterforms come from the approved `focus-bitmap-particles.html` design study, with the rest of Basic Latin drawn to match.
+
 Copyright (c) 2023, GitHub https://github.com/github/mona-sans
 with Reserved Font Name "Mona Sans"
 

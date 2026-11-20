@@ -1,4 +1,32 @@
 @font-face {
+  font-family: 'Focus Bitmap';
+  src: url('./assets/FocusBitmap-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Focus Bitmap';
+  src: url('./assets/FocusBitmap-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Focus Bitmap Display';
+  src: url('./assets/FocusBitmap-Display.ttf') format('truetype');
+  font-weight: 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Focus Bitmap Wordmark';
+  src: url('./assets/FocusBitmap-Wordmark.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'Mona Sans';
   src: url('./assets/MonaSansVF.woff2') format('woff2');
   font-style: normal;
@@ -16,6 +44,10 @@
 
 :root {
   color-scheme: light;
+  --font-ui: 'Focus Bitmap', 'Mona Sans', system-ui, sans-serif;
+  --font-code: 'Focus Bitmap', 'Mona Sans Mono', ui-monospace, monospace;
+  --font-display: 'Focus Bitmap Display', var(--font-ui);
+  --font-wordmark: 'Focus Bitmap Wordmark', var(--font-code);
   --canvas: var(--light-paper);
   --surface: var(--light-surface);
   --rail: var(--canvas);
