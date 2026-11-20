@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import SiteMark from '@focus/ui/SiteMark.svelte';
   import TypewriterMark from '@focus/ui/TypewriterMark.svelte';
   import { isTauri } from '@tauri-apps/api/core';
@@ -7,6 +7,11 @@
   import PaperStock from './PaperStock.svelte';
   import PrintImpression from './PrintImpression.svelte';
   import { sites } from './sites';
+  import BrowserSettings from './BrowserSettings.svelte';
+  import PairBrowser from './PairBrowser.svelte';
+  import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState, type Registration } from './browser';
+
+  let { browserBridge = isTauri() ? nativeBrowserBridge : null }: { browserBridge?: BrowserBridge | null } = $props();
 
   const pages = ['Sites', 'Statistics', 'Settings'] as const;
   const nativeMacToolbar = isTauri() && navigator.platform.startsWith('Mac');
@@ -30,6 +35,101 @@
   let windowHidden = $state(document.hidden);
   let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
+  let browserState = $state.raw<BrowserState>();
+  let registrations = $state.raw<Registration[]>([]);
+  let browserError = $state('');
+  let actionError = $state('');
+  let pairError = $state('');
+  let editingRule = $state(false);
+  let decidingPair = $state(false);
+  let pendingPair = $derived(browserState?.pending[0]);
+  let pull: Promise<void> | undefined;
+
+  function refresh() {
+    if (!browserBridge) return;
+    if (pull) return pull;
+    pull = browserBridge.state().then(async (next) => {
+      browserState = next;
+      browserError = '';
+      if (next.open) {
+        const target = sites.find((entry) => entry.id === next.open?.siteId);
+        if (target) site = target;
+        revealPage = false;
+        revealSite = false;
+        page = target ? 'Sites' : 'Settings';
+        await tick();
+        heading?.focus();
+      }
+    }).catch(() => {
+      browserError = 'Database unavailable';
+      browserState = undefined;
+    }).finally(() => { pull = undefined; });
+    return pull;
+  }
+
+  onMount(() => {
+    if (!browserBridge) return;
+    void refresh();
+    const timer = window.setInterval(refresh, 1000);
+    return () => window.clearInterval(timer);
+  });
+
+  $effect(() => {
+    if (page === 'Settings') void checkRegistrations();
+  });
+
+  async function checkRegistrations() {
+    if (!browserBridge) return;
+    try {
+      registrations = await browserBridge.registrations();
+    } catch {
+      actionError = 'Could not check browser registrations.';
+    }
+  }
+
+  async function saveRule(input: HTMLInputElement) {
+    if (!browserBridge || !browserState || editingRule) return;
+    const enabled = input.checked;
+    input.checked = browserState.hideShorts;
+    editingRule = true;
+    actionError = '';
+    try {
+      await browserBridge.setHideShorts(browserState.revision, enabled);
+    } catch (error) {
+      actionError = error === 'stale_revision' ? 'Rules changed. Review the current setting and try again.' : 'Could not save rule.';
+    } finally {
+      await pull;
+      await refresh();
+      editingRule = false;
+    }
+  }
+
+  async function decidePair(id: string, approved: boolean, label: string | null) {
+    if (!browserBridge || decidingPair) return;
+    decidingPair = true;
+    pairError = '';
+    try {
+      await browserBridge.decidePair(id, approved, label);
+    } catch {
+      pairError = 'Could not complete this request. Check the label or start again in the browser.';
+    } finally {
+      await pull;
+      await refresh();
+      decidingPair = false;
+    }
+  }
+
+  async function revoke(id: string) {
+    if (!browserBridge) return;
+    actionError = '';
+    try {
+      await browserBridge.revoke(id);
+    } catch {
+      actionError = 'Could not disconnect profile.';
+    }
+    await pull;
+    await refresh();
+  }
 
   $effect(() => {
     const root = document.documentElement;
@@ -70,6 +170,12 @@
 </script>
 
 <svelte:document onvisibilitychange={() => windowHidden = document.hidden} />
+
+{#if pendingPair}
+  {#key pendingPair.id}
+    <PairBrowser request={pendingPair} error={pairError} busy={decidingPair} decide={decidePair} />
+  {/key}
+{/if}
 
 <div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
@@ -120,6 +226,9 @@
 
     <main>
       <PaperStock particles />
+      {#if browserError || actionError}
+        <p class="browser-error" role="alert">{browserError || actionError}</p>
+      {/if}
       {#key page}
         <div class="page" class:reveal={revealPage && page === 'Settings'}>
           {#if page === 'Sites'}
@@ -138,10 +247,30 @@
             <section class="details access-row" class:reveal={revealPage}>
               <div>
                 <h2>Browser access</h2>
-                <p class="connection"><span aria-hidden="true"></span>No browsers connected</p>
+                {#if browserState?.profiles.length}
+                  {#each browserState.profiles as profile (profile.id)}
+                    {@const access = siteAccess(profile, site, browserState.revision)}
+                    <p><strong>{profile.label}</strong> · {browsers[profile.browser]} · {access.status}</p>
+                    {#if access.origins.length}<p class="origins">Granted: {access.origins.join(', ')}</p>{/if}
+                    {#if access.missing.length}<p class="origins">Missing: {access.missing.join(', ')}</p>{/if}
+                  {/each}
+                {:else if !browserBridge || browserState}
+                  <p class="connection"><span aria-hidden="true"></span>No browsers connected</p>
+                {/if}
               </div>
               <button type="button" class="outline" onclick={(event) => openPage('Settings', event)}>Browser settings</button>
             </section>
+            {#if browserState && site.id === 'youtube'}
+              <section class="details rule-row">
+                <h2>Content rules</h2>
+                <label class="preference">
+                  <input type="checkbox" checked={browserState.hideShorts} disabled={editingRule}
+                    onchange={(event) => saveRule(event.currentTarget)} />
+                  <span>{site.rules[0].label}</span>
+                </label>
+                <p>Each browser profile needs access to the YouTube address it’s visiting.</p>
+              </section>
+            {/if}
           {:else if page === 'Statistics'}
             <header class="page-heading" class:reveal={revealPage}>
               <h1 tabindex="-1" bind:this={heading}>Statistics</h1>
@@ -200,10 +329,7 @@
                 <span>Pause toner particles</span>
               </label>
             </fieldset>
-            <section class="details">
-              <h2>Browsers</h2>
-              <p>No browsers connected</p>
-            </section>
+            <BrowserSettings profiles={browserState?.profiles ?? []} {registrations} check={checkRegistrations} disconnect={revoke} />
           {/if}
         </div>
       {/key}
@@ -344,6 +470,9 @@
   .details, fieldset { margin-top: 16px; }
   .access-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .connection { display: flex; align-items: center; gap: 6px; }
+  .origins { font-family: var(--font-code); font-size: 13px; }
+  .browser-error { position: relative; color: var(--error); }
+  .rule-row { border-block-start: 1px solid var(--divider); padding-block-start: 12px; }
   .connection span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
   .outline { min-height: 36px; border: 1px solid var(--edge); border-radius: var(--radius-control); padding-inline: 10px; }
   .outline:not(:hover, :active) { background: var(--surface); }

@@ -1,0 +1,6 @@
+{
+  "hello": {"v":1,"id":"1","op":"hello","body":{"profileId":"9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90","token":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}},
+  "snapshot": {"v":1,"id":"2","ok":true,"body":{"revision":7,"sites":[{"id":"youtube","rules":{"youtube.hide-shorts":true}}]}},
+  "versionMismatch": {"v":1,"id":"1","ok":false,"error":{"code":"version_mismatch"}},
+  "revisionEvent": {"v":1,"event":"revision","revision":7}
+}

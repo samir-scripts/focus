@@ -1,0 +1,11 @@
+[
+  {"id":"youtube","label":"YouTube","hosts":["youtube.com","www.youtube.com","m.youtube.com","youtu.be"],"rules":[{"id":"youtube.hide-shorts","label":"Hide Shorts shelves and discovery"}]},
+  {"id":"reddit","label":"Reddit","hosts":["reddit.com","www.reddit.com","old.reddit.com"],"rules":[]},
+  {"id":"instagram","label":"Instagram","hosts":["instagram.com","www.instagram.com"],"rules":[]},
+  {"id":"x","label":"X / Twitter","hosts":["x.com","www.x.com","twitter.com","www.twitter.com"],"rules":[]},
+  {"id":"facebook","label":"Facebook","hosts":["facebook.com","www.facebook.com"],"rules":[]},
+  {"id":"tiktok","label":"TikTok","hosts":["tiktok.com","www.tiktok.com"],"rules":[]},
+  {"id":"linkedin","label":"LinkedIn","hosts":["linkedin.com","www.linkedin.com"],"rules":[]},
+  {"id":"whatsapp","label":"WhatsApp Web","hosts":["web.whatsapp.com"],"rules":[]},
+  {"id":"google-search","label":"Google Search","hosts":["google.com","www.google.com"],"rules":[]}
+]

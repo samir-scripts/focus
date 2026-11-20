@@ -39,6 +39,50 @@ describe('desktop shell', () => {
     expect(library.getByRole('button', { name: 'YouTube' }).getAttribute('aria-pressed')).toBe('false');
   });
 
+  it('can save Hide Shorts before any browser is connected', async () => {
+    let enabled = false;
+    let revision = 0;
+    render(App, { browserBridge: {
+      state: async () => ({ revision, hideShorts: enabled, pending: [], profiles: [], open: null }),
+      registrations: async () => [],
+      setHideShorts: async (expected: number, next: boolean) => {
+        expect(expected).toBe(revision);
+        enabled = next;
+        revision += 1;
+      },
+      decidePair: async () => {},
+      revoke: async () => {},
+    } });
+    const rule = await screen.findByRole<HTMLInputElement>('checkbox', { name: /Hide Shorts/ });
+    expect(rule.disabled).toBe(false);
+    await fireEvent.click(rule);
+    await screen.findByText('No browsers connected');
+    expect(enabled).toBe(true);
+    expect(rule.checked).toBe(true);
+  });
+
+  it('shows the missing schemes and aliases instead of claiming partial grants are applied', async () => {
+    render(App, { browserBridge: {
+      state: async () => ({
+        revision: 7, hideShorts: true, pending: [], open: null,
+        profiles: [{ id: 'sample', label: 'Test browser', browser: 'chrome', online: true, ackRevision: 7,
+          origins: ['https://www.youtube.com/*', 'https://youtu.be/*', 'https://reddit.com/*'] }],
+      }),
+      registrations: async () => [],
+      setHideShorts: async () => {},
+      decidePair: async () => {},
+      revoke: async () => {},
+    } });
+    expect(await screen.findByText(/Needs access/)).toBeTruthy();
+    expect(screen.getByText(/Missing:.*http:\/\/www\.youtube\.com\/\*/)).toBeTruthy();
+    expect(screen.getByText(/Missing:.*https:\/\/m\.youtube\.com\/\*/)).toBeTruthy();
+    expect(screen.queryByText(/· Applied/)).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Reddit' }));
+    expect(screen.getByText(/Needs access/)).toBeTruthy();
+    expect(screen.getByText(/Missing:.*https:\/\/old\.reddit\.com\/\*/)).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: /Hide Shorts/ })).toBeNull();
+  });
+
   it('reports disconnected and empty states without presenting active filtering or tracking controls', async () => {
     render(App);
     expect(screen.getByText('No browsers connected')).toBeTruthy();
