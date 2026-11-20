@@ -115,10 +115,8 @@
               {#key site.id}
                 <div class="site-heading" class:reveal={revealPage || revealSite}>
                   <span class="site-mark"><SiteMark id={site.id} size={27} /></span>
-                  <div>
-                    <h1 tabindex="-1" bind:this={heading}>{site.label}</h1>
-                    <p class="host">{site.hostname}</p>
-                  </div>
+                  <h1 tabindex="-1" bind:this={heading}>{site.label}</h1>
+                  <p class="host">{site.hostname}</p>
                 </div>
               {/key}
               {#if appearance.printIllustrations}
@@ -218,6 +216,7 @@
   /* The macOS event monitor reserves this toolbar's top 46pt and rightmost 124pt. */
   .toolbar.native-mac { box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
   .toolbar.native-mac nav { flex: none; flex-wrap: nowrap; }
+  .toolbar.native-mac .brand { padding-inline: 3px 12px; }
 
   .workspace { flex: 1; }
   .with-library { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
@@ -225,7 +224,7 @@
   .brand {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     padding: 0 16px;
     font: 700 24px/1 var(--font-wordmark);
   }
@@ -298,8 +297,8 @@
     outline-color: var(--on-accent);
   }
 
-  .library { padding: 12px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); }
-  .library h2 { margin: 0 14px 8px; font-size: 15px; color: var(--ink); }
+  .library { padding: 16px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); }
+  .library h2 { margin: 0 14px 4px; font-size: 15px; color: var(--ink); }
 
   main { padding: 24px; min-width: 0; background: var(--surface); }
   .page { max-width: 760px; }
@@ -310,15 +309,14 @@
   .site-heading h1 { font: 800 50px/.98 var(--font-display); }
   h1:focus { outline: none; }
   .site-title-row, .statistics-empty { display: flex; justify-content: space-between; gap: 16px; }
-  .site-title-row { align-items: center; }
-  .site-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
-  .site-heading > div { min-width: 0; }
+  .site-title-row { align-items: center; padding-bottom: 12px; }
+  .site-heading { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; min-width: 0; }
   .impression { pointer-events: none; }
   .margin { flex: none; }
   .sheet { width: 192px; max-width: 100%; }
   h2, legend { font-size: 15px; font-weight: 700; }
   p { margin-top: 4px; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
-  .host { font-family: var(--font-code); font-size: 14px; letter-spacing: .03em; }
+  .host { grid-column: 2; margin-top: 2px; font-family: var(--font-code); font-size: 14px; letter-spacing: .03em; }
   .details, fieldset { margin-top: 16px; }
   .access-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .connection { display: flex; align-items: center; gap: 6px; }
@@ -388,7 +386,6 @@
   }
 
   @media (max-width: 340px) {
-    .toolbar.native-mac .brand { padding-inline: 6px; }
     ul { grid-template-columns: minmax(0, 1fr); }
     .appearances label { padding-inline: 10px; }
   }
