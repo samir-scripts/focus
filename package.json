@@ -1,0 +1,24 @@
+{
+  "name": "focus-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/desktop",
+    "apps/extension",
+    "packages/ui"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "npm run check --workspace @focus/desktop",
+    "test:unit": "vitest run --config apps/desktop/vite.config.ts",
+    "tauri": "npm run tauri --workspace @focus/desktop --"
+  },
+  "devDependencies": {
+    "@testing-library/svelte": "^5.3.1",
+    "jsdom": "^26.1.0",
+    "vitest": "^3.2.7"
+  }
+}

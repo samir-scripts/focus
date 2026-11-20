@@ -1,0 +1,76 @@
+name: Focus CI
+
+on:
+  pull_request:
+    branches: [main, staging, release]
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test:unit
+      - run: npm run build --workspace @focus/desktop
+
+  native:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Test Rust workspace
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked --workspace
+
+  promotion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Enforce promotion source and tree
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          case "$BASE_BRANCH" in
+            main) exit 0 ;;
+            staging) expected=main ;;
+            release) expected=staging ;;
+            *) exit 1 ;;
+          esac
+          test "$HEAD_REPOSITORY" = "$REPOSITORY"
+          test "$HEAD_BRANCH" = "$expected"
+          test "$(git rev-parse "${HEAD_SHA}^{tree}")" = "$(git rev-parse 'HEAD^{tree}')"
+
+  required:
+    if: always()
+    needs: [javascript, native, promotion]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to succeed
+        env:
+          JAVASCRIPT: ${{ needs.javascript.result }}
+          NATIVE: ${{ needs.native.result }}
+          PROMOTION: ${{ needs.promotion.result }}
+        run: |
+          test "$JAVASCRIPT" = success && test "$NATIVE" = success && test "$PROMOTION" = success

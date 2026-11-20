@@ -1,0 +1,95 @@
+@font-face {
+  font-family: 'Mona Sans';
+  src: url('./assets/MonaSansVF.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mona Sans Mono';
+  src: url('./assets/MonaSansMonoVF.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --canvas: #c8cfc4;
+  --surface: #d9ded3;
+  --rail: #c8cfc4;
+  --ink: #282d26;
+  --muted: #454e42;
+  --divider: #8b9688;
+  --edge: #5b6558;
+  --accent: #3c5038;
+  --on-accent: #f1f4ea;
+  --selected: #b4c1ad;
+  --warning: #66430f;
+  --hover: #bec8b8;
+  --error: #8a302c;
+  --radius-control: 3px;
+  --radius-notice: 4px;
+  --radius-dialog: 6px;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --motion-interaction: 150ms;
+  --motion-view: 220ms;
+  --motion-exit: 120ms;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #242c27;
+  --surface: #2c352e;
+  --rail: #242c27;
+  --ink: #edf1e7;
+  --muted: #becabb;
+  --divider: #566358;
+  --edge: #899987;
+  --accent: #ccd9ac;
+  --on-accent: #272f22;
+  --selected: #3d4b3e;
+  --warning: #f2cd92;
+  --hover: #344137;
+  --error: #f1a5a5;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]), html[data-theme='system'] {
+    color-scheme: dark;
+    --canvas: #242c27;
+    --surface: #2c352e;
+    --rail: #242c27;
+    --ink: #edf1e7;
+    --muted: #becabb;
+    --divider: #566358;
+    --edge: #899987;
+    --accent: #ccd9ac;
+    --on-accent: #272f22;
+    --selected: #3d4b3e;
+    --warning: #f2cd92;
+    --hover: #344137;
+    --error: #f1a5a5;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-interaction: 0ms;
+    --motion-view: 0ms;
+    --motion-exit: 0ms;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+  }
+}
