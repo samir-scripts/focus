@@ -35,6 +35,22 @@ function request(op: string, body: object): Promise<any> {
   try { port.postMessage({ v: 1, id, op, body }); } catch { pending.delete(id); reject(new Error('disconnected')); }
   return promise;
 }
+
+function settleReply(message: unknown) {
+  if (!message || typeof message !== 'object' || !('id' in message) || typeof message.id !== 'string') return;
+  const wait = pending.get(message.id);
+  if (!wait) return;
+  pending.delete(message.id);
+  if (!('v' in message) || message.v !== 1) wait.reject(new Error('version_mismatch'));
+  else if ('ok' in message && message.ok === true && 'body' in message
+    && message.body && typeof message.body === 'object' && !Array.isArray(message.body)) {
+    wait.resolve(message.body);
+  } else {
+    const error = 'error' in message ? message.error : undefined;
+    const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'version_mismatch';
+    wait.reject(new Error(code));
+  }
+}
 function queue(task: () => Promise<void>) {
   serial = serial.then(task, task).catch(async (error) => {
     if (error instanceof Error && error.message === 'version_mismatch') {
@@ -103,15 +119,13 @@ async function sync() {
     policy = body;
     try {
       const grants = await reconcile();
-      await call(api.storage.local, 'set', { policy });
       await request('applied', { revision: policy.revision, origins: grants });
     } catch (error) {
       policy = previous;
-      if (previous) await call(api.storage.local, 'set', { policy: previous });
-      else await call(api.storage.local, 'remove', 'policy');
       await reconcile();
       throw error;
     }
+    await call(api.storage.local, 'set', { policy });
   } else {
     if (!policy || body.revision !== policy.revision) { await setStatus('Update required'); return; }
     const grants = await reconcile();
@@ -126,14 +140,14 @@ async function connect() {
     const current = api.runtime.connectNative(host);
     port = current;
     current.onMessage.addListener((message: any) => {
-      if (current !== port || !message || message.v !== 1) return;
-      if (message.event === 'revoked') { queue(async () => { current.disconnect(); await clearPairing('Not connected'); }); return; }
-      if (message.event === 'revision') { queue(sync); return; }
-      const wait = pending.get(message.id);
-      if (!wait) return;
-      pending.delete(message.id);
-      if (message.ok === true && message.body && typeof message.body === 'object') wait.resolve(message.body);
-      else wait.reject(new Error(message.error?.code ?? 'version_mismatch'));
+      if (current !== port) return;
+      if (message?.v === 1 && message.event === 'revoked') {
+        queue(async () => { current.disconnect(); await clearPairing('Not connected'); });
+      } else if (message?.v === 1 && message.event === 'revision') {
+        queue(sync);
+      } else {
+        settleReply(message);
+      }
     });
     current.onDisconnect.addListener(() => {
       if (port !== current) return;
@@ -163,15 +177,16 @@ async function begin(browser: string, label: string) {
   try { current = api.runtime.connectNative(host); }
   catch (error) { await queue(() => clearPairing('Not connected')); throw error; }
   port = current;
-  current.onMessage.addListener((message: any) => {
-    const wait = pending.get(message?.id);
-    if (!wait || message.v !== 1) return;
-    pending.delete(message.id);
-    if (message.ok === true) wait.resolve(message.body); else wait.reject(new Error(message.error?.code ?? 'disconnected'));
-  });
+  current.onMessage.addListener((message: unknown) => { if (port === current) settleReply(message); });
   current.onDisconnect.addListener(() => { if (port !== current) return; port = undefined; for (const wait of pending.values()) wait.reject(new Error('disconnected')); pending.clear(); });
   try { await request('pair_begin', profile); }
-  catch (error) { current.disconnect(); port = undefined; await queue(() => clearPairing('Not connected')); throw error; }
+  catch (error) {
+    const incompatible = error instanceof Error && error.message === 'version_mismatch';
+    port = undefined;
+    current.disconnect();
+    await queue(() => clearPairing(incompatible ? 'Update required' : 'Not connected'));
+    throw error;
+  }
   current.disconnect(); port = undefined;
   await setStatus('Confirm pairing in focus.');
   void connect();
