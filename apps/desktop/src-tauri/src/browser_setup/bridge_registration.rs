@@ -2,7 +2,7 @@ use super::{setup_files as files, types::{ManagedClaim, Outcome, SetupError}};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fs::File, path::{Path, PathBuf}};
+use std::{collections::BTreeMap, path::{Path, PathBuf}};
 
 const LIMIT: u64 = 64 * 1024;
 
@@ -14,7 +14,7 @@ pub struct BridgeRegistration<'a> {
     expected: &'a [u8],
     receipt_path: PathBuf,
     owner: u32,
-    _lock: File,
+    _lock: files::SetupLock,
 }
 
 fn matching(actual: &[u8], expected: &[u8]) -> bool {

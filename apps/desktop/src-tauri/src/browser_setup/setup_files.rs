@@ -76,12 +76,38 @@ pub fn read(path: &Path, owner: u32, limit: u64) -> Result<Option<Vec<u8>>, Setu
     Ok(Some(bytes))
 }
 
-pub fn lock(path: &Path, owner: u32, mode: u32) -> Result<File, SetupError> {
+pub struct SetupLock(File);
+
+impl Drop for SetupLock {
+    fn drop(&mut self) {
+        // A concurrent child launch can briefly share this open file description.
+        // Release the lock at the end of the operation even while that child exists.
+        let _ = self.0.unlock();
+    }
+}
+
+pub fn lock(path: &Path, owner: u32, mode: u32) -> Result<SetupLock, SetupError> {
     let file = OpenOptions::new().read(true).write(true).create(true).truncate(false)
         .mode(mode).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
     checked_file(&file.metadata()?, owner)?;
-    file.try_lock().map_err(|_| SetupError::Busy)?;
-    Ok(file)
+    file.try_lock().map_err(|error| match error {
+        std::fs::TryLockError::WouldBlock => SetupError::Busy,
+        std::fs::TryLockError::Error(error) => error.into(),
+    })?;
+    Ok(SetupLock(file))
+}
+
+#[cfg(test)]
+#[test]
+fn finishing_setup_unlocks_even_if_a_child_still_has_the_descriptor() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("setup.lock");
+    let owner = lock(&path, current_uid(), 0o600).unwrap();
+    let inherited = owner.0.try_clone().unwrap();
+    assert!(matches!(lock(&path, current_uid(), 0o600), Err(SetupError::Busy)));
+    drop(owner);
+    assert!(lock(&path, current_uid(), 0o600).is_ok());
+    drop(inherited);
 }
 
 pub fn replace(path: &Path, owner: u32, old: Option<&[u8]>, new: Option<&[u8]>, mode: u32) -> Result<(), SetupError> {
