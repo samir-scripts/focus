@@ -1,0 +1,85 @@
+import { execFileSync } from 'node:child_process';
+import { createHash, createPublicKey } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createServer as httpServer } from 'node:http';
+import { createServer as httpsServer } from 'node:https';
+import { connect } from 'node:net';
+import { join } from 'node:path';
+
+const hosts = ['www.youtube.com', 'youtube.com', 'm.youtube.com', 'youtu.be'];
+const loopback = '127.0.0.1';
+
+// HTTPS upgrades are normal for YouTube. Give only these disposable profiles
+// trust in the fixture and never dial the hostname supplied by a browser.
+export async function startFixtureProxy(fixturePath, directory) {
+  const fixture = await readFile(fixturePath);
+  const firefoxProfile = join(directory, 'firefox-trust');
+  await mkdir(firefoxProfile);
+  const openssl = (...args) => execFileSync('openssl', args, { cwd: directory, stdio: 'pipe' });
+  openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2',
+    '-subj', '/CN=focus disposable fixture CA', '-addext', 'basicConstraints=critical,CA:TRUE',
+    '-addext', 'keyUsage=critical,keyCertSign', '-keyout', 'ca.key', '-out', 'ca.pem');
+  openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', '/CN=www.youtube.com',
+    '-keyout', 'server.key', '-out', 'server.csr');
+  await writeFile(join(directory, 'extensions.cnf'), [
+    'basicConstraints=critical,CA:FALSE', 'extendedKeyUsage=serverAuth',
+    'subjectAltName=' + hosts.map(host => 'DNS:' + host).join(','), '',
+  ].join('\n'));
+  openssl('x509', '-req', '-in', 'server.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
+    '-CAcreateserial', '-days', '2', '-extfile', 'extensions.cnf', '-out', 'server.pem');
+  const database = 'sql:' + firefoxProfile;
+  execFileSync('certutil', ['-N', '-d', database, '--empty-password']);
+  execFileSync('certutil', ['-A', '-d', database, '-n', 'focus fixture', '-t', 'C,,', '-i', join(directory, 'ca.pem')]);
+  const key = await readFile(join(directory, 'server.key'));
+  const cert = await readFile(join(directory, 'server.pem'));
+  const spki = createHash('sha256').update(createPublicKey(cert).export({ format: 'der', type: 'spki' })).digest('base64');
+
+  function serve(request, response) {
+    let url;
+    try { url = new URL(request.url, 'https://' + request.headers.host); } catch { /* deny malformed requests */ }
+    if (!url || !hosts.includes(url.hostname) || !['GET', 'HEAD'].includes(request.method)) {
+      response.writeHead(403).end();
+      return;
+    }
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(fixture);
+  }
+  const tls = httpsServer({ key, cert }, serve);
+  const proxy = httpServer(serve);
+  const connections = new Set();
+  for (const server of [tls, proxy]) {
+    server.on('connection', socket => {
+      connections.add(socket);
+      socket.on('close', () => connections.delete(socket));
+    });
+  }
+  const listen = server => new Promise((resolve, reject) => {
+    server.once('error', reject).listen(0, loopback, resolve);
+  });
+  async function close() {
+    for (const socket of connections) socket.destroy();
+    await Promise.all([tls, proxy].filter(server => server.listening).map(server => new Promise(resolve => server.close(resolve))));
+  }
+  try {
+    await listen(tls);
+    proxy.on('connect', (request, client, head) => {
+      if (!hosts.some(host => request.url === host + ':443')) {
+        client.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      const upstream = connect(tls.address().port, loopback, () => {
+        client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        if (head.length) upstream.write(head);
+        client.pipe(upstream).pipe(client);
+      });
+      for (const [a, b] of [[client, upstream], [upstream, client]]) {
+        a.on('error', () => b.destroy());
+        a.on('close', () => b.destroy());
+      }
+    });
+    await listen(proxy);
+    return { port: proxy.address().port, spki, firefoxProfile, close };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
