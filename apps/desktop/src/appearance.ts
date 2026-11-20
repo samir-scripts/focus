@@ -9,6 +9,7 @@ type Appearance = {
   light: Palette;
   dark: Palette;
   printIllustrations: boolean;
+  tonerPaused: boolean;
 };
 
 const keys = {
@@ -16,6 +17,7 @@ const keys = {
   light: 'focus.palette.light',
   dark: 'focus.palette.dark',
   printIllustrations: 'focus.printIllustrations',
+  tonerPaused: 'focus.tonerPaused',
 } as const;
 
 function read(key: string): string | null {
@@ -38,6 +40,7 @@ export function readAppearance(): Appearance {
     light: readPalette('light'),
     dark: readPalette('dark'),
     printIllustrations: read(keys.printIllustrations) !== 'false',
+    tonerPaused: read(keys.tonerPaused) === 'true',
   };
 }
 

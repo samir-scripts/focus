@@ -4,6 +4,7 @@
   import TypewriterMark from '@focus/ui/TypewriterMark.svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { palettes, readAppearance, saveAppearance, type Mode, type Palette, type PaletteMode } from './appearance';
+  import PaperStock from './PaperStock.svelte';
   import PrintImpression from './PrintImpression.svelte';
   import { sites } from './sites';
 
@@ -26,6 +27,7 @@
   let revealPage = $state(false);
   let revealSite = $state(false);
   let appearance = $state(readAppearance());
+  let windowHidden = $state(document.hidden);
   let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
 
@@ -51,6 +53,11 @@
     saveAppearance('printIllustrations', enabled);
   }
 
+  function setTonerPaused(paused: boolean) {
+    appearance.tonerPaused = paused;
+    saveAppearance('tonerPaused', paused);
+  }
+
   async function openPage(next: Page, event: MouseEvent) {
     if (next === page) return;
     revealPage = event.detail > 0;
@@ -62,9 +69,12 @@
   }
 </script>
 
-<div class="shell">
+<svelte:document onvisibilitychange={() => windowHidden = document.hidden} />
+
+<div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
-    <div class="brand"><TypewriterMark size={22} /> <span>focus.</span></div>
+    <PaperStock />
+    <div class="brand"><TypewriterMark size={22} /> <span class="toner-type">focus.</span></div>
     <nav aria-label="Main" class:move-indicator={revealPage} style:--active-index={pages.indexOf(page)}>
       {#each pages as entry}
         <button type="button" aria-label={entry} title={entry} aria-current={page === entry ? 'page' : undefined}
@@ -89,6 +99,7 @@
   <div class="workspace" class:with-library={page === 'Sites'}>
     {#if page === 'Sites'}
       <section class="library" aria-labelledby="library-heading">
+        <PaperStock particles />
         <h2 id="library-heading">Site library</h2>
         <ul>
           {#each sites as entry (entry.id)}
@@ -108,6 +119,7 @@
     {/if}
 
     <main>
+      <PaperStock particles />
       {#key page}
         <div class="page" class:reveal={revealPage && page === 'Settings'}>
           {#if page === 'Sites'}
@@ -115,7 +127,7 @@
               {#key site.id}
                 <div class="site-heading" class:reveal={revealPage || revealSite}>
                   <span class="site-mark"><SiteMark id={site.id} size={27} /></span>
-                  <h1 tabindex="-1" bind:this={heading}>{site.label}</h1>
+                  <h1 class="toner-type" tabindex="-1" bind:this={heading}>{site.label}</h1>
                   <p class="host">{site.hostname}</p>
                 </div>
               {/key}
@@ -177,10 +189,15 @@
                   </fieldset>
                 </div>
               {/each}
-              <label class="preference print-preference">
+              <label class="preference effect-preference">
                 <input type="checkbox" checked={appearance.printIllustrations}
                   onchange={(event) => setPrintIllustrations(event.currentTarget.checked)} />
                 <span>Print illustrations</span>
+              </label>
+              <label class="preference effect-preference">
+                <input type="checkbox" checked={appearance.tonerPaused}
+                  onchange={(event) => setTonerPaused(event.currentTarget.checked)} />
+                <span>Pause toner particles</span>
               </label>
             </fieldset>
             <section class="details">
@@ -203,6 +220,10 @@
   }
 
   .shell { display: flex; flex-direction: column; min-height: 100dvh; }
+  .toner-paused { --toner-play-state: paused; }
+
+  .toolbar, .library, main { isolation: isolate; position: relative; }
+  .toolbar, .library { --grain-opacity: var(--grain-rail); }
 
   .toolbar {
     display: flex;
@@ -297,7 +318,7 @@
     outline-color: var(--on-accent);
   }
 
-  .library { padding: 16px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); }
+  .library { padding: 16px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); --toner-origin: -117px -48px; }
   .library h2 { margin: 0 14px 4px; font-size: 15px; color: var(--ink); }
 
   main { padding: 24px; min-width: 0; background: var(--surface); }
@@ -306,7 +327,7 @@
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
   h1, h2, p { margin: 0; }
   h1 { font-size: 28px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
-  .site-heading h1 { font: 800 50px/.98 var(--font-display); }
+  .site-heading h1 { font: 800 50px/.98 var(--font-display); --toner-sweep-width: 72px; }
   h1:focus { outline: none; }
   .site-title-row, .statistics-empty { display: flex; justify-content: space-between; gap: 16px; }
   .site-title-row { align-items: center; padding-bottom: 12px; }
@@ -322,6 +343,7 @@
   .connection { display: flex; align-items: center; gap: 6px; }
   .connection span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
   .outline { min-height: 36px; border: 1px solid var(--edge); border-radius: var(--radius-control); padding-inline: 10px; }
+  .outline:not(:hover, :active) { background: var(--surface); }
   fieldset { border: 0; padding: 0; min-width: 0; }
   legend { padding: 0; margin-bottom: 8px; }
   .appearances { display: flex; width: fit-content; max-width: 100%; }
@@ -333,7 +355,7 @@
   .appearances label:focus-within { z-index: 1; outline: 2px solid var(--accent); outline-offset: 3px; }
   .appearances input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
 
-  .palette-picker, .print-preference { border-block-end: 1px solid var(--divider); }
+  .palette-picker, .effect-preference { border-block-end: 1px solid var(--divider); }
   .appearances + .palette-picker { margin-block-start: 12px; }
   .palette-trigger {
     width: 100%;
@@ -367,7 +389,7 @@
     font-size: 14px;
     cursor: pointer;
   }
-  .preference:has(:checked):not(.print-preference) { background: var(--selected); }
+  .palette-options .preference:has(:checked) { background: var(--selected); }
   .preference:hover { text-decoration: underline; text-underline-offset: 3px; }
   .preference input { flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
@@ -392,6 +414,27 @@
 
   @media (forced-colors: active) {
     .impression { display: none; }
+  }
+
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    @supports (background-clip: text) or (-webkit-background-clip: text) {
+      .toner-type:hover {
+        --sweep-width: var(--toner-sweep-width, 36px);
+        color: transparent;
+        background-color: var(--ink);
+        background-image: url('./assets/toner-sweep.svg');
+        background-repeat: no-repeat;
+        background-size: var(--sweep-width) 100%;
+        background-position: left calc(-1 * var(--sweep-width)) center;
+        -webkit-background-clip: text;
+        background-clip: text;
+        animation: sweep-toner var(--motion-toner-sweep) steps(15, end);
+      }
+      .toner-type::selection { background: var(--accent); color: var(--on-accent); }
+      @keyframes sweep-toner {
+        to { background-position: right calc(-1 * var(--sweep-width)) center; }
+      }
+    }
   }
 
   @media (prefers-reduced-motion: no-preference) {

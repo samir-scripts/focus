@@ -126,4 +126,30 @@ describe('desktop shell', () => {
     await open('Sites');
     expect(impression()).not.toBeNull();
   });
+
+  it('keeps toner particles paused across restart independently of print illustrations', async () => {
+    const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+    const pause = () => screen.getByRole<HTMLInputElement>('checkbox', { name: 'Pause toner particles' });
+    const print = () => screen.getByRole<HTMLInputElement>('checkbox', { name: 'Print illustrations' });
+    const shell = render(App);
+    await open('Settings');
+    expect(pause().checked).toBe(false);
+    await fireEvent.click(pause());
+    expect(print().checked).toBe(true);
+    await fireEvent.click(print());
+    expect(pause().checked).toBe(true);
+    shell.unmount();
+
+    const restored = render(App);
+    await open('Settings');
+    expect(pause().checked).toBe(true);
+    expect(print().checked).toBe(false);
+    await fireEvent.click(pause());
+    restored.unmount();
+
+    render(App);
+    await open('Settings');
+    expect(pause().checked).toBe(false);
+    expect(print().checked).toBe(false);
+  });
 });

@@ -6,6 +6,10 @@ The YouTube, Instagram, X, Reddit, Facebook, TikTok, WhatsApp and Google icons i
 
 LinkedIn is represented by a neutral monogram rather than its logo: its [guidelines](https://brand.linkedin.com/in-logo) do not identify this catalog use as an allowed use. Custom sites use a neutral globe.
 
+## Original print artwork
+
+The desktop paper grain and particle tiles are from the approved `focus-bitmap-particles.html` study. `python3.12 apps/desktop/tools/build-paper-stock.py /path/to/focus-bitmap-particles.html` renders the study's fibre pattern and seeded toner positions to the bundled alpha masks using Pillow; no artwork is fetched or generated at runtime.
+
 ## Mona Sans and Mona Sans Mono
 
 The bundled variable WOFF2 fonts were copied from the sibling Grace project, whose font provenance identifies the GitHub Mona Sans project: https://github.com/github/mona-sans. The fonts are distributed under the following license.
