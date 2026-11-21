@@ -501,6 +501,35 @@ async function continueEntry(browser, url) {
     await button.waitFor({ state: 'visible', timeout: 12000 });
     await eventually('hold enabled after site countdown', () => button.isEnabled(), 12000);
     await button.focus();
+    if (!results.holdCancellation) {
+      const trace = (results.holdCancellation = {});
+      const verifyCancelled = async label => {
+        await sleep(15200);
+        assert.equal(await currentUrl(browser), entryUrl(browser, url), `${label} must cancel the hold`);
+        assert.equal(await browser.page.getByLabel('Time remaining').textContent(), '0:00');
+        trace[label] = 'passed';
+      };
+      await browser.page.keyboard.down('Space');
+      await sleep(300);
+      await browser.page.keyboard.up('Space');
+      await verifyCancelled('earlyRelease');
+      await button.focus();
+      await browser.page.keyboard.down('Space');
+      await sleep(300);
+      await browser.page.getByRole('button', { name: 'Go back', exact: true }).focus();
+      await browser.page.keyboard.up('Space');
+      await verifyCancelled('focusLoss');
+      await button.focus();
+      await browser.page.keyboard.down('Space');
+      await sleep(300);
+      const other = await browser.context.newPage();
+      await other.bringToFront();
+      await browser.page.keyboard.up('Space');
+      await verifyCancelled('hidden');
+      await other.close();
+      await browser.page.bringToFront();
+      await button.focus();
+    }
     const started = Date.now();
     await browser.page.keyboard.down('Space');
     try {
@@ -997,6 +1026,28 @@ try {
         }, ready);
       });
     }
+    await inEntryTab(chrome, async tab => {
+      await checkEntry('chromium: visit pass is tab-local and removed on close', async () => {
+        const path = '/watch?id=visit-tab-boundary';
+        const url = `https://www.youtube.com${path}`;
+        await navigate(tab, path);
+        await waitForPause(tab, url);
+        await verifyDestination(tab, 'www.youtube.com', path);
+        const tabId = await tab.setup.evaluate(async target =>
+          (await chrome.tabs.query({})).find(item => item.url === target)?.id, url);
+        assert.notEqual(tabId, undefined, 'visit tab must be identifiable');
+        await eventually('visit pass installed for tab', async () => (await chromiumPassState(tab, tabId)).installed);
+        await inEntryTab(chrome, async other => {
+          const otherPath = '/watch?id=independent-visit-tab';
+          const otherUrl = `https://www.youtube.com${otherPath}`;
+          await navigate(other, otherPath);
+          await waitForPause(other, otherUrl);
+          assert.equal(proxy.documents('www.youtube.com', otherPath), 0);
+        });
+        await tab.page.close();
+        await eventually('closed tab pass removed', async () => !(await chromiumPassState(tab, tabId)).installed);
+      });
+    });
     if (entryFailures.length) {
       results.entryFailures = entryFailures.map(({ label, error }) => ({ check: label, error: error.name }));
       step = entryFailures[0].label;
