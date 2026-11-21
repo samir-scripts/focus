@@ -185,6 +185,25 @@
   .row > div:first-child { flex: 1 1 22ch; min-inline-size: 0; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; }
   button { min-block-size: 36px; max-inline-size: 100%; font: inherit; color: var(--ink); padding: 4px 9px; border: 1px solid var(--edge); border-radius: var(--radius-control); background: var(--surface); cursor: pointer; overflow-wrap: anywhere; transition: color var(--motion-hover) var(--ease), background-color var(--motion-hover) var(--ease), transform var(--motion-press) var(--ease); }
+  @media (forced-colors: none) {
+    .family, .row + .row { position: relative; border-color: transparent; }
+    .family::before, .row + .row::before {
+      content: ''; position: absolute; inset: -1px 0 auto; height: 3px; pointer-events: none;
+      background: var(--ink);
+      -webkit-mask: url('./assets/ink-rule.svg') repeat-x -113px center / 223px 3px;
+      mask: url('./assets/ink-rule.svg') repeat-x -113px center / 223px 3px;
+    }
+    .family:nth-of-type(even)::before, .row:nth-of-type(even)::before {
+      -webkit-mask-position: -37px center; mask-position: -37px center;
+    }
+    button { position: relative; }
+    button::before {
+      content: ''; position: absolute; inset: -2px; pointer-events: none;
+      border: 2px solid var(--ink); border-radius: inherit;
+      -webkit-mask: url('./assets/ink-rule.svg') repeat left center / 223px 2px;
+      mask: url('./assets/ink-rule.svg') repeat left center / 223px 2px;
+    }
+  }
   button[aria-disabled='true'] { color: var(--muted); cursor: default; }
   button:not([aria-disabled='true']):is(:hover, :active) { color: var(--canvas); background: var(--ink); }
   button:not([aria-disabled='true']):active { transform: translateY(1px); }

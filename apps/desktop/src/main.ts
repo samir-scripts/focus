@@ -1,4 +1,5 @@
 import '@focus/ui/tokens.css';
+import './ink-motion.css';
 import { mount } from 'svelte';
 import App from './App.svelte';
 
