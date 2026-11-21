@@ -1,13 +1,15 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash, createPublicKey } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer as httpServer } from 'node:http';
 import { createServer as httpsServer } from 'node:https';
 import { connect } from 'node:net';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 const hosts = ['www.youtube.com', 'youtube.com', 'm.youtube.com', 'youtu.be', 'outside.test'];
 const loopback = '127.0.0.1';
+const execFileAsync = promisify(execFile);
 
 // HTTPS upgrades are normal for YouTube. Give only these disposable profiles
 // trust in the fixture and never dial the hostname supplied by a browser.
@@ -15,21 +17,21 @@ export async function startFixtureProxy(fixturePath, directory) {
   const fixture = await readFile(fixturePath);
   const firefoxProfile = join(directory, 'firefox-trust');
   await mkdir(firefoxProfile);
-  const openssl = (...args) => execFileSync('openssl', args, { cwd: directory, stdio: 'pipe' });
-  openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2',
+  const openssl = (...args) => execFileAsync('openssl', args, { cwd: directory, timeout: 30000 });
+  await openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2',
     '-subj', '/CN=focus disposable fixture CA', '-addext', 'basicConstraints=critical,CA:TRUE',
     '-addext', 'keyUsage=critical,keyCertSign', '-keyout', 'ca.key', '-out', 'ca.pem');
-  openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', '/CN=www.youtube.com',
+  await openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', '/CN=www.youtube.com',
     '-keyout', 'server.key', '-out', 'server.csr');
   await writeFile(join(directory, 'extensions.cnf'), [
     'basicConstraints=critical,CA:FALSE', 'extendedKeyUsage=serverAuth',
     'subjectAltName=' + hosts.map(host => 'DNS:' + host).join(','), '',
   ].join('\n'));
-  openssl('x509', '-req', '-in', 'server.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
+  await openssl('x509', '-req', '-in', 'server.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
     '-CAcreateserial', '-days', '2', '-extfile', 'extensions.cnf', '-out', 'server.pem');
   const database = 'sql:' + firefoxProfile;
-  execFileSync('certutil', ['-N', '-d', database, '--empty-password']);
-  execFileSync('certutil', ['-A', '-d', database, '-n', 'focus fixture', '-t', 'C,,', '-i', join(directory, 'ca.pem')]);
+  await execFileAsync('certutil', ['-N', '-d', database, '--empty-password'], { timeout: 30000 });
+  await execFileAsync('certutil', ['-A', '-d', database, '-n', 'focus fixture', '-t', 'C,,', '-i', join(directory, 'ca.pem')], { timeout: 30000 });
   const key = await readFile(join(directory, 'server.key'));
   const cert = await readFile(join(directory, 'server.pem'));
   const spki = createHash('sha256').update(createPublicKey(cert).export({ format: 'der', type: 'spki' })).digest('base64');
@@ -40,6 +42,10 @@ export async function startFixtureProxy(fixturePath, directory) {
     try { url = new URL(request.url, 'https://' + request.headers.host); } catch { /* deny malformed requests */ }
     if (!url || !hosts.includes(url.hostname) || !['GET', 'HEAD'].includes(request.method)) {
       response.writeHead(403).end();
+      return;
+    }
+    if (url.hostname === 'outside.test' && url.pathname.startsWith('/unrelated-block-control-')) {
+      request.socket.destroy();
       return;
     }
     if (url.pathname === '/fixture-worker.js') {

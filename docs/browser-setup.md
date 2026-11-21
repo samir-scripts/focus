@@ -11,6 +11,10 @@ On Slice 3 candidates, **Add site** in the desktop designates one normalized hos
 
 Pause and Block are not available in normal builds. The Linux entry gate tests them with a disposable database and debug bridge only. In the Slice 3 reference run, Chromium 159.0.8154.6 committed a document served by the site's service worker before the Pause interstitial, despite zero document requests reaching the fixture server. [Chromium documents this DNR limit](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest#interactions-with-service-workers). Replacing the document after commit is not pre-load enforcement. Firefox 160.0.1 intercepted that fixture, but a passing check on one engine does not qualify either entry mode. Keep both disabled until both reference engines pass the complete packaged gate.
 
+For the entry fixture, visit passes group identical HTTP and HTTPS host grants before installing the declarative rule. The grants still match exact schemes and hosts. The previous alternation exceeded Chromium's regex memory limit for the YouTube aliases and repeatedly restarted the countdown instead of resuming.
+
+In the latest retained Linux run, the packaged shared-rule gate passed and the entry gate failed. Chromium committed the worker-served destination under both Pause and Block. Firefox ordinary and worker Block passed the controlled Allow → Block → Allow checks. On Firefox, Continue and fragment navigation passed, but the SPA control became non-interactive, leaving the second Pause and subsequent SPA transitions unverified.
+
 Automatic setup requires a qualified package and the owner-supplied release for that browser. Snap and Flatpak are discovered separately from native packages. A detected WebExtensions portal is not proof that a package reads the intended policy or can launch the host; these packages remain unavailable until both paths are qualified. The Flathub `com.google.Chrome` package is not a vendor-qualified Chrome build. Zen tarball/AppImage installations with desktop entries are detectable but have no automatic policy route. Windows automatic setup is unavailable.
 
 ## Build a desktop candidate

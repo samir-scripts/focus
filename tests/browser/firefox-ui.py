@@ -20,7 +20,10 @@ def find(role, names):
             continue
         try:
             state = node.getState()
-            if node.getRoleName() == role and node.name.strip() in names and state.contains(pyatspi.STATE_VISIBLE):
+            showing_entry = role == "push button" and any(value in ("Continue", "Go back") for value in names)
+            if (node.getRoleName() == role and node.name.strip() in names
+                    and state.contains(pyatspi.STATE_VISIBLE)
+                    and (not showing_entry or state.contains(pyatspi.STATE_SHOWING))):
                 return node
             stack.extend(node[i] for i in range(node.childCount - 1, -1, -1))
         except (LookupError, RuntimeError):
