@@ -79,7 +79,8 @@ pub(super) fn verify_xpi(bytes: &[u8], sha256: &str, version: &str) -> Result<()
         || m["browser_specific_settings"]["gecko"]["id"] != GECKO_ID
         || m.get("applications").is_some()
         || !permissions.iter().any(|p| p == "nativeMessaging")
-        || !permissions.iter().all(|p| matches!(p.as_str(), Some("storage" | "nativeMessaging" | "scripting" | "alarms")))
+        || !permissions.iter().all(|p| matches!(p.as_str(), Some("storage" | "nativeMessaging" | "scripting" | "alarms"
+            | "declarativeNetRequestWithHostAccess" | "webNavigation")))
         || ["host_permissions", "content_scripts"].iter().any(|key| m.get(key).is_some_and(|v| !v.as_array().is_some_and(Vec::is_empty)))
     {
         return Err(invalid);

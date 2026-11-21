@@ -12,10 +12,12 @@ def x11(*args):
 
 def find(role, names):
     desktop = pyatspi.Registry.getDesktop(0)
-    stack = [desktop[i] for i in range(desktop.childCount)
-             if "firefox" in desktop[i].name.lower()]
+    roots = (desktop[i] for i in range(desktop.childCount))
+    stack = [node for node in roots if node is not None and "firefox" in node.name.lower()]
     while stack:
         node = stack.pop()
+        if node is None:
+            continue
         try:
             state = node.getState()
             if node.getRoleName() == role and node.name.strip() in names and state.contains(pyatspi.STATE_VISIBLE):
@@ -48,6 +50,11 @@ deadline = time.monotonic() + 12
 while time.monotonic() < deadline:
     node = find(role, name.split("|"))
     if node is not None:
+        if action == "enabled" and not node.getState().contains(pyatspi.STATE_ENABLED):
+            time.sleep(0.2)
+            continue
+        if action == "enabled":
+            sys.exit(0)
         if action == "wait":
             sys.exit(0)
         if action != "check" or not node.getState().contains(pyatspi.STATE_CHECKED):

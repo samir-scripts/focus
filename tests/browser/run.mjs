@@ -14,9 +14,10 @@ if (process.platform !== 'linux') {
   throw new Error('Browser gate prerequisite: Linux with isolated HOME and Xvfb; macOS native-host registration isolation is not verified.');
 }
 const args = process.argv.slice(2);
-if (args.length && !(args.length === 2 && args[0] === '--case' && args[1] === 'shared-rule')) {
-  throw new Error('Usage: run.mjs [--case shared-rule]');
+if (args.length && !(args.length === 2 && args[0] === '--case' && ['shared-rule', 'entry'].includes(args[1]))) {
+  throw new Error('Usage: run.mjs [--case shared-rule|entry]');
 }
+const scenario = args[1] ?? 'shared-rule';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const archives = {
@@ -27,7 +28,7 @@ const nativeHost = join(root, 'apps/desktop/src-tauri/target/debug/focus-native-
 const python = process.env.FOCUS_PYTHON || 'python3';
 const adminBin = join(root, 'apps/desktop/src-tauri/target/debug/focus-fixture-admin');
 const fixturePath = join(root, 'tests/sites/fixtures/youtube.html');
-const reportPath = join(root, 'artifacts/extensions/shared-rule-report.json');
+const reportPath = join(root, `artifacts/extensions/${scenario}-report.json`);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const executable = name => {
   try { return execFileSync('which', [name], { encoding: 'utf8' }).trim(); }
@@ -50,7 +51,7 @@ const hostPids = join(temp, 'host-pids');
 const offline = join(temp, 'offline');
 const wrapper = join(temp, 'native-host');
 const homes = { chromium: join(temp, 'chromium-home'), firefox: join(temp, 'firefox-home') };
-const results = { case: 'shared-rule', platform: process.platform, artifacts: {}, browsers: {}, fixture: 'YouTube test aliases served by private loopback HTTPS; other destinations rejected', checks: [], status: 'failed', firefoxRestart: 'temporary ZIP installation only; not signed-install persistence evidence' };
+const results = { case: scenario, platform: process.platform, artifacts: {}, browsers: {}, fixture: 'YouTube test aliases served by private loopback HTTPS; other destinations rejected', checks: [], status: 'failed', firefoxRestart: 'temporary ZIP installation only; not signed-install persistence evidence' };
 const youtubeOrigins = [
   'http://youtube.com/*', 'https://youtube.com/*',
   'http://www.youtube.com/*', 'https://www.youtube.com/*',
@@ -65,9 +66,9 @@ let chrome;
 let fox;
 
 function command(path, args, env = {}) {
-  return execFileSync(path, args, { encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync(path, args, { encoding: 'utf8', timeout: 30000, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
 }
-function admin(...args) { return command(adminBin, args, { FOCUS_DATA_DIR: data, FOCUS_FIXTURE_NO_DESKTOP: '1' }); }
+function admin(...args) { return command(adminBin, args, { FOCUS_DATA_DIR: data, FOCUS_FIXTURE_NO_DESKTOP: '1', FOCUS_FIXTURE_ENTRY: scenario === 'entry' ? '1' : '0' }); }
 function state() { return JSON.parse(admin('state')); }
 async function eventually(label, fn, timeout = 20000) {
   const end = Date.now() + timeout;
@@ -78,7 +79,7 @@ async function eventually(label, fn, timeout = 20000) {
   }
   throw new Error(`${label} timed out${last instanceof Error ? `: ${last.message}` : ''}`);
 }
-async function check(label, fn) { step = label; await fn(); results.checks.push(label); }
+async function check(label, fn) { step = label; console.log(`Checking ${label}`); await fn(); results.checks.push(label); }
 function shellQuote(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 async function killHosts() {
   let pids = '';
@@ -185,6 +186,7 @@ async function firefoxStart() {
     DISPLAY: display.name, DBUS_SESSION_BUS_ADDRESS: bus.address, GNOME_ACCESSIBILITY: '1' });
   const driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).setFirefoxService(service).build();
   try {
+    await driver.manage().setTimeouts({ pageLoad: 20000 });
     results.browsers.firefox = (await driver.getCapabilities()).get('browserVersion');
     const id = await driver.installAddon(archives.firefox, true);
     assert.equal(id, 'focus@focus-local');
@@ -286,7 +288,7 @@ async function ack(id, revision, origins) {
 try {
   await mkdir(data, { recursive: true });
   for (const home of Object.values(homes)) await mkdir(home, { recursive: true });
-  await writeFile(wrapper, `#!/bin/sh\n[ ! -e ${shellQuote(offline)} ] || exit 1\necho $$ >> ${shellQuote(hostPids)}\nexport FOCUS_DATA_DIR=${shellQuote(data)}\nexport FOCUS_FIXTURE_NO_DESKTOP=1\nexport FOCUS_FIXTURE_HOST_WRAPPER=${shellQuote(wrapper)}\nexec ${shellQuote(nativeHost)} "$@"\n`);
+  await writeFile(wrapper, `#!/bin/sh\n[ ! -e ${shellQuote(offline)} ] || exit 1\necho $$ >> ${shellQuote(hostPids)}\nexport FOCUS_DATA_DIR=${shellQuote(data)}\nexport FOCUS_FIXTURE_NO_DESKTOP=1\nexport FOCUS_FIXTURE_ENTRY=${scenario === 'entry' ? '1' : '0'}\nexport FOCUS_FIXTURE_HOST_WRAPPER=${shellQuote(wrapper)}\nexec ${shellQuote(nativeHost)} "$@"\n`);
   await chmod(wrapper, 0o700);
   for (const [browser, archive] of Object.entries(archives)) {
     const bytes = await readFile(archive);
@@ -311,6 +313,135 @@ try {
     for (const id of [chromeId, foxId]) assert.deepEqual(initial.profiles.find(p => p.id === id).origins, []);
     await navigate(chrome); await navigate(fox); await fixture(chrome, false); await fixture(fox, false);
   });
+  if (scenario === 'entry') {
+    for (const [name, browser, id] of [['chromium', chrome, chromeId], ['firefox', fox, foxId]]) {
+      await check(`${name}: grant access and measure Allow`, async () => {
+        await setupAction(browser, 'select'); await grant(browser);
+        await ack(id, state().revision, youtubeOrigins);
+        const path = `/watch?id=73&allow=${name}`;
+        await navigate(browser, path);
+        assert.equal(proxy.documents('www.youtube.com', path), 1);
+      });
+    }
+    for (const enabled of [true, false]) {
+      await check(`grayscale ${enabled ? 'applies' : 'reverses'} in both profiles`, async () => {
+        admin('grayscale', String(state().revision), 'youtube', String(enabled));
+        await ack(chromeId, state().revision, youtubeOrigins);
+        await ack(foxId, state().revision, youtubeOrigins);
+        for (const browser of [chrome, fox]) {
+          await eventually('open document grayscale state', async () => {
+            if (browser.context) return (await browser.page.evaluate(() => getComputedStyle(document.documentElement).filter)).includes('grayscale') === enabled;
+            await browser.driver.switchTo().window(browser.page);
+            return (await browser.driver.executeScript('return getComputedStyle(document.documentElement).filter')).includes('grayscale') === enabled;
+          });
+        }
+      });
+    }
+    await check('install the fixture service worker on the explicit mobile alias', async () => {
+      for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
+        const path = `/worker-navigation?allow=${name}`;
+        await navigate(browser, '/', 'm.youtube.com');
+        if (browser.context) {
+          await browser.page.locator('#install-worker').click();
+          await browser.page.getByRole('button', { name: 'Worker ready' }).waitFor();
+        } else {
+          await (await browser.driver.findElement(By.id('install-worker'))).click();
+          await eventually('fixture worker ready', async () => (await (await browser.driver.findElement(By.id('install-worker'))).getText()) === 'Worker ready');
+        }
+        await navigate(browser, path, 'm.youtube.com');
+        const title = browser.context ? await browser.page.title() : await browser.driver.getTitle();
+        assert.equal(title, 'Worker response');
+        assert.equal(proxy.documents('m.youtube.com', path), 0);
+        await navigate(browser);
+      }
+    });
+    const workerFailures = [];
+    for (const mode of ['pause', 'block']) {
+      await check(`apply ${mode} policy`, async () => {
+        admin('entry', String(state().revision), 'youtube', JSON.stringify(mode === 'pause'
+          ? { mode, seconds: 5, finish: 'manual', frequency: 'page' } : { mode }));
+        await ack(chromeId, state().revision, youtubeOrigins);
+        await ack(foxId, state().revision, youtubeOrigins);
+        if (mode === 'pause') for (const browser of [chrome, fox]) {
+          await eventually('already-open gated document is replaced', async () => {
+            if (browser.context) return browser.page.url().includes('/entry.html#');
+            await browser.driver.switchTo().window(browser.page);
+            return (await browser.driver.getCurrentUrl()).includes('/entry.html#');
+          });
+        }
+      });
+      if (mode === 'pause') for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
+        const label = `${name}: pause intercepts service-worker-controlled documents`;
+        try {
+          await check(label, async () => {
+            const path = `/worker-navigation?pause=${name}`;
+            await navigate(browser, path, 'm.youtube.com');
+            const url = browser.context ? browser.page.url() : await browser.driver.getCurrentUrl();
+            (results.workerInterception ??= {})[name] = url.includes('/entry.html#');
+            assert.match(url, /-extension:\/\/[^/]+\/entry\.html#/);
+            assert.equal(new URL(url).hash.slice(1), `https://m.youtube.com${path}`);
+          });
+        } catch (error) {
+          workerFailures.push({ label, error });
+        }
+      }
+      for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
+        await check(`${name}: ${mode} makes zero destination document requests`, async () => {
+          const path = `/watch?id=73&${mode}=${name}`;
+          if (mode === 'block') {
+            await navigate(browser, path).catch(() => {}); // Native blocked pages may reject navigation.
+          } else {
+            await navigate(browser, path);
+            const url = browser.context ? browser.page.url() : await browser.driver.getCurrentUrl();
+            assert.match(url, /-extension:\/\/[^/]+\/entry\.html#/);
+            assert.equal(new URL(url).hash.slice(1), `https://www.youtube.com${path}`);
+          }
+          const count = proxy.documents('www.youtube.com', path);
+          (results.documentRequests ??= {})[`${name}-${mode}`] = count;
+          assert.equal(count, 0);
+          if (mode === 'pause') {
+            const secondPath = `/watch?id=73&second=${name}`;
+            if (browser.context) {
+              const second = await browser.context.newPage();
+              await second.goto(`https://www.youtube.com${secondPath}`, { waitUntil: 'domcontentloaded' });
+              assert.match(second.url(), /-extension:\/\/[^/]+\/entry\.html#/);
+              await second.close();
+            } else {
+              await browser.driver.switchTo().newWindow('tab');
+              await browser.driver.get(`https://www.youtube.com${secondPath}`);
+              assert.match(await browser.driver.getCurrentUrl(), /-extension:\/\/[^/]+\/entry\.html#/);
+              await browser.driver.close();
+              await browser.driver.switchTo().window(browser.page);
+            }
+            assert.equal(proxy.documents('www.youtube.com', secondPath), 0);
+          }
+          if (mode === 'pause') {
+            if (browser.context) {
+              const proceed = browser.page.getByRole('button', { name: 'Continue' });
+              await eventually('manual countdown becomes ready', () => proceed.isEnabled());
+              await proceed.click();
+            } else {
+              focusWindow('firefox');
+              firefoxUi('enabled', 'push button', 'Continue');
+              firefoxUi('click', 'push button', 'Continue');
+            }
+            await eventually('resumed document is requested exactly once', () => proxy.documents('www.youtube.com', path) === 1);
+            if (browser.context) await browser.page.locator('#spa-route').click();
+            else await (await browser.driver.findElement(By.id('spa-route'))).click();
+            await eventually('page-mode SPA route requires another pause', async () => {
+              const url = browser.context ? browser.page.url() : await browser.driver.getCurrentUrl();
+              return url.includes('/entry.html#https://www.youtube.com/watch?id=spa');
+            });
+            assert.equal(proxy.documents('www.youtube.com', '/watch?id=spa'), 0);
+          }
+        });
+      }
+    }
+    if (workerFailures.length) {
+      step = workerFailures[0].label;
+      throw workerFailures[0].error;
+    }
+  } else {
   await check('enable once and grant only Chromium', async () => {
     admin('rule', String(state().revision), 'true');
     await setupAction(chrome, 'select'); await grant(chrome, false);
@@ -394,6 +525,7 @@ try {
     assert.deepEqual(state().profiles.find(p => p.id === reinstalledId).origins, []);
     await navigate(fox); await fixture(fox, false);
   });
+  }
   results.status = 'passed';
 } catch (error) {
   // No browser page content, URLs, tokens, or screenshots are written to reports.

@@ -43,8 +43,41 @@ pub fn origin_host(origin: &str) -> Option<&str> {
     origin.strip_prefix("https://").or_else(|| origin.strip_prefix("http://"))?.strip_suffix("/*")
 }
 
-pub fn valid_origin(origin: &str) -> bool {
-    origin_host(origin).is_some_and(|host| SITES.iter().any(|site| site.hosts.contains(&host)))
+pub fn normalize_host(input: &str) -> Option<String> {
+    let input = input.trim().trim_end_matches('.');
+    if input.is_empty() || input.chars().any(|c| c.is_whitespace() || "/\\:?#@*%".contains(c)) { return None; }
+    let url::Host::Domain(host) = url::Host::parse(input).ok()? else { return None; };
+    if !host.contains('.') || host.len() > 253 || !host.split('.').all(|label| {
+        !label.is_empty() && label.len() <= 63 && !label.starts_with('-') && !label.ends_with('-')
+            && label.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+    }) { return None; }
+    Some(host)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "mode", rename_all = "lowercase", deny_unknown_fields)]
+pub enum EntryPolicy {
+    Allow,
+    Pause { seconds: u16, finish: Finish, frequency: Frequency },
+    Block,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Finish { Manual, Auto }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Frequency { Visit, Page }
+
+#[derive(Serialize)]
+pub struct SitePolicy {
+    pub id: String,
+    pub label: String,
+    pub hosts: Vec<String>,
+    pub grayscale: bool,
+    pub entry: EntryPolicy,
+    pub rules: std::collections::BTreeMap<String, bool>,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -71,6 +104,8 @@ pub struct DesktopState {
     pub hide_shorts: bool,
     pub pending: Vec<PairLabel>,
     pub profiles: Vec<ProfileStatus>,
+    pub sites: Vec<SitePolicy>,
+    pub entry_available: bool,
 }
 
 #[derive(Serialize)]
@@ -83,6 +118,7 @@ pub struct ProfileStatus {
     pub label: String,
     pub browser: String,
     pub online: bool,
+    pub update_required: bool,
     pub ack_revision: Option<u64>,
     pub origins: Vec<String>,
 }

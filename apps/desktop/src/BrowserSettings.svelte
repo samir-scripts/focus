@@ -146,7 +146,7 @@
         <div class="profile row">
           <div>
             <p class="label">{profile.label}</p>
-            <p>{profile.online ? 'Connected' : 'Disconnected'}</p>
+            <p>{profile.updateRequired ? 'Update required' : profile.online ? 'Connected' : 'Disconnected'}</p>
             {#if confirm === profile.id}<p>Remove this profile’s connection? Saved rules stay in focus.</p>
             {:else if !profile.online}<p>Open this browser and the focus. extension to reconnect.</p>{/if}
           </div>

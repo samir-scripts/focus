@@ -1,4 +1,4 @@
-use crate::model::{self, Browser, DesktopState, OpenIntent, PairLabel, ProfileStatus};
+use crate::model::{self, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
 use rusqlite::{params, types::ValueRef, Connection, ErrorCode, OptionalExtension, TransactionBehavior::Immediate};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, thread, time::{Duration, Instant}};
@@ -9,7 +9,7 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
-    Database, Invalid, Unauthorized, Pending, Denied, Unpaired, Stale, PairLimit, OpenFailed,
+    Database, Invalid, Unauthorized, Pending, Denied, Unpaired, Stale, PairLimit, OpenFailed, VersionMismatch,
 }
 
 impl Error {
@@ -19,6 +19,7 @@ impl Error {
             Self::Unauthorized => "unauthorized", Self::Pending => "pair_pending", Self::Denied => "pair_denied",
             Self::Unpaired => "unpaired", Self::Stale => "stale_revision",
             Self::PairLimit => "pair_limit", Self::OpenFailed => "desktop_unavailable",
+            Self::VersionMismatch => "version_mismatch",
         }
     }
 }
@@ -27,7 +28,7 @@ impl From<rusqlite::Error> for Error { fn from(_: rusqlite::Error) -> Self { Sel
 impl From<std::io::Error> for Error { fn from(_: std::io::Error) -> Self { Self::Database } }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub struct Db(Connection);
+pub struct Db(Connection, bool);
 
 fn enable_wal(db: &Connection) -> Result<()> {
     // SQLite may skip its busy handler while changing the journal mode.
@@ -51,7 +52,26 @@ fn enable_wal(db: &Connection) -> Result<()> {
 }
 
 impl Db {
-    pub fn open_default() -> Result<Self> { Self::open(&model::data_path()?) }
+    pub fn open_default() -> Result<Self> {
+        let path = model::data_path()?;
+        #[cfg(debug_assertions)]
+        if std::env::var_os("FOCUS_DATA_DIR").is_some()
+            && std::env::var_os("FOCUS_FIXTURE_NO_DESKTOP").as_deref() == Some("1".as_ref())
+            && std::env::var_os("FOCUS_FIXTURE_ENTRY").as_deref() == Some("1".as_ref())
+        {
+            return Self::open_entry_fixture(&path);
+        }
+        Self::open(&path)
+    }
+
+    // Normal builds cannot enable entry until packaged pre-load interception is
+    // qualified. Disposable Linux verification still exercises the real path.
+    #[cfg(debug_assertions)]
+    pub fn open_entry_fixture(path: &Path) -> Result<Self> {
+        let mut db = Self::open(path)?;
+        db.1 = true;
+        Ok(db)
+    }
 
     pub fn open(path: &Path) -> Result<Self> {
         fs::create_dir_all(path.parent().ok_or(Error::Database)?)?;
@@ -85,11 +105,72 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 1 { return Err(Error::Database); }
-        Ok(Self(db))
+        if version(&db)? == 1 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 1 {
+                tx.execute_batch(include_str!("../migrations/002.sql"))?;
+                tx.pragma_update(None, "user_version", 2)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 2 { return Err(Error::Database); }
+        Ok(Self(db, false))
     }
 
     pub fn policy(&self) -> Result<(u64, bool)> { policy(&self.0) }
+
+    pub fn legacy_policy(&self) -> Result<(u64, bool)> {
+        let tx = self.0.unchecked_transaction()?;
+        if requires_update(&tx)? { return Err(Error::VersionMismatch); }
+        policy(&tx)
+    }
+
+    pub fn snapshot(&self, after: Option<u64>) -> Result<(u64, Option<Vec<SitePolicy>>)> {
+        let tx = self.0.unchecked_transaction()?;
+        if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
+        let revision = policy(&tx)?.0;
+        let sites = if after == Some(revision) { None } else { Some(site_policies(&tx)?) };
+        Ok((revision, sites))
+    }
+
+    pub fn designate_site(&mut self, hostname: &str) -> Result<String> {
+        let host = model::normalize_host(hostname).ok_or(Error::Invalid)?;
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        if let Some(id) = tx.query_row("SELECT site_id FROM site_origin WHERE hostname=?1", [&host], |row| row.get(0)).optional()? {
+            return Ok(id);
+        }
+        // Bound snapshots, acknowledgement frames and browser rule counts.
+        if tx.query_row("SELECT count(*) FROM site WHERE id LIKE 'custom:%'", [], |row| row.get::<_, u32>(0))? >= 48 {
+            return Err(Error::Invalid);
+        }
+        let id = format!("custom:{host}");
+        tx.execute("INSERT INTO site VALUES(?1,?2)", params![id, host])?;
+        tx.execute("INSERT INTO site_origin VALUES(?1,?2)", params![id, host])?;
+        tx.execute("INSERT INTO site_policy(site_id) VALUES(?1)", [&id])?;
+        bump(&tx, &id)?;
+        tx.commit()?;
+        Ok(id)
+    }
+
+    pub fn set_grayscale(&mut self, revision: u64, site: &str, value: bool) -> Result<()> {
+        self.edit_site(revision, site, "UPDATE site_policy SET grayscale=?2 WHERE site_id=?1 AND grayscale<>?2", value)
+    }
+
+    pub fn set_entry(&mut self, revision: u64, site: &str, value: EntryPolicy) -> Result<()> {
+        if matches!(value, EntryPolicy::Pause { seconds, .. } if !(5..=600).contains(&seconds)) { return Err(Error::Invalid); }
+        if !self.1 && value != EntryPolicy::Allow { return Err(Error::VersionMismatch); }
+        self.edit_site(revision, site, "UPDATE site_policy SET entry=?2 WHERE site_id=?1 AND entry<>?2",
+            serde_json::to_string(&value).map_err(|_| Error::Invalid)?)
+    }
+
+    fn edit_site(&mut self, revision: u64, site: &str, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        if policy(&tx)?.0 != revision { return Err(Error::Stale); }
+        if !site_exists(&tx, site)? { return Err(Error::Invalid); }
+        if tx.execute(sql, params![site, value])? != 0 { bump(&tx, site)?; }
+        tx.commit()?;
+        Ok(())
+    }
 
     pub fn begin_pair(&mut self, id: &str, browser: Browser, label: &str, token: &str) -> Result<()> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
@@ -132,7 +213,7 @@ impl Db {
         Ok(())
     }
 
-    pub fn hello(&mut self, id: &str, gecko: bool, token: &str, session: &str) -> Result<u64> {
+    pub fn hello(&mut self, id: &str, gecko: bool, token: &str, session: &str, protocol: u16) -> Result<u64> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         let now = model::now();
         let found = tx.query_row("SELECT token_hash, revoked, browser IN ('firefox','zen') FROM profile WHERE id=?1", [id], |r| {
@@ -151,10 +232,10 @@ impl Db {
         verify_token(&hash, token)?;
         if gecko != is_gecko { return Err(Error::Unauthorized); }
         if revoked { return Err(Error::Unpaired); }
-        tx.execute("INSERT INTO profile_runtime(profile_id,session_id,expires_at) VALUES (?1,?2,?3)
+        tx.execute("INSERT INTO profile_runtime(profile_id,session_id,expires_at,protocol) VALUES (?1,?2,?3,?4)
             ON CONFLICT(profile_id) DO UPDATE SET session_id=excluded.session_id, expires_at=excluded.expires_at,
-            ack_revision=NULL, origins='[]' WHERE session_id<>excluded.session_id",
-            params![id, session, now + model::LEASE_SECONDS])?;
+            protocol=excluded.protocol, ack_revision=NULL, origins='[]' WHERE session_id<>excluded.session_id",
+            params![id, session, now + model::LEASE_SECONDS, protocol])?;
         let revision = policy(&tx)?.0;
         tx.commit()?;
         Ok(revision)
@@ -182,7 +263,16 @@ impl Db {
     pub fn applied(&mut self, id: &str, session: &str, revision: u64, origins: &[String]) -> Result<()> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         check_session(&tx, id, session)?;
+        let protocol: u16 = tx.query_row("SELECT protocol FROM profile_runtime WHERE profile_id=?1", [id], |r| r.get(0))?;
+        if protocol == 1 && requires_update(&tx)? { return Err(Error::VersionMismatch); }
+        if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
+        let mut check = tx.prepare("SELECT EXISTS(SELECT 1 FROM site_origin WHERE hostname=?1)")?;
+        for origin in origins {
+            let host = model::origin_host(origin).ok_or(Error::Invalid)?;
+            if !check.query_row([host], |r| r.get::<_, bool>(0))? { return Err(Error::Invalid); }
+        }
+        drop(check);
         let origins = serde_json::to_string(origins).map_err(|_| Error::Invalid)?;
         tx.execute("UPDATE profile_runtime SET ack_revision=?3, origins=?4 WHERE profile_id=?1 AND session_id=?2",
             params![id, session, revision, origins])?;
@@ -195,8 +285,7 @@ impl Db {
         let (revision, current) = policy(&tx)?;
         if expected_revision != revision { return Err(Error::Stale); }
         if current == enabled { return Ok(()); }
-        tx.execute("UPDATE meta SET revision=revision+1 WHERE singleton=1", [])?;
-        tx.execute("UPDATE site_policy SET revision=?2 WHERE site_id=?1", params![model::YOUTUBE, revision + 1])?;
+        bump(&tx, model::YOUTUBE)?;
         tx.execute("UPDATE site_rule SET enabled=?2 WHERE site_id=?1 AND rule_id=?3", params![model::YOUTUBE, enabled, model::HIDE_SHORTS])?;
         tx.commit()?;
         Ok(())
@@ -220,23 +309,30 @@ impl Db {
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
         let profiles = {
-            let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins
+            let update_required = requires_update(&tx)?;
+            let entry_unsupported = !self.1 && has_entry_policy(&tx)?;
+            let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins,r.protocol
                 FROM profile p LEFT JOIN profile_runtime r ON r.profile_id=p.id AND r.expires_at>?1
                 WHERE NOT p.revoked ORDER BY p.rowid")?;
             let rows = q.query_map([now], |r| Ok(ProfileStatus {
                 id: r.get(0)?, label: r.get(1)?, browser: r.get(2)?, online: r.get(3)?, ack_revision: r.get(4)?,
+                update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)),
                 origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
                     .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
             }))?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
+        let sites = site_policies(&tx)?;
         tx.commit()?;
-        Ok(DesktopState { revision, hide_shorts, pending, profiles })
+        Ok(DesktopState { revision, hide_shorts, pending, profiles, sites, entry_available: self.1 })
     }
 
     pub fn request_open(&mut self, id: &str, session: &str, site_id: Option<&str>) -> Result<()> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         check_session(&tx, id, session)?;
+        if let Some(site) = site_id {
+            if !site_exists(&tx, site)? { return Err(Error::Invalid); }
+        }
         tx.execute("INSERT OR REPLACE INTO open_intent VALUES(1,?1,?2)", params![site_id, model::now() + 20])?;
         tx.commit()?;
         Ok(())
@@ -256,6 +352,47 @@ impl Db {
 fn policy(conn: &Connection) -> Result<(u64, bool)> {
     Ok(conn.query_row("SELECT revision,enabled FROM meta CROSS JOIN site_rule WHERE site_id=?1 AND rule_id=?2",
         params![model::YOUTUBE,model::HIDE_SHORTS], |r| Ok((r.get(0)?,r.get(1)?)))?)
+}
+
+fn requires_update(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_policy WHERE grayscale=1 OR json_extract(entry,'$.mode')<>'allow'
+        OR site_id LIKE 'custom:%')", [], |r| r.get(0))?)
+}
+
+fn has_entry_policy(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_policy WHERE json_extract(entry,'$.mode')<>'allow')",
+        [], |r| r.get(0))?)
+}
+
+fn bump(conn: &Connection, site: &str) -> Result<()> {
+    conn.execute("UPDATE meta SET revision=revision+1 WHERE singleton=1", [])?;
+    conn.execute("UPDATE site_policy SET revision=(SELECT revision FROM meta WHERE singleton=1) WHERE site_id=?1", [site])?;
+    Ok(())
+}
+
+fn site_exists(conn: &Connection, site: &str) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site WHERE id=?1)", [site], |row| row.get(0))?)
+}
+
+fn site_policies(conn: &Connection) -> Result<Vec<SitePolicy>> {
+    let mut statement = conn.prepare("
+        SELECT s.id, s.label, p.grayscale, p.entry,
+            (SELECT json_group_array(hostname) FROM (SELECT hostname FROM site_origin WHERE site_id=s.id ORDER BY rowid)),
+            (SELECT json_group_object(rule_id, enabled) FROM site_rule WHERE site_id=s.id)
+        FROM site s JOIN site_policy p ON p.site_id=s.id ORDER BY s.rowid")?;
+    let mut rows = statement.query([])?;
+    let mut sites = Vec::new();
+    while let Some(row) = rows.next()? {
+        let json = |index| match row.get_ref(index)? { ValueRef::Text(value) => Ok(value), _ => Err(Error::Database) };
+        let rules: std::collections::BTreeMap<String, u8> = serde_json::from_slice(json(5)?).map_err(|_| Error::Database)?;
+        sites.push(SitePolicy {
+            id: row.get(0)?, label: row.get(1)?, grayscale: row.get(2)?,
+            entry: serde_json::from_slice(json(3)?).map_err(|_| Error::Database)?,
+            hosts: serde_json::from_slice(json(4)?).map_err(|_| Error::Database)?,
+            rules: rules.into_iter().map(|(id, value)| (id, value != 0)).collect(),
+        });
+    }
+    Ok(sites)
 }
 
 fn check_session(conn: &Connection, id: &str, session: &str) -> Result<()> {

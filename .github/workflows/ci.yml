@@ -72,7 +72,7 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/focus-playwright
           FOCUS_PYTHON: /usr/bin/python3
         run: |
-          set -u
+          set -eu
           export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
           export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
           export CARGO_TARGET_DIR="$PWD/apps/desktop/src-tauri/target"
@@ -94,9 +94,21 @@ jobs:
             unzip -tq "$archive"
             unzip -Z1 "$archive" | grep -Fx 'manifest.json'
           done
-          sha256sum "$chromium_zip" "$firefox_zip" | tee "$TMPDIR/extensions.sha256"
-          npm run test:browser -- --case shared-rule
-          sha256sum --check "$TMPDIR/extensions.sha256"
+          sha256sum "$chromium_zip" "$firefox_zip" | tee artifacts/extensions/SHA256SUMS
+          shared=0
+          entry=0
+          npm run test:browser -- --case shared-rule || shared=$?
+          npm run test:browser -- --case entry || entry=$?
+          sha256sum --check artifacts/extensions/SHA256SUMS
+          test "$shared" -eq 0 && test "$entry" -eq 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: focus-browser-evidence
+          path: |
+            artifacts/extensions/focus-*.zip
+            artifacts/extensions/SHA256SUMS
+            artifacts/extensions/*-report.json
 
   promotion:
     runs-on: ubuntu-latest

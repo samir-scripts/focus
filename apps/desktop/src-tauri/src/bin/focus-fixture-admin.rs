@@ -24,6 +24,18 @@ fn run() -> Result<(), &'static str> {
             let enabled = value.parse().map_err(|_| "invalid_enabled")?;
             db.set_hide_shorts(revision, enabled).map_err(|e| e.code())
         }
+        ["entry", revision, site, policy] => db.set_entry(
+            revision.parse().map_err(|_| "invalid_revision")?, site,
+            serde_json::from_str(policy).map_err(|_| "invalid_policy")?,
+        ).map_err(|e| e.code()),
+        ["grayscale", revision, site, value] => db.set_grayscale(
+            revision.parse().map_err(|_| "invalid_revision")?, site,
+            value.parse().map_err(|_| "invalid_grayscale")?,
+        ).map_err(|e| e.code()),
+        ["designate", host] => {
+            println!("{}", db.designate_site(host).map_err(|e| e.code())?);
+            Ok(())
+        }
         _ => Err("invalid_arguments"),
     }
 }

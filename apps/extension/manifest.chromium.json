@@ -1,10 +1,12 @@
 {
   "manifest_version": 3,
   "name": "focus.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Apply your focus. preferences in this browser profile.",
-  "permissions": ["storage", "nativeMessaging", "scripting", "alarms"],
+  "minimum_chrome_version": "159",
+  "permissions": ["storage", "nativeMessaging", "scripting", "alarms", "declarativeNetRequestWithHostAccess", "webNavigation"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "web_accessible_resources": [{ "resources": ["entry.html"], "matches": ["http://*/*", "https://*/*"] }],
   "background": { "service_worker": "background.js" },
   "action": { "default_title": "focus.", "default_popup": "popup.html" },
   "incognito": "not_allowed"

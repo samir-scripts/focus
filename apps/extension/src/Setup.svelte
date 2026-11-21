@@ -7,7 +7,8 @@
   import TypewriterMark from '@focus/ui/TypewriterMark.svelte';
   import SiteMark from '@focus/ui/SiteMark.svelte';
   import { catalog } from './sites/catalog';
-  import { missingOrigins, siteOrigins } from './permissions';
+  import { hostOrigins, missingOrigins } from './permissions';
+  import { validPolicySnapshot, type SitePolicy } from './protocol';
   import './ui.css';
   let browser = navigator.userAgent.includes('Firefox') ? 'firefox' : 'chromium';
   let label = '';
@@ -18,10 +19,16 @@
   let pairing = false;
   let granting = false;
   let hasProfile = false;
+  let custom: SitePolicy[] = [];
+  $: sites = [...catalog, ...custom];
 
   function refresh() {
     chrome.permissions.getAll((permissions: { origins?: string[] }) => { origins = permissions?.origins ?? []; });
-    chrome.storage.local.get(['status', 'profile'], (stored: { status?: string; profile?: object }) => { status = stored.status ?? 'Not connected'; hasProfile = !!stored.profile; });
+    chrome.storage.local.get(['status', 'profile', 'policy'], (stored: { status?: string; profile?: object; policy?: unknown }) => {
+      status = stored.status ?? 'Not connected';
+      hasProfile = !!stored.profile;
+      custom = validPolicySnapshot(stored.policy) ? stored.policy.sites.filter((site) => site.id.startsWith('custom:')) : [];
+    });
   }
   onMount(() => {
     refresh();
@@ -41,7 +48,7 @@
     });
   }
   function grant() {
-    const requested = [...new Set(selected.flatMap((id) => missingOrigins(siteOrigins(id), origins)))];
+    const requested = [...new Set(sites.filter((site) => selected.includes(site.id)).flatMap((site) => missingOrigins(hostOrigins(site.hosts), origins)))];
     if (!requested.length) return;
     granting = true; message = '';
     // This request must remain directly in the click handler, before any await.
@@ -67,18 +74,19 @@
   {/if}
   <h2>Site access</h2>
   <p class="muted">Choose sites for this profile. Your browser will ask for the exact listed hostnames on both HTTP and HTTPS.</p>
-  {#each catalog as site (site.id)}
-    {@const missing = missingOrigins(siteOrigins(site.id), origins)}
+  {#each sites as site (site.id)}
+    {@const required = hostOrigins(site.hosts)}
+    {@const missing = missingOrigins(required, origins)}
     <div class="site">
       <div>
         <label><input type="checkbox" value={site.id} bind:group={selected} disabled={missing.length === 0} /> <SiteMark id={site.id} /> {site.label}</label>
         <ul class="hosts">
-          {#each siteOrigins(site.id) as origin (origin)}
+          {#each required as origin (origin)}
             <li>{origin} — {missing.includes(origin) ? 'Not granted' : 'Granted'}</li>
           {/each}
         </ul>
       </div>
-      <small>{missing.length === 0 ? 'Access granted' : missing.length === siteOrigins(site.id).length ? 'No access' : 'Partial access'}</small>
+      <small>{missing.length === 0 ? 'Access granted' : missing.length === required.length ? 'No access' : 'Partial access'}</small>
     </div>
   {/each}
   <button type="button" onclick={grant} disabled={granting || selected.length === 0}>Grant access</button>

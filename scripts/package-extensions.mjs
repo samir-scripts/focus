@@ -20,7 +20,7 @@ await viteBuild({
   root: extension,
   base: './',
   plugins: [svelte({ preprocess: vitePreprocess() })],
-  build: { outDir: ui, emptyOutDir: true, rollupOptions: { input: { setup: resolve(extension, 'setup.html'), popup: resolve(extension, 'popup.html') } } },
+  build: { outDir: ui, emptyOutDir: true, rollupOptions: { input: { setup: resolve(extension, 'setup.html'), popup: resolve(extension, 'popup.html'), entry: resolve(extension, 'entry.html') } } },
 });
 const version = JSON.parse(await readFile(resolve(extension, 'package.json'), 'utf8')).version;
 for (const browser of storeUpload ? ['chromium'] : ['chromium', 'firefox']) {
@@ -34,8 +34,6 @@ for (const browser of storeUpload ? ['chromium'] : ['chromium', 'firefox']) {
   if (storeUpload) {
     // The store assigns the item ID when the publisher first uploads this archive.
     if ('key' in manifest) throw new Error('The store upload must omit the fixture key');
-    const sites = JSON.parse(await readFile(resolve(extension, 'src/sites/catalog.json'), 'utf8'));
-    manifest.optional_host_permissions = sites.flatMap(site => site.hosts.map(host => `*://${host}/*`));
     manifest.icons = { '32': 'icon-32.png', '128': 'icon-128.png' };
     for (const size of [32, 128]) {
       await cp(resolve(root, `apps/desktop/src-tauri/icons/${size}x${size}.png`), resolve(dir, `icon-${size}.png`));
@@ -44,8 +42,9 @@ for (const browser of storeUpload ? ['chromium'] : ['chromium', 'firefox']) {
     manifest.key = JSON.parse(await readFile(resolve(extension, 'chromium-test-key.json'), 'utf8')).key;
   }
   await writeFile(resolve(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-  await bundle({ entryPoints: [resolve(extension, 'src/background.ts'), resolve(extension, 'src/content.ts')], outdir: dir, bundle: true, format: 'iife', platform: 'browser', target: ['chrome120', 'firefox140'], logLevel: 'warning' });
+  await bundle({ entryPoints: [resolve(extension, 'src/background.ts'), resolve(extension, 'src/content.ts')], outdir: dir, bundle: true, format: 'iife', platform: 'browser', target: ['chrome159', 'firefox160'], logLevel: 'warning' });
   await cp(resolve(extension, 'src/sites/youtube.css'), resolve(dir, 'youtube.css'));
+  await cp(resolve(extension, 'src/grayscale.css'), resolve(dir, 'grayscale.css'));
   await rm(zip, { force: true });
   execFileSync('zip', ['-X', '-q', '-r', zip, '.'], { cwd: dir });
 }

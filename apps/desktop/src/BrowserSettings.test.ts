@@ -7,11 +7,12 @@ afterEach(cleanup);
 
 function bridge(overrides: Partial<BrowserBridge>): BrowserBridge {
   return {
-    state: async () => ({ revision: 0, hideShorts: false, pending: [], profiles: [], open: null }),
+    state: async () => ({ revision: 0, hideShorts: false, sites: [], pending: [], profiles: [], open: null }),
     scan: async () => ({ supported: true, targets: [] }),
     install: async () => 'storeOpened',
     removeInstallation: async () => 'policyRemoved',
     setHideShorts: async () => {}, decidePair: async () => {}, revoke: async () => {},
+    setEntry: async () => {}, setGrayscale: async () => {}, designateSite: async () => '',
     ...overrides,
   };
 }
@@ -23,7 +24,7 @@ it('scans on entering Settings and on Rescan without dropping absent paired prof
   ];
   let available = true;
   const browserBridge = bridge({
-    state: async () => ({ revision: 2, hideShorts: true, pending: [], profiles, open: null }),
+    state: async () => ({ revision: 2, hideShorts: true, sites: [], pending: [], profiles, open: null }),
     scan: async () => ({ supported: true, targets: available ? [
       { id: 'native', browser: 'firefox', source: 'native', label: 'Firefox ESR', capability: 'missingArtifact' },
       { id: 'flatpak', browser: 'firefox', source: 'flatpak', label: 'User Flatpak', capability: 'unverifiedChannel' },

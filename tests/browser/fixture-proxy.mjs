@@ -34,12 +34,29 @@ export async function startFixtureProxy(fixturePath, directory) {
   const cert = await readFile(join(directory, 'server.pem'));
   const spki = createHash('sha256').update(createPublicKey(cert).export({ format: 'der', type: 'spki' })).digest('base64');
 
+  const documents = new Map();
   function serve(request, response) {
     let url;
     try { url = new URL(request.url, 'https://' + request.headers.host); } catch { /* deny malformed requests */ }
     if (!url || !hosts.includes(url.hostname) || !['GET', 'HEAD'].includes(request.method)) {
       response.writeHead(403).end();
       return;
+    }
+    if (url.pathname === '/fixture-worker.js') {
+      response.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store', 'Service-Worker-Allowed': '/' }).end(`
+        self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+        self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+        self.addEventListener('fetch', event => {
+          if (event.request.mode === 'navigate' && new URL(event.request.url).pathname === '/worker-navigation') {
+            event.respondWith(new Response('<!doctype html><title>Worker response</title>', { headers: { 'Content-Type': 'text/html' } }));
+          }
+        });
+      `);
+      return;
+    }
+    if (request.headers['sec-fetch-dest'] === 'document') {
+      const key = url.hostname + url.pathname + url.search;
+      documents.set(key, (documents.get(key) ?? 0) + 1);
     }
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(fixture);
   }
@@ -77,7 +94,7 @@ export async function startFixtureProxy(fixturePath, directory) {
       }
     });
     await listen(proxy);
-    return { port: proxy.address().port, spki, firefoxProfile, close };
+    return { port: proxy.address().port, spki, firefoxProfile, close, documents: (host, path) => documents.get(host + path) ?? 0 };
   } catch (error) {
     await close();
     throw error;

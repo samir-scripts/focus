@@ -7,6 +7,10 @@ Open **Settings → Browsers**. focus. scans locally for supported browser insta
 - Installation and native registration are not a connection. Open the extension's **Browser setup**, choose the browser, enter a profile label and select **Connect to focus.**. Confirm that label in the desktop. Settings shows **Connected** only while the paired profile has an authenticated bridge lease. Profiles are grouped by browser family, not assigned to installations. A disconnected profile remains listed; reopen its browser and extension to reconnect, or remove the profile in Settings.
 - Installation and pairing grant zero origins. Use the extension's site checkboxes to opt in per profile. Declining the browser prompt does not change saved rules. Revoke host access in browser settings or remove the profile in focus.; saved rules stay intact. An already paired profile can use its last acknowledged policy only on origins it still has permission to access.
 
+On Slice 3 candidates, **Add site** in the desktop designates one normalized hostname, without granting it or its subdomains. Grant it separately in each profile's Browser setup. Grayscale applies on exact granted addresses and can be turned off without changing other rules. **Update required** means the profile cannot acknowledge the current saved policy; its last supported policy is retained.
+
+Pause and Block are not available in normal builds. The Linux entry gate tests them with a disposable database and debug bridge only. Chromium's DNR can miss documents served directly by a site's service worker; replacing those documents after commit does not qualify as pre-load enforcement. Do not publish either entry mode until both reference engines pass the packaged gate.
+
 Automatic setup requires a qualified package and the owner-supplied release for that browser. Snap and Flatpak are discovered separately from native packages. A detected WebExtensions portal is not proof that a package reads the intended policy or can launch the host; these packages remain unavailable until both paths are qualified. The Flathub `com.google.Chrome` package is not a vendor-qualified Chrome build. Zen tarball/AppImage installations with desktop entries are detectable but have no automatic policy route. Windows automatic setup is unavailable.
 
 ## Build a desktop candidate
@@ -24,7 +28,7 @@ The packaged reference scenario below does not qualify a store listing, AMO XPI,
 
 ## Disposable development fixture
 
-The local fixture still uses the development extension packages, not the one-click installer. Slice 2 implements only the shared YouTube Hide Shorts rule; the other catalog sites can grant access but have no rules in this build.
+The local fixture uses development extension packages, not the one-click installer. Pairing grants no site access. Each profile must explicitly grant the exact listed origins.
 
 ### Build and launch
 
@@ -63,8 +67,9 @@ cargo test --locked --workspace --manifest-path apps/desktop/src-tauri/Cargo.tom
 cargo build --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --bin focus-native-host --bin focus-fixture-admin
 npm run package:extensions
 npm run test:browser -- --case shared-rule
+npm run test:browser -- --case entry
 ```
 
-The runner uses the exact ZIPs, private display and accessibility bus, isolated browser homes and a loopback-only HTTPS fixture proxy. Its generated certificate is trusted only for this run, using a key pin for Chromium and a temporary Firefox NSS profile. No certificate is installed in a system or personal trust store. No live sites are queried. Results and archive digests are in `artifacts/extensions/shared-rule-report.json`. A temporary Firefox add-on reinstall is not proof of durable signed-install persistence; that remains a later qualification gate.
+The runner uses the exact ZIPs, private display and accessibility bus, isolated browser homes and a loopback-only HTTPS fixture proxy. Its generated certificate is trusted only for this run, using a key pin for Chromium and a temporary Firefox NSS profile. No certificate is installed in a system or personal trust store. No live sites are queried. Results and archive digests are in `artifacts/extensions/shared-rule-report.json` and `artifacts/extensions/entry-report.json`. A temporary Firefox add-on reinstall is not proof of durable signed-install persistence; that remains a later qualification gate. Treat a failing or incomplete entry scenario as unqualified; the engine-only preflight is not a packaged-product qualification.
 
 The Chromium archive contains a fixed **test** identity and pairs only with the debug host; it is not the production Chromium release. The test key is public and is not a signing credential. The Firefox archive uses `focus@focus-local`. Browser-specific registration format: [Chromium](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging) and [Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging).

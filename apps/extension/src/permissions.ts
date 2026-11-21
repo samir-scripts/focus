@@ -1,8 +1,12 @@
 import { catalog } from './sites/catalog';
 
+export function hostOrigins(hosts: readonly string[]): string[] {
+  return hosts.flatMap((host) => [`http://${host}/*`, `https://${host}/*`]);
+}
+
 export function siteOrigins(siteId: string): string[] {
   const site = catalog.find((entry) => entry.id === siteId);
-  return site ? site.hosts.flatMap((host) => [`http://${host}/*`, `https://${host}/*`]) : [];
+  return site ? hostOrigins(site.hosts) : [];
 }
 
 // Browsers may collapse the two schemes to *://. Wildcard hosts are never accepted.

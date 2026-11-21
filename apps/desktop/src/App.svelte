@@ -6,10 +6,12 @@
   import { palettes, readAppearance, saveAppearance, type Mode, type Palette, type PaletteMode } from './appearance';
   import PaperStock from './PaperStock.svelte';
   import PrintImpression from './PrintImpression.svelte';
-  import { sites } from './sites';
+  import { sites as curatedSites } from './sites';
   import BrowserSettings from './BrowserSettings.svelte';
   import PairBrowser from './PairBrowser.svelte';
   import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState } from './browser';
+  import SiteEntryEditor from './SiteEntryEditor.svelte';
+  import { normalizeHost } from '../../extension/src/protocol';
 
   let { browserBridge = isTauri() ? nativeBrowserBridge : null }: { browserBridge?: BrowserBridge | null } = $props();
 
@@ -28,14 +30,22 @@
   const paletteIds = Object.keys(palettes) as Palette[];
 
   let page = $state<Page>('Sites');
-  let site = $state.raw<(typeof sites)[number]>(sites[0]);
+  let browserState = $state.raw<BrowserState>();
+  let siteId = $state(curatedSites[0].id);
+  let sites = $derived([...curatedSites, ...(browserState?.sites ?? [])
+    .filter((entry) => entry.id.startsWith('custom:'))
+    .map((entry) => ({ id: entry.id, label: entry.label, hosts: entry.hosts, hostname: entry.hosts[0], rules: [] }))]);
+  let site = $derived(sites.find((entry) => entry.id === siteId) ?? curatedSites[0]);
+  let currentPolicy = $derived(browserState?.sites.find((entry) => entry.id === siteId));
+  let adding = $state(false);
+  let hostInput = $state('');
+  let customHost = $derived(normalizeHost(hostInput.trim().match(/^https?:\/\/([^/?#\\]+)/i)?.[1] ?? hostInput));
   let revealPage = $state(false);
   let revealSite = $state(false);
   let appearance = $state(readAppearance());
   let windowHidden = $state(document.hidden);
   let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
-  let browserState = $state.raw<BrowserState>();
   let browserError = $state('');
   let actionError = $state('');
   let pairError = $state('');
@@ -51,8 +61,8 @@
       browserState = next;
       browserError = '';
       if (next.open) {
-        const target = sites.find((entry) => entry.id === next.open?.siteId);
-        if (target) site = target;
+        const target = curatedSites.some((entry) => entry.id === next.open?.siteId) || next.sites.some((entry) => entry.id === next.open?.siteId);
+        if (target && next.open.siteId) siteId = next.open.siteId;
         revealPage = false;
         revealSite = false;
         page = target ? 'Sites' : 'Settings';
@@ -73,19 +83,38 @@
     return () => window.clearInterval(timer);
   });
 
-  async function saveRule(input: HTMLInputElement) {
+  async function savePolicy(change: (bridge: BrowserBridge, revision: number) => Promise<void>) {
     if (!browserBridge || !browserState || editingRule) return;
-    const enabled = input.checked;
-    input.checked = browserState.hideShorts;
     editingRule = true;
     actionError = '';
     try {
-      await browserBridge.setHideShorts(browserState.revision, enabled);
+      await change(browserBridge, browserState.revision);
     } catch (error) {
       actionError = error === 'stale_revision' ? 'Rules changed. Review the current setting and try again.' : 'Could not save rule.';
     } finally {
       await pull;
       await refresh();
+      editingRule = false;
+    }
+  }
+
+  async function addSite(event: SubmitEvent) {
+    event.preventDefault();
+    if (!browserBridge || !customHost || editingRule) return;
+    editingRule = true;
+    actionError = '';
+    try {
+      const id = await browserBridge.designateSite(customHost);
+      await pull;
+      await refresh();
+      siteId = id;
+      adding = false;
+      hostInput = '';
+      await tick();
+      heading?.focus();
+    } catch {
+      actionError = 'Could not add this hostname.';
+    } finally {
       editingRule = false;
     }
   }
@@ -196,17 +225,31 @@
         <ul>
           {#each sites as entry (entry.id)}
             <li>
-              <button type="button" aria-pressed={site === entry} onclick={(event) => {
-                if (site === entry) return;
+              <button type="button" aria-label={entry.label} aria-pressed={siteId === entry.id} onclick={(event) => {
+                if (siteId === entry.id) return;
                 revealSite = event.detail > 0;
-                site = entry;
+                siteId = entry.id;
               }}>
                 <span class="site-mark"><SiteMark id={entry.id} size={20} /></span>
-                <span>{entry.label}</span>
+                <span class="library-label">{entry.label}<small>{entry.hostname}</small></span>
               </button>
             </li>
           {/each}
         </ul>
+        {#if browserState}
+          {#if adding}
+            <form class="designate" onsubmit={addSite}>
+              <label for="custom-host">Hostname or URL</label>
+              <input id="custom-host" type="text" placeholder="example.org" bind:value={hostInput} maxlength="2048" />
+              {#if customHost}<p>Exact hostname: <strong>{customHost}</strong></p>
+              {:else if hostInput}<p>Enter an exact hostname, without credentials or a port.</p>{/if}
+              <div><button type="submit" class="outline" disabled={!customHost || editingRule}>Add</button>
+                <button type="button" class="outline" onclick={() => { adding = false; hostInput = ''; }}>Cancel</button></div>
+            </form>
+          {:else}
+            <button type="button" class="designate-trigger" onclick={() => { adding = true; }}>Add site</button>
+          {/if}
+        {/if}
       </section>
     {/if}
 
@@ -235,7 +278,7 @@
                 <h2>Browser access</h2>
                 {#if browserState?.profiles.length}
                   {#each browserState.profiles as profile (profile.id)}
-                    {@const access = siteAccess(profile, site, browserState.revision)}
+                    {@const access = siteAccess(profile, site, browserState.revision, currentPolicy?.entry)}
                     <p><strong>{profile.label}</strong> · {browsers[profile.browser]} · {access.status}</p>
                     {#if access.origins.length}<p class="origins">Granted: {access.origins.join(', ')}</p>{/if}
                     {#if access.missing.length}<p class="origins">Missing: {access.missing.join(', ')}</p>{/if}
@@ -246,15 +289,35 @@
               </div>
               <button type="button" class="outline" onclick={(event) => openPage('Settings', event)}>Browser settings</button>
             </section>
-            {#if browserState && site.id === 'youtube'}
+            {#if currentPolicy && browserState?.entryAvailable}
+              {@const policy = currentPolicy}
+              <SiteEntryEditor entry={policy.entry} busy={editingRule} save={(entry) => savePolicy((bridge, revision) => bridge.setEntry(revision, policy.id, entry))} />
+            {/if}
+            {#if browserState && (currentPolicy || site.id === 'youtube')}
               <section class="details rule-row">
                 <h2>Content rules</h2>
-                <label class="preference">
-                  <input type="checkbox" checked={browserState.hideShorts} disabled={editingRule}
-                    onchange={(event) => saveRule(event.currentTarget)} />
-                  <span>{site.rules[0].label}</span>
-                </label>
-                <p>Each browser profile needs access to the YouTube address it’s visiting.</p>
+                {#if currentPolicy}
+                  {@const policy = currentPolicy}
+                  <label class="preference">
+                    <input type="checkbox" checked={policy.grayscale} disabled={editingRule} onchange={(event) => {
+                      const enabled = event.currentTarget.checked;
+                      event.currentTarget.checked = policy.grayscale;
+                      void savePolicy((bridge, revision) => bridge.setGrayscale(revision, policy.id, enabled));
+                    }} />
+                    <span>Grayscale</span>
+                  </label>
+                {/if}
+                {#if site.id === 'youtube'}
+                  <label class="preference">
+                    <input type="checkbox" checked={browserState.hideShorts} disabled={editingRule} onchange={(event) => {
+                      const enabled = event.currentTarget.checked;
+                      event.currentTarget.checked = browserState?.hideShorts ?? false;
+                      void savePolicy((bridge, revision) => bridge.setHideShorts(revision, enabled));
+                    }} />
+                    <span>{site.rules[0].label}</span>
+                  </label>
+                {/if}
+                <p>Rules apply only in browser profiles with access to the exact address.</p>
               </section>
             {/if}
           {:else if page === 'Statistics'}
@@ -437,6 +500,12 @@
 
   .library { padding: 16px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); --toner-origin: -117px -48px; }
   .library h2 { margin: 0 14px 4px; font-size: 15px; color: var(--ink); }
+  .library-label { display: grid; min-width: 0; overflow-wrap: anywhere; }
+  .library-label small { font-size: 12px; font-weight: 400; }
+  .designate, .designate-trigger { margin: 8px 14px; }
+  .designate-trigger { padding-inline: 0; }
+  .designate input { display: block; width: 100%; min-width: 0; margin-top: 6px; padding: 4px; border: 1px solid var(--edge); border-radius: var(--radius-control); color: var(--ink); background: var(--surface); font: inherit; }
+  .designate div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
   main { flex: 1; padding: 24px; min-width: 0; background: var(--surface); }
   .page { max-width: 760px; }

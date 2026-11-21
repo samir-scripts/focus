@@ -6,35 +6,37 @@
   import { onMount } from 'svelte';
   import TypewriterMark from '@focus/ui/TypewriterMark.svelte';
   import SiteMark from '@focus/ui/SiteMark.svelte';
-  import { catalog, type SiteDefinition } from './sites/catalog';
+  import { catalog } from './sites/catalog';
   import { grantedOrigins } from './permissions';
-  import type { Snapshot } from './protocol';
+  import { validSnapshot, type Snapshot } from './protocol';
+  import { matchPattern, webTarget } from './entry-rules';
   import './ui.css';
   let status = 'Not connected';
-  let site: SiteDefinition | undefined;
-  let origin = '';
+  let target: URL | undefined;
+  let policy: Snapshot | undefined;
   let grants = new Set<string>();
-  let isShortsHost = false;
-  let hideShorts = false;
+  $: origin = target ? matchPattern(target) : '';
+  $: savedSite = target && policy?.sites.find((entry) => 'hosts' in entry && entry.hosts.includes(target!.hostname));
+  $: detail = savedSite && 'hosts' in savedSite ? savedSite : undefined;
+  $: site = detail ?? catalog.find((entry) => target && entry.hosts.includes(target.hostname));
+  $: isShortsHost = site?.id === 'youtube' && target?.hostname !== 'youtu.be';
+  $: hideShorts = !!policy?.sites.find((entry) => entry.id === 'youtube')?.rules['youtube.hide-shorts'];
   let error = '';
   $: hasAccess = !!site && grants.has(origin);
   $: openSite = hasAccess && status === 'Connected' ? site : undefined;
 
   onMount(() => {
-    chrome.storage.local.get(['status', 'policy'], (stored: { status?: string; policy?: Snapshot }) => {
+    chrome.storage.local.get(['status', 'policy'], (stored: { status?: string; policy?: unknown }) => {
       status = stored.status ?? 'Not connected';
-      hideShorts = !!stored.policy?.sites.find((entry) => entry.id === 'youtube')?.rules['youtube.hide-shorts'];
+      policy = validSnapshot(stored.policy) ? stored.policy : undefined;
     });
     chrome.permissions.getAll((permissions: { origins?: string[] }) => {
       grants = new Set(grantedOrigins(permissions?.origins ?? []));
     });
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]: { url?: string; incognito?: boolean }[]) => {
       if (!tab?.url || tab.incognito) return;
-      const url = new URL(tab.url);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-      origin = `${url.protocol}//${url.hostname}/*`;
-      site = catalog.find((entry) => entry.hosts.includes(url.hostname));
-      isShortsHost = site?.id === 'youtube' && url.hostname !== 'youtu.be';
+      const entry = `${chrome.runtime.getURL('entry.html')}#`;
+      target = webTarget(tab.url.startsWith(entry) ? tab.url.slice(entry.length) : tab.url);
     });
   });
   function setup() { chrome.tabs.create({ url: chrome.runtime.getURL('setup.html') }); window.close(); }
@@ -51,9 +53,12 @@
   <h1>{#if site}<SiteMark id={site.id} /> {site.label}{:else}Browser access{/if}</h1>
   <p>{status}</p>
   {#if !hasAccess}<p>Needs access on supported sites. Choose exact addresses in browser setup.</p>
-  {:else if isShortsHost}
-    <p>{hideShorts ? 'Hide Shorts is on' : 'Hide Shorts is off'}{status === 'Disconnected' ? ' · last saved policy' : ''}.</p>
-  {:else}<p>No content rules for this address.</p>{/if}
+  {:else}
+    <p>Site entry: {detail?.entry.mode === 'block' ? 'Block' : detail?.entry.mode === 'pause' ? 'Pause' : 'Allow'}</p>
+    <p>Grayscale is {detail?.grayscale ? 'on' : 'off'}.</p>
+    {#if isShortsHost}<p>{hideShorts ? 'Hide Shorts is on' : 'Hide Shorts is off'}.</p>{/if}
+    {#if status === 'Disconnected' || status === 'Update required'}<p>Last applied policy.</p>{/if}
+  {/if}
   {#if openSite}
     <button type="button" onclick={openDesktop}>Open in focus.</button>
   {:else}

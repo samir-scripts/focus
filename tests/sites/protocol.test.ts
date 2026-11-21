@@ -11,4 +11,12 @@ describe('protocol snapshot compatibility', () => {
     expect(validSnapshot({ revision: 8, sites: [{ id: 'youtube', rules: { 'youtube.future': true } }] })).toBe(false);
     expect(validSnapshot({ revision: 8, sites: [{ id: 'youtube', rules: { 'youtube.hide-shorts': 'true' } }] })).toBe(false);
   });
+  it('accepts a complete v2 policy for a designated exact host', () => {
+    const site = { id: 'custom:xn--bcher-kva.example', label: 'xn--bcher-kva.example',
+      hosts: ['xn--bcher-kva.example'], grayscale: true, rules: {},
+      entry: { mode: 'pause', seconds: 15, frequency: 'visit', finish: 'manual' } };
+    expect(validSnapshot({ revision: 8, sites: [site] })).toBe(true);
+    expect(validSnapshot({ revision: 8, sites: [{ ...site, hosts: ['*.xn--bcher-kva.example'] }] })).toBe(false);
+    expect(validSnapshot({ revision: 8, sites: [{ ...site, entry: { ...site.entry, seconds: 4 } }] })).toBe(false);
+  });
 });

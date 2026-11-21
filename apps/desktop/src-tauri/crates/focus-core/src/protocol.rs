@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::io::{self, Read, Write};
 use uuid::Uuid;
 
-pub const VERSION: u16 = 1;
+pub const VERSION: u16 = 2;
 pub const MAX_BYTES: usize = 64 * 1024;
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 
@@ -75,11 +75,12 @@ pub struct Session {
     session: String,
     profile: Option<String>,
     revision: u64,
+    negotiated: Option<u16>,
 }
 
 impl Session {
     pub fn new(gecko: bool) -> Self {
-        Self { gecko, session: Uuid::new_v4().to_string(), profile: None, revision: 0 }
+        Self { gecko, session: Uuid::new_v4().to_string(), profile: None, revision: 0, negotiated: None }
     }
 
     pub fn message(&mut self, bytes: &[u8], db: &mut Result<Db>, open: impl FnOnce() -> Result<()>) -> Value {
@@ -87,19 +88,22 @@ impl Session {
         let id = input.get("id").and_then(Value::as_str).filter(|id| {
             (1..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
         }).unwrap_or_default();
-        if id.is_empty() { return failure(id, Error::Invalid.code()); }
-        if input.get("v").and_then(Value::as_u64).is_some_and(|v| v != u64::from(VERSION)) {
-            return failure(id, "version_mismatch");
+        let version = input.get("v").and_then(Value::as_u64);
+        if version.is_some_and(|v| v != 1 && v != u64::from(VERSION)) {
+            return failure(1, id, "version_mismatch");
         }
-        let Ok(request) = Request::deserialize(&input) else { return failure(id, Error::Invalid.code()); };
-        if request.v != VERSION || !request.body.is_object() { return failure(&request.id, Error::Invalid.code()); }
+        let version = if version == Some(2) { VERSION } else { 1 };
+        if id.is_empty() { return failure(version, id, Error::Invalid.code()); }
+        let Ok(request) = Request::deserialize(&input) else { return failure(version, id, Error::Invalid.code()); };
+        if !request.body.is_object() { return failure(version, &request.id, Error::Invalid.code()); }
+        if self.negotiated.is_some_and(|v| v != request.v) { return failure(version, id, "version_mismatch"); }
         let result = match db {
             Ok(db) => self.dispatch(db, &request, open),
             Err(code) => Err(*code),
         };
         match result {
-            Ok(body) => json!({"v":VERSION,"id":request.id,"ok":true,"body":body}),
-            Err(error) => failure(&request.id, error.code()),
+            Ok(body) => json!({"v":version,"id":request.id,"ok":true,"body":body}),
+            Err(error) => failure(version, &request.id, error.code()),
         }
     }
 
@@ -120,9 +124,10 @@ impl Session {
                 if !valid_profile(&profile_id) || !token_ok(&token) || self.profile.as_ref().is_some_and(|id| *id != profile_id) {
                     return Err(Error::Unauthorized);
                 }
-                let revision = db.hello(&profile_id, self.gecko, &token, &self.session)?;
+                let revision = db.hello(&profile_id, self.gecko, &token, &self.session, req.v)?;
                 self.revision = revision;
                 self.profile = Some(profile_id);
+                self.negotiated = Some(req.v);
                 Ok(json!({"revision":revision}))
             }
             "snapshot" => {
@@ -130,14 +135,21 @@ impl Session {
                 db.check_session(profile, &self.session)?;
                 let Snapshot { after_revision } = decode(body)?;
                 if body.get("afterRevision").is_none() || after_revision.is_some_and(|r| r > MAX_REVISION) { return Err(Error::Invalid); }
-                let (revision, enabled) = db.policy()?;
+                if req.v == VERSION {
+                    let (revision, sites) = db.snapshot(after_revision)?;
+                    return Ok(match sites {
+                        Some(sites) => json!({"revision":revision,"sites":sites}),
+                        None => json!({"revision":revision}),
+                    });
+                }
+                let (revision, enabled) = db.legacy_policy()?;
                 if after_revision == Some(revision) { Ok(json!({"revision":revision})) }
                 else { Ok(json!({"revision":revision,"sites":[{"id":model::YOUTUBE,"rules":{(model::HIDE_SHORTS):enabled}}]})) }
             }
             "applied" => {
                 let profile = self.profile.as_deref().ok_or(Error::Unauthorized)?;
                 let Applied { revision, mut origins } = decode(body)?;
-                if revision > MAX_REVISION || origins.len() > 48 || origins.iter().any(|origin| !model::valid_origin(origin)) {
+                if revision > MAX_REVISION || origins.len() > 160 || origins.iter().any(|origin| origin.len() > 264) {
                     return Err(Error::Invalid);
                 }
                 origins.sort_unstable();
@@ -148,7 +160,7 @@ impl Session {
             "open_desktop" => {
                 let profile = self.profile.as_deref().ok_or(Error::Unauthorized)?;
                 let Open { site_id } = decode(body)?;
-                if body.get("siteId").is_none() || site_id.as_deref().is_some_and(|id| !model::SITES.iter().any(|site| site.id == id)) { return Err(Error::Invalid); }
+                if body.get("siteId").is_none() { return Err(Error::Invalid); }
                 db.request_open(profile, &self.session, site_id.as_deref())?;
                 open()?;
                 Ok(json!({}))
@@ -159,15 +171,16 @@ impl Session {
 
     pub fn tick(&mut self, db: &mut Db) -> Result<Option<Value>> {
         let Some(profile) = self.profile.as_deref() else { return Ok(None); };
+        let version = self.negotiated.unwrap_or(1);
         match db.heartbeat(profile, &self.session) {
             Ok(revision) if self.revision != revision => {
                 self.revision = revision;
-                Ok(Some(json!({"v":VERSION,"event":"revision","revision":revision})))
+                Ok(Some(json!({"v":version,"event":"revision","revision":revision})))
             }
             Ok(_) => Ok(None),
             Err(Error::Unpaired) => {
                 self.profile = None;
-                Ok(Some(json!({"v":VERSION,"event":"revoked"})))
+                Ok(Some(json!({"v":version,"event":"revoked"})))
             }
             Err(error) => Err(error),
         }
@@ -178,5 +191,5 @@ impl Session {
     }
 }
 
-fn failure(id: &str, code: &str) -> Value { json!({"v":VERSION,"id":id,"ok":false,"error":{"code":code}}) }
+fn failure(version: u16, id: &str, code: &str) -> Value { json!({"v":version,"id":id,"ok":false,"error":{"code":code}}) }
 fn decode<T: DeserializeOwned>(body: &Value) -> Result<T> { T::deserialize(body).map_err(|_| Error::Invalid) }
