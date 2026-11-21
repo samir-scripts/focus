@@ -25,7 +25,8 @@
     </svg>
     <h2 id="site-entry-heading">Site entry</h2>
   </div>
-  <fieldset aria-labelledby="site-entry-heading" disabled={busy}>
+  <p id="site-entry-note">In Chromium, a site may briefly load before Block redirects it to the blocked page.</p>
+  <fieldset aria-labelledby="site-entry-heading" aria-describedby="site-entry-note" disabled={busy}>
     <div class="modes">
       {#each modes as mode (mode.value)}
         <label><input type="radio" name="site-entry" checked={entry.mode === mode.value} onchange={() => select(mode.value)} />{mode.label}</label>
@@ -63,6 +64,7 @@
 <style>
   section { margin-block-start: 16px; border-block-start: 1px solid var(--divider); padding-block-start: 12px; }
   h2 { font-size: 15px; margin: 0; }
+  p { margin: 8px 0 0; }
   .heading, .modes, .options { display: flex; flex-wrap: wrap; align-items: start; gap: 8px 12px; }
   .heading { align-items: center; }
   fieldset { border: 0; margin: 8px 0 0; padding: 0; min-width: 0; }

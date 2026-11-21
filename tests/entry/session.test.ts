@@ -104,6 +104,26 @@ it('does not resume before the deadline and accepts the nonce only on its own en
   expect(fake.read()).toBe('https://www.youtube.com/watch?id=73');
 });
 
+it('retains a page pass across duplicate before-navigation events for one destination', async () => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const sender = { frameId: 0, url: page, tab: { id: 4 } };
+  let now = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => now);
+  const fake = browser();
+  const entry = fake.newWorker('firefox');
+  await entry.reconcile(snapshot(1), origins);
+  const pending = await entry.message({ type: 'entry-view' }, sender);
+  now = 5000;
+  await entry.message({ type: 'entry-continue', nonce: pending.nonce }, sender);
+  const nav = { tabId: 4, frameId: 0, url: target };
+  fake.before.emit(nav);
+  fake.before.emit(nav);
+  fake.commit.emit(nav);
+  await fake.drain();
+  expect(fake.read()).toBe(target);
+  expect(await fake.api.declarativeNetRequest.getSessionRules()).toHaveLength(0);
+});
+
 it('does not replace an already-open page when a newer navigation is pending', async () => {
   const original = 'https://www.youtube.com/watch?id=old';
   const fake = browser({ id: 4, url: original, pendingUrl: 'https://www.youtube.com/watch?id=new' });
@@ -192,6 +212,79 @@ it('returns to a safe prior page after a worker-served destination commits befor
   await fake.drain();
   await entry.message({ type: 'entry-back' }, { frameId: 0, url: page, tab: { id: 4 } });
   expect(fake.read()).toBe(safe);
+});
+
+it('redirects a committed Chromium worker response to the blocked page without a pass', async () => {
+  const safe = 'https://outside.example/';
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: safe });
+  const entry = fake.newWorker();
+  const policy = snapshot(1);
+  policy.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(policy, origins);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: safe });
+  await fake.drain();
+  fake.before.emit({ tabId: 4, frameId: 0, url: target });
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(fake.read()).toBe(page);
+  expect(await entry.message({ type: 'entry-view' }, { frameId: 0, url: page, tab: { id: 4 } })).toEqual({
+    label: 'YouTube', mode: 'block',
+  });
+  for (const type of ['entry-continue', 'entry-auto', 'entry-hold-start', 'entry-hold-complete',
+    'entry-two-step-start', 'entry-two-step-confirm'] as const) {
+    await entry.message({ type }, { frameId: 0, url: page, tab: { id: 4 } });
+    expect(fake.read()).toBe(page);
+    expect(await fake.api.declarativeNetRequest.getSessionRules()).toHaveLength(0);
+  }
+  await entry.message({ type: 'entry-back' }, { frameId: 0, url: page, tab: { id: 4 } });
+  expect(fake.read()).toBe(safe);
+});
+
+it('does not redirect a committed worker response after its host permission is revoked', async () => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: 'https://outside.example/' });
+  const entry = fake.newWorker();
+  const policy = snapshot(1);
+  policy.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(policy, origins);
+  fake.api.scripting.insertCSS = async () => { fake.revoke(); };
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(fake.read()).toBe(target);
+});
+
+it('does not redirect a worker response after its tab navigates elsewhere', async () => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const safe = 'https://outside.example/new';
+  const fake = browser({ id: 4, url: 'https://outside.example/' });
+  const entry = fake.newWorker();
+  const policy = snapshot(1);
+  policy.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(policy, origins);
+  fake.api.scripting.insertCSS = async () => { fake.setUrl(safe); };
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(fake.read()).toBe(safe);
+});
+
+it('does not redirect a worker response after Block changes to Allow', async () => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: 'https://outside.example/' });
+  const entry = fake.newWorker();
+  const block = snapshot(1);
+  block.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(block, origins);
+  const allow = snapshot(2);
+  allow.sites[0].entry = { mode: 'allow' };
+  fake.api.scripting.insertCSS = async () => { await entry.reconcile(allow, origins); };
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(fake.read()).toBe(target);
 });
 
 it('preserves a worker navigation fragment in the Pause destination', async () => {

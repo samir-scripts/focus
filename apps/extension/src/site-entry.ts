@@ -10,7 +10,7 @@ export type EntryView = {
   label?: string; mode?: 'pause' | 'block'; nonce?: string; revision?: number; remaining?: number;
   finish?: PausePolicy['finish']; manual?: 'continue' | 'hold' | 'two-step'; gestureRemaining?: number;
 };
-type Pass = { kind: 'page' | 'visit'; siteId: string; target: string; started?: true };
+type Pass = { kind: 'page' | 'visit'; siteId: string; target: string };
 type TabState = { pending?: PendingPause; pass?: Pass; document?: string; original?: string; safePrevious?: string };
 type Nav = { tabId: number; frameId: number; url: string };
 type EntrySender = { url?: string; frameId?: number; tab?: { id?: number; incognito?: boolean } };
@@ -174,13 +174,20 @@ export class SiteEntry {
 
   private async show(id: number, target: string) {
     if (!this.gated(target)) return;
+    const revision = this.revision;
+    const targetUrl = webTarget(target);
+    const { origins } = await this.api.permissions.getAll();
+    if (!targetUrl || !origins?.some(origin => origin === matchPattern(targetUrl) || origin === `*://${targetUrl.hostname}/*`)
+      || revision !== this.revision || !this.gated(target)) return;
     const tab = await this.api.tabs.get(id).catch(() => undefined);
     if (tab?.incognito || tab?.pendingUrl || documentKey(tab?.url ?? '') !== documentKey(target)) return;
     const injection: Injection = { target: { tabId: id }, css: coverCSS, origin: 'USER' };
     await this.api.scripting.insertCSS(injection).catch(() => {});
     try {
-      const current = await this.api.tabs.get(id);
-      if (current.pendingUrl || documentKey(current.url ?? '') !== documentKey(target)) {
+      const [current, permissions] = await Promise.all([this.api.tabs.get(id), this.api.permissions.getAll()]);
+      if (current.pendingUrl || documentKey(current.url ?? '') !== documentKey(target)
+        || !permissions.origins?.some(origin => origin === matchPattern(targetUrl) || origin === `*://${targetUrl.hostname}/*`)
+        || revision !== this.revision || !this.gated(target)) {
         await this.api.scripting.removeCSS(injection).catch(() => {});
         return;
       }
@@ -201,8 +208,9 @@ export class SiteEntry {
     if (!tab) return;
     if (!site) delete tab.original;
     if (tab.pending) { delete tab.pending; this.clearTimer(tabId); }
-    if (tab.pass?.kind === 'page' && documentKey(url) === documentKey(tab.pass.target) && !tab.pass.started) tab.pass.started = true;
-    else if (tab.pass && (tab.pass.kind === 'page' || site?.id !== tab.pass.siteId)) await this.clearPass(tabId);
+    if (tab.pass && (tab.pass.kind === 'page' ? documentKey(url) !== documentKey(tab.pass.target) : site?.id !== tab.pass.siteId)) {
+      await this.clearPass(tabId);
+    }
     await this.persist();
   }
 
@@ -233,7 +241,7 @@ export class SiteEntry {
     delete tab.original;
     if (!site && key) this.state[tabId] = { safePrevious: url };
     else if (allowed) this.state[tabId] = { document: key, pass: tab.pass };
-    else if (site?.entry.mode === 'pause' && tab.safePrevious) this.state[tabId] = { safePrevious: tab.safePrevious };
+    else if (site && tab.safePrevious) this.state[tabId] = { safePrevious: tab.safePrevious };
     else delete this.state[tabId];
     await this.persist();
     if (site && !allowed) await this.show(tabId, destination); // Includes BFCache and service-worker responses.

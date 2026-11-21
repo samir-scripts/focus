@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { startFixtureProxy } from './fixture-proxy.mjs';
 import { verifyPlayback } from './playback.mjs';
+import { runChromiumBlock } from './chromium-block.mjs';
 
 // This gate intentionally refuses macOS: neither browser's native-host lookup
 // has been shown to respect a disposable HOME there. Never probe a user path.
@@ -15,10 +16,14 @@ if (process.platform !== 'linux') {
   throw new Error('Browser gate prerequisite: Linux with isolated HOME and Xvfb; macOS native-host registration isolation is not verified.');
 }
 const args = process.argv.slice(2);
-if (args.length && !(args.length === 2 && args[0] === '--case' && ['shared-rule', 'entry'].includes(args[1]))) {
-  throw new Error('Usage: run.mjs [--case shared-rule|entry]');
+const cases = ['shared-rule', 'entry', 'firefox-lifecycle', 'chromium-block'];
+if (args.length && !(args.length === 2 && args[0] === '--case' && cases.includes(args[1]))) {
+  throw new Error(`Usage: run.mjs [--case ${cases.join('|')}]`);
 }
 const scenario = args[1] ?? 'shared-rule';
+const entry = scenario !== 'shared-rule';
+const firefoxOnly = scenario === 'firefox-lifecycle';
+const chromiumOnly = scenario === 'chromium-block';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const archives = {
@@ -83,7 +88,7 @@ async function admin(...args) {
   try {
     const { stdout } = await execFileAsync(adminBin, args, {
       encoding: 'utf8', timeout: 10000, killSignal: 'SIGKILL',
-      env: { ...process.env, FOCUS_DATA_DIR: data, FOCUS_FIXTURE_NO_DESKTOP: '1', FOCUS_FIXTURE_ENTRY: scenario === 'entry' ? '1' : '0' },
+      env: { ...process.env, FOCUS_DATA_DIR: data, FOCUS_FIXTURE_NO_DESKTOP: '1', FOCUS_FIXTURE_ENTRY: entry ? '1' : '0' },
     });
     return stdout;
   } catch (error) {
@@ -182,7 +187,7 @@ async function chromiumStart() {
     await setup.goto(`chrome-extension://${chromiumId}/setup.html`);
     const page = await context.newPage();
     const browser = { context, setup, page };
-    if (scenario === 'entry') Object.assign(browser, await observeChromiumTab(context, page));
+    if (entry) Object.assign(browser, await observeChromiumTab(context, page));
     return browser;
   } catch (error) {
     await context.close().catch(() => {});
@@ -191,7 +196,7 @@ async function chromiumStart() {
 }
 async function firefoxStart() {
   const options = new firefox.Options();
-  if (scenario === 'entry') options.enableBidi();
+  if (entry) options.enableBidi();
   options.setProfile(proxy.firefoxProfile);
   options.setPreference('extensions.webextensions.uuids', JSON.stringify({ 'focus@focus-local': firefoxUuid }));
   options.setPreference('network.proxy.type', 1);
@@ -222,7 +227,7 @@ async function firefoxStart() {
     await prompt('Return');
     await firefoxUi('wait', 'entry', 'Profile label');
     const browser = { driver, page };
-    if (scenario === 'entry') {
+    if (entry) {
       browser.bidi = await BrowsingContext.create(driver);
       browser.tabs = new Map([[page, newObservation()]]);
       Object.assign(browser, browser.tabs.get(page));
@@ -478,19 +483,23 @@ async function clickSite(browser, id, expectedUrl) {
         width: rect.width > 0, height: rect.height > 0,
         visibility: style.visibility, display: style.display,
         pointerEvents: style.pointerEvents,
+        rootVisibility: getComputedStyle(document.documentElement).visibility,
+        rootPointerEvents: getComputedStyle(document.documentElement).pointerEvents,
       };
     `, id, expectedUrl);
     (results.clickTrace ??= {})[id] = state;
     assert.equal(state.sameUrl && state.sameOrigin, true, 'wrong fixture document before click');
-    assert.ok(state.width && state.height && state.visibility === 'visible' && state.display !== 'none', 'fixture control is not visible');
-    await browser.driver.executeScript(`
-      if (window.location.href !== arguments[1] || window.location.origin !== new window.URL(arguments[1]).origin) {
-        throw new Error('wrong fixture document before click');
-      }
-      const target = document.getElementById(arguments[0]);
-      if (!target || window.getComputedStyle(target).visibility !== 'visible') throw new Error('fixture control is not visible');
-      target.click();
-    `, id, expectedUrl);
+    assert.ok(state.width && state.height && state.visibility === 'visible' && state.display !== 'none'
+      && state.pointerEvents !== 'none', 'fixture control is not pointer accessible');
+    await focusWindow('firefox');
+    await prompt('ctrl+9');
+    assert.equal(await browser.driver.getWindowHandle(), browser.page, 'wrong Firefox browsing context');
+    const afterFocus = await browser.driver.getCurrentUrl();
+    (results.clickTrace[id]).afterFocus = afterFocus === expectedUrl ? 'expected'
+      : afterFocus === entryUrl(browser, expectedUrl) ? 'pause' : 'other';
+    assert.equal(afterFocus, expectedUrl, 'wrong fixture document before click');
+    await firefoxUi('click', id === 'fixture-anchor' ? 'link' : 'push button',
+      id === 'fixture-anchor' ? 'Go to comments' : 'Open next page');
   }
 }
 
@@ -572,7 +581,7 @@ async function ack(id, revision, origins) {
 try {
   await mkdir(data, { recursive: true });
   for (const home of Object.values(homes)) await mkdir(home, { recursive: true });
-  await writeFile(wrapper, `#!/bin/sh\n[ ! -e ${shellQuote(offline)} ] || exit 1\necho $$ >> ${shellQuote(hostPids)}\nexport FOCUS_DATA_DIR=${shellQuote(data)}\nexport FOCUS_FIXTURE_NO_DESKTOP=1\nexport FOCUS_FIXTURE_ENTRY=${scenario === 'entry' ? '1' : '0'}\nexport FOCUS_FIXTURE_HOST_WRAPPER=${shellQuote(wrapper)}\nexec ${shellQuote(nativeHost)} "$@"\n`);
+  await writeFile(wrapper, `#!/bin/sh\n[ ! -e ${shellQuote(offline)} ] || exit 1\necho $$ >> ${shellQuote(hostPids)}\nexport FOCUS_DATA_DIR=${shellQuote(data)}\nexport FOCUS_FIXTURE_NO_DESKTOP=1\nexport FOCUS_FIXTURE_ENTRY=${entry ? '1' : '0'}\nexport FOCUS_FIXTURE_HOST_WRAPPER=${shellQuote(wrapper)}\nexec ${shellQuote(nativeHost)} "$@"\n`);
   await chmod(wrapper, 0o700);
   for (const [browser, archive] of Object.entries(archives)) {
     const bytes = await readFile(archive);
@@ -585,23 +594,26 @@ try {
   display = await startDisplay();
   bus = await startAccessBus();
   proxy = await startFixtureProxy(fixturePath, temp);
-  chrome = await chromiumStart();
-  fox = await firefoxStart();
-  let chromeId;
-  let foxId;
-  await check('pair both profiles with explicit approval and no default site grants', async () => {
-    chromeId = await pair(chrome, 'chromium', 'Fixture Chromium');
-    foxId = await pair(fox, 'firefox', 'Fixture Firefox');
+  if (!firefoxOnly) chrome = await chromiumStart();
+  if (!chromiumOnly) fox = await firefoxStart();
+  const engines = [['chromium', chrome], ['firefox', fox]].filter(([, browser]) => browser);
+  const profiles = new Map();
+  await check('pair profiles with explicit approval and no default site grants', async () => {
+    for (const [name, browser] of engines) profiles.set(name, await pair(browser, name, `Fixture ${name}`));
     const initial = await state();
     assert.equal(initial.hideShorts, false);
-    for (const id of [chromeId, foxId]) assert.deepEqual(initial.profiles.find(p => p.id === id).origins, []);
-    await navigate(chrome); await navigate(fox); await fixture(chrome, false); await fixture(fox, false);
+    for (const [name, browser] of engines) {
+      assert.deepEqual(initial.profiles.find(p => p.id === profiles.get(name)).origins, []);
+      await navigate(browser); await fixture(browser, false);
+    }
   });
-  if (scenario === 'entry') {
-    for (const [name, browser, id] of [['chromium', chrome, chromeId], ['firefox', fox, foxId]]) {
+  const chromeId = profiles.get('chromium');
+  const foxId = profiles.get('firefox');
+  if (entry) {
+    for (const [name, browser] of engines) {
       await check(`${name}: grant access and measure Allow`, async () => {
         await setupAction(browser, 'select'); await grant(browser);
-        await ack(id, (await state()).revision, youtubeOrigins);
+        await ack(profiles.get(name), (await state()).revision, youtubeOrigins);
         const path = `/watch?id=73&allow=${name}`;
         const url = `https://www.youtube.com${path}`;
         const before = browser.commits.get(url) ?? 0;
@@ -610,7 +622,7 @@ try {
         assert.equal(proxy.documents('www.youtube.com', path), 1);
       });
     }
-    for (const enabled of [true, false]) {
+    if (scenario === 'entry') for (const enabled of [true, false]) {
       await check(`grayscale ${enabled ? 'applies' : 'reverses'} in both profiles`, async () => {
         await admin('grayscale', String((await state()).revision), 'youtube', String(enabled));
         const { revision } = await state();
@@ -625,8 +637,8 @@ try {
         }
       });
     }
-    await check('install the fixture service worker on the explicit mobile alias', async () => {
-      for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
+    if (!firefoxOnly) await check('install the fixture service worker on the explicit mobile alias', async () => {
+      for (const [name, browser] of engines) {
         const path = `/worker-navigation?allow=${name}`;
         await navigate(browser, '/', 'm.youtube.com');
         if (browser.context) {
@@ -671,17 +683,16 @@ try {
         return false;
       }
     }
-    const engines = [['chromium', chrome], ['firefox', fox]];
     async function applyEntry(policy) {
       await admin('entry', String((await state()).revision), 'youtube', JSON.stringify(policy));
       const { revision } = await state();
-      await ack(chromeId, revision, youtubeOrigins);
-      await ack(foxId, revision, youtubeOrigins);
+      for (const id of profiles.values()) await ack(id, revision, youtubeOrigins);
       return revision;
     }
+    if (!chromiumOnly) {
     await check('apply manual page Pause', () => applyEntry({ mode: 'pause', seconds: 5, finish: 'manual', frequency: 'page' }));
     for (const [name, browser] of engines) {
-      for (const [kind, host, path] of [
+      if (!firefoxOnly) for (const [kind, host, path] of [
         ['ordinary', 'www.youtube.com', `/watch?id=first-pause-${name}`],
         ['worker', 'm.youtube.com', `/worker-navigation?first=pause-${name}`],
       ]) {
@@ -761,8 +772,13 @@ try {
         ready = await checkEntry(`${name}: Continue action`, () => continueEntry(tab, url), ready);
         ready = await checkEntry(`${name}: Continue destination commit`, () => verifyDestination(tab, 'www.youtube.com', path), ready);
         ready = await checkEntry(`${name}: anchor preserves page pass`, async () => {
+          const documentStart = !tab.context && await tab.driver.executeScript('return performance.timeOrigin');
           await clickSite(tab, 'fixture-anchor', url);
           await eventually('same-document anchor', async () => await currentUrl(tab) === `${url}#comments`, 6000);
+          if (!tab.context) {
+            assert.equal(await tab.driver.executeScript('return performance.timeOrigin'), documentStart,
+              'fragment navigation must retain the same document');
+          }
           assert.equal(proxy.documents('www.youtube.com', path), 1);
           assert.equal(tab.commits.get(url), 1, 'anchor must not recommit the document');
           assert.equal(tab.commits.get(`${url}#comments`) ?? 0, 0, 'anchor must be same-document');
@@ -806,6 +822,7 @@ try {
           assert.equal(proxy.documents('www.youtube.com', spaPath), 1);
         }, ready);
       });
+      if (firefoxOnly) continue;
       await inEntryTab(browser, async tab => {
         const path = `/watch?id=reload&pause=${name}`;
         const url = `https://www.youtube.com${path}`;
@@ -837,6 +854,8 @@ try {
         });
       });
     }
+    }
+    if (scenario === 'entry') {
     const confirmationEnabled = await checkEntry('enable Chromium two-step confirmation', async () => {
       await admin('accessibility', String((await state()).revision),
         JSON.stringify({ holdSeconds: 15, twoStepConfirmation: true }));
@@ -884,12 +903,13 @@ try {
       await ack(chromeId, revision, youtubeOrigins);
       await ack(foxId, revision, youtubeOrigins);
     });
+    }
+    if (!firefoxOnly) {
     await check('apply block policy', () => applyEntry({ mode: 'block' }));
     for (const [name, browser] of engines) {
       const targets = [['unrelated-error', 'outside.test', `/unrelated-block-control-${name}`]];
       if (name === 'chromium') targets.unshift(
         ['ordinary', 'www.youtube.com', '/watch?id=first-block-chromium'],
-        ['worker', 'm.youtube.com', '/worker-navigation?first=block-chromium'],
       );
       for (const [kind, host, path] of targets) {
         await inEntryTab(browser, async tab => {
@@ -904,6 +924,10 @@ try {
         });
       }
     }
+    await runChromiumBlock({ chrome, inEntryTab, checkEntry, navigate, currentUrl, entryUrl, eventually,
+      proxy, applyEntry, removeOrigin, ack, chromeId, youtubeOrigins, results, root, setupAction, grant });
+    }
+    if (scenario === 'entry') {
     const firefoxTargets = [
       ['ordinary', 'www.youtube.com', '/watch?id=first-block-firefox', false],
       ['worker', 'm.youtube.com', '/worker-navigation?first=block-firefox', true],
@@ -1048,6 +1072,7 @@ try {
         await eventually('closed tab pass removed', async () => !(await chromiumPassState(tab, tabId)).installed);
       });
     });
+    }
     if (entryFailures.length) {
       results.entryFailures = entryFailures.map(({ label, error }) => ({ check: label, error: error.name }));
       step = entryFailures[0].label;
