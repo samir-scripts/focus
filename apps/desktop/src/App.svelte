@@ -50,6 +50,10 @@
   let actionError = $state('');
   let pairError = $state('');
   let editingRule = $state(false);
+  let accessibilityDirty = $state(false);
+  let holdSeconds = $state<number | undefined>(15);
+  let twoStepConfirmation = $state(false);
+  let accessibilityRevision = 0;
   let decidingPair = $state(false);
   let pendingPair = $derived(browserState?.pending[0]);
   let pull: Promise<void> | undefined;
@@ -59,6 +63,11 @@
     if (pull) return pull;
     pull = browserBridge.state().then(async (next) => {
       browserState = next;
+      if (!accessibilityDirty && next.accessibility) {
+        holdSeconds = next.accessibility.holdSeconds;
+        twoStepConfirmation = next.accessibility.twoStepConfirmation;
+        accessibilityRevision = next.revision;
+      }
       browserError = '';
       if (next.open) {
         const target = curatedSites.some((entry) => entry.id === next.open?.siteId) || next.sites.some((entry) => entry.id === next.open?.siteId);
@@ -91,6 +100,25 @@
       await change(browserBridge, browserState.revision);
     } catch (error) {
       actionError = error === 'stale_revision' ? 'Rules changed. Review the current setting and try again.' : 'Could not save rule.';
+    } finally {
+      await pull;
+      await refresh();
+      editingRule = false;
+    }
+  }
+
+  async function saveAccessibility(event: SubmitEvent) {
+    event.preventDefault();
+    if (!browserBridge || !browserState || editingRule || holdSeconds === undefined ||
+        !Number.isInteger(holdSeconds) || holdSeconds < 15 || holdSeconds > 600) return;
+    editingRule = true;
+    actionError = '';
+    try {
+      await browserBridge.setAccessibility(accessibilityRevision, { holdSeconds, twoStepConfirmation });
+      accessibilityDirty = false;
+    } catch (error) {
+      actionError = error === 'stale_revision' ? 'Rules changed. Review the current setting and try again.' : 'Could not save accessibility settings.';
+      if (error === 'stale_revision') accessibilityDirty = false;
     } finally {
       await pull;
       await refresh();
@@ -383,6 +411,25 @@
                 <span>Pause toner particles</span>
               </label>
             </fieldset>
+            <fieldset disabled={!browserBridge || !browserState || editingRule}>
+              <legend>Accessibility</legend>
+              {#if !browserState?.entryAvailable}<p>Site entry is unavailable in this build. These settings apply only when it is enabled.</p>{/if}
+              <form onsubmit={saveAccessibility}>
+                <label class="accessibility-seconds">
+                  <span>Hold duration (seconds)</span>
+                  <input type="number" min="15" max="600" step="1" required bind:value={holdSeconds}
+                    oninput={() => accessibilityDirty = true} />
+                </label>
+                <p>Choose a duration from 15 to 600 seconds for the press-and-hold confirmation.</p>
+                <label class="preference effect-preference">
+                  <input type="checkbox" bind:checked={twoStepConfirmation} onchange={() => accessibilityDirty = true} />
+                  <span class="choice-mark" aria-hidden="true"></span>
+                  <span>Use two-step confirmation instead of holding</span>
+                </label>
+                <button type="submit" class="outline" disabled={!accessibilityDirty}>Save accessibility settings</button>
+              </form>
+              {#if actionError}<p class="browser-error" role="alert">{actionError}</p>{/if}
+            </fieldset>
           {/if}
         </div>
       {/key}
@@ -620,6 +667,10 @@
   .palette-options .preference:has(:checked) { background: var(--selected); }
   .preference:hover { text-decoration: underline; text-underline-offset: 3px; }
   .preference input { flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .accessibility-seconds { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .accessibility-seconds input { width: 6em; min-height: 36px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; }
+  .accessibility-seconds + p { margin-bottom: 8px; }
+  form .outline { margin-top: 12px; }
   .choice-mark { display: none; }
   @media (forced-colors: none) {
     .preference { position: relative; }

@@ -70,6 +70,13 @@ pub enum Finish { Manual, Auto }
 #[serde(rename_all = "lowercase")]
 pub enum Frequency { Visit, Page }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Accessibility {
+    pub hold_seconds: u16,
+    pub two_step_confirmation: bool,
+}
+
 #[derive(Serialize)]
 pub struct SitePolicy {
     pub id: String,
@@ -102,6 +109,7 @@ impl Browser {
 pub struct DesktopState {
     pub revision: u64,
     pub hide_shorts: bool,
+    pub accessibility: Accessibility,
     pub pending: Vec<PairLabel>,
     pub profiles: Vec<ProfileStatus>,
     pub sites: Vec<SitePolicy>,

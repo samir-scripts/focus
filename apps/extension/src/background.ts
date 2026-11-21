@@ -23,7 +23,7 @@ let serial = Promise.resolve();
 let connecting = false;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 const entry = web.declarativeNetRequest && web.webNavigation && web.storage.session
-  ? new SiteEntry(web, (task) => { void ready.then(() => queue(task)); })
+  ? new SiteEntry(web, (task) => { void ready.then(() => queue(task)); }, typeof browser === 'undefined' ? 'chromium' : 'firefox')
   : undefined;
 
 function call(object: any, method: string, ...args: any[]): Promise<any> {
@@ -229,7 +229,9 @@ api.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (val
     sendResponse({ enabled, grayscale }); return;
   }
   if (sender.id !== api.runtime.id || !sender.url?.startsWith(api.runtime.getURL(''))) return;
-  if (message?.type === 'entry-view' || message?.type === 'entry-continue' || message?.type === 'entry-back') {
+  if (message?.type === 'entry-view' || message?.type === 'entry-continue' || message?.type === 'entry-back'
+    || message?.type === 'entry-hold-start' || message?.type === 'entry-hold-cancel' || message?.type === 'entry-hold-complete'
+    || message?.type === 'entry-two-step-start' || message?.type === 'entry-two-step-confirm') {
     void ready.then(() => queue(async () => {
       try { sendResponse(await entry?.message(message, sender) ?? {}); }
       catch { sendResponse({}); }

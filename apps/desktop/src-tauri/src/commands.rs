@@ -1,5 +1,5 @@
 use crate::browser_setup;
-use focus_core::{db::{Db, Error, Result}, model::{DesktopState, EntryPolicy, OpenIntent}, protocol};
+use focus_core::{db::{Db, Error, Result}, model::{Accessibility, DesktopState, EntryPolicy, OpenIntent}, protocol};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -52,6 +52,11 @@ pub async fn set_grayscale(expected_revision: u64, site_id: String, enabled: boo
 #[tauri::command]
 pub async fn set_entry(expected_revision: u64, site_id: String, entry: EntryPolicy) -> Result<(), &'static str> {
     database(move |db| db.set_entry(expected_revision, &site_id, entry)).await
+}
+
+#[tauri::command]
+pub async fn set_accessibility(expected_revision: u64, accessibility: Accessibility) -> Result<(), &'static str> {
+    database(move |db| db.set_accessibility(expected_revision, accessibility)).await
 }
 
 #[tauri::command]

@@ -45,7 +45,7 @@
           <select value={pause.finish} onchange={(event) => void update(event.currentTarget, {
             ...pause, finish: event.currentTarget.value === 'auto' ? 'auto' : 'manual',
           }, pause.finish)}>
-            <option value="manual">Require Continue</option><option value="auto">Open automatically</option>
+            <option value="manual">Manual entry</option><option value="auto">Open automatically</option>
           </select>
         </label>
         <label>Pause for

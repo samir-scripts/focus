@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { hostOrigins } from '../../extension/src/permissions';
-import type { EntryPolicy, SitePolicy } from '../../extension/src/protocol';
+import type { Accessibility, EntryPolicy, SitePolicy } from '../../extension/src/protocol';
 
 export const browsers = {
   chrome: 'Chrome', chromium: 'Chromium', brave: 'Brave', firefox: 'Firefox', zen: 'Zen',
@@ -23,6 +23,7 @@ export type InstallOutcome = 'storeOpened' | 'signedPending' | 'policyRemoved' |
 export type BrowserState = {
   revision: number;
   hideShorts: boolean;
+  accessibility: Accessibility;
   sites: SitePolicy[];
   entryAvailable?: boolean;
   pending: Pair[];
@@ -38,6 +39,7 @@ export interface BrowserBridge {
   setHideShorts: (expectedRevision: number, enabled: boolean) => Promise<void>;
   setGrayscale: (expectedRevision: number, siteId: string, enabled: boolean) => Promise<void>;
   setEntry: (expectedRevision: number, siteId: string, entry: EntryPolicy) => Promise<void>;
+  setAccessibility: (expectedRevision: number, accessibility: Accessibility) => Promise<void>;
   designateSite: (host: string) => Promise<string>;
   decidePair: (id: string, approved: boolean, label: string | null) => Promise<void>;
   revoke: (id: string) => Promise<void>;
@@ -51,6 +53,7 @@ export const nativeBrowserBridge: BrowserBridge = {
   setHideShorts: (expectedRevision, enabled) => invoke('set_hide_shorts', { expectedRevision, enabled }),
   setGrayscale: (expectedRevision, siteId, enabled) => invoke('set_grayscale', { expectedRevision, siteId, enabled }),
   setEntry: (expectedRevision, siteId, entry) => invoke('set_entry', { expectedRevision, siteId, entry }),
+  setAccessibility: (expectedRevision, accessibility) => invoke('set_accessibility', { expectedRevision, accessibility }),
   designateSite: (host) => invoke('designate_site', { host }),
   decidePair: (id, approved, label) => invoke('decide_browser_pair', { id, approved, label }),
   revoke: (id) => invoke('revoke_browser_profile', { id }),

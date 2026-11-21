@@ -28,6 +28,10 @@ fn run() -> Result<(), &'static str> {
             revision.parse().map_err(|_| "invalid_revision")?, site,
             serde_json::from_str(policy).map_err(|_| "invalid_policy")?,
         ).map_err(|e| e.code()),
+        ["accessibility", revision, settings] => db.set_accessibility(
+            revision.parse().map_err(|_| "invalid_revision")?,
+            serde_json::from_str(settings).map_err(|_| "invalid_accessibility")?,
+        ).map_err(|e| e.code()),
         ["grayscale", revision, site, value] => db.set_grayscale(
             revision.parse().map_err(|_| "invalid_revision")?, site,
             value.parse().map_err(|_| "invalid_grayscale")?,

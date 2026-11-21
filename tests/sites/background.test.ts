@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 const setupUrl = 'chrome-extension://fixture/setup.html';
 const credential = { profileId: '9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90', token: 'f'.repeat(64), browser: 'chromium', label: 'Fixture' };
-const snapshot = (revision: number, enabled: boolean) => ({ revision, sites: [{
+const snapshot = (revision: number, enabled: boolean) => ({ revision, accessibility: { holdSeconds: 15, twoStepConfirmation: false }, sites: [{
   id: 'youtube', label: 'YouTube', hosts: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
   entry: { mode: 'allow' }, grayscale: false, rules: { 'youtube.hide-shorts': enabled },
 }] });
@@ -37,7 +37,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   });
   // Reload the real worker after installing the per-test browser API boundary.
   await import('../../apps/extension/src/background');
-  function send(op: string, { body = {}, version = 2 }: Incoming = {}) {
+  function send(op: string, { body = {}, version = 3 }: Incoming = {}) {
     const request = sent.find((entry) => entry.op === op);
     if (!request) throw new Error(`Missing pending ${op} request`);
     inbox.emit({ v: version, id: request.id, ok: true, body });

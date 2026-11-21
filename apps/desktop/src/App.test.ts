@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import type { EntryPolicy } from '../../extension/src/protocol';
+import type { Accessibility, EntryPolicy } from '../../extension/src/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from './App.svelte';
 
@@ -44,7 +44,7 @@ describe('desktop shell', () => {
     let enabled = false;
     let revision = 0;
     render(App, { browserBridge: {
-      state: async () => ({ revision, hideShorts: enabled, sites: [], pending: [], profiles: [], open: null }),
+      state: async () => ({ revision, hideShorts: enabled, accessibility: { holdSeconds: 15, twoStepConfirmation: false }, sites: [], pending: [], profiles: [], open: null }),
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled',
       removeInstallation: async () => 'cancelled',
@@ -53,7 +53,7 @@ describe('desktop shell', () => {
         enabled = next;
         revision += 1;
       },
-      setEntry: async () => {}, setGrayscale: async () => {}, designateSite: async () => '',
+      setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
       decidePair: async () => {},
       revoke: async () => {},
     } });
@@ -68,7 +68,7 @@ describe('desktop shell', () => {
   it('shows the missing schemes and aliases instead of claiming partial grants are applied', async () => {
     render(App, { browserBridge: {
       state: async () => ({
-        revision: 7, hideShorts: true, sites: [], pending: [], open: null,
+        revision: 7, hideShorts: true, accessibility: { holdSeconds: 15, twoStepConfirmation: false }, sites: [], pending: [], open: null,
         profiles: [{ id: 'sample', label: 'Test browser', browser: 'chrome', online: true, ackRevision: 7,
           origins: ['https://www.youtube.com/*', 'https://youtu.be/*', 'https://reddit.com/*'] }],
       }),
@@ -76,7 +76,7 @@ describe('desktop shell', () => {
       install: async () => 'cancelled',
       removeInstallation: async () => 'cancelled',
       setHideShorts: async () => {},
-      setEntry: async () => {}, setGrayscale: async () => {}, designateSite: async () => '',
+      setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
       decidePair: async () => {},
       revoke: async () => {},
     } });
@@ -94,12 +94,12 @@ describe('desktop shell', () => {
     let entry: EntryPolicy = { mode: 'allow' };
     let revision = 0;
     render(App, { browserBridge: {
-      state: async () => ({ revision, hideShorts: false, pending: [], profiles: [], open: null, entryAvailable: true,
+      state: async () => ({ revision, hideShorts: false, accessibility: { holdSeconds: 15, twoStepConfirmation: false }, pending: [], profiles: [], open: null, entryAvailable: true,
         sites: [{ id: 'youtube', label: 'YouTube', hosts: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
           grayscale: false, rules: { 'youtube.hide-shorts': false }, entry }] }),
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
-      setHideShorts: async () => {}, setGrayscale: async () => {}, designateSite: async () => '',
+      setHideShorts: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
       setEntry: async (expected: number, id: string, next: EntryPolicy) => {
         expect([expected, id]).toEqual([revision, 'youtube']);
         entry = next;
@@ -116,6 +116,28 @@ describe('desktop shell', () => {
     await fireEvent.click(screen.getByRole('radio', { name: 'Block' }));
     await waitFor(() => expect(screen.queryByLabelText('Wait (seconds)')).toBeNull());
     expect(entry).toEqual({ mode: 'block' });
+  });
+
+  it('saves global accessibility settings with the revision displayed when editing began', async () => {
+    let revision = 2;
+    let accessibility = { holdSeconds: 15, twoStepConfirmation: false };
+    const saved: unknown[] = [];
+    render(App, { browserBridge: {
+      state: async () => ({ revision, hideShorts: false, accessibility, sites: [], pending: [], profiles: [], open: null }),
+      scan: async () => ({ supported: true, targets: [] }),
+      install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
+      setHideShorts: async () => {}, setGrayscale: async () => {}, setEntry: async () => {}, designateSite: async () => '',
+      setAccessibility: async (expected: number, next: Accessibility) => { saved.push([expected, next]); accessibility = next; revision++; },
+      decidePair: async () => {}, revoke: async () => {},
+    } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const duration = await screen.findByLabelText<HTMLInputElement>('Hold duration (seconds)');
+    await waitFor(() => expect(duration.matches(':disabled')).toBe(false));
+    expect(duration.value).toBe('15');
+    await fireEvent.input(duration, { target: { value: '45' } });
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Use two-step confirmation instead of holding' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Save accessibility settings' }));
+    await waitFor(() => expect(saved).toEqual([[2, { holdSeconds: 45, twoStepConfirmation: true }]]));
   });
 
   it('reports disconnected and empty states without presenting active filtering or tracking controls', async () => {

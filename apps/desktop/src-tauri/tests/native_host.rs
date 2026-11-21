@@ -79,7 +79,7 @@ fn rejects_protocol_mismatch_and_revoked_profiles() {
     let mut h = Harness::new();
     let fixture: Value = serde_json::from_str(include_str!("../../../../tests/protocol/v1.json")).unwrap();
     let mut hello = fixture["hello"].clone();
-    hello["v"] = json!(3);
+    hello["v"] = json!(4);
     assert_eq!(h.request(hello), fixture["versionMismatch"]);
     assert_eq!(h.pair(PROFILE,TOKEN)["ok"], true);
     let state: Value = serde_json::from_slice(&h.admin(&["state"]).stdout).unwrap();
@@ -87,4 +87,15 @@ fn rejects_protocol_mismatch_and_revoked_profiles() {
     assert_eq!(h.request(fixture["hello"].clone())["ok"], true);
     assert!(h.admin(&["revoke",PROFILE]).status.success());
     assert_eq!(h.op("snapshot",json!({"afterRevision":null}))["error"]["code"], "unpaired");
+}
+
+#[test]
+fn fixture_admin_persists_and_validates_accessibility_settings() {
+    let h = Harness::new();
+    assert!(h.admin(&["accessibility", "0", r#"{"holdSeconds":30,"twoStepConfirmation":true}"#]).status.success());
+    assert!(!h.admin(&["accessibility", "0", r#"{"holdSeconds":45,"twoStepConfirmation":false}"#]).status.success());
+    assert!(!h.admin(&["accessibility", "1", r#"{"holdSeconds":14,"twoStepConfirmation":false}"#]).status.success());
+    let state: Value = serde_json::from_slice(&h.admin(&["state"]).stdout).unwrap();
+    assert_eq!(state["revision"], 1);
+    assert_eq!(state["accessibility"], json!({"holdSeconds":30,"twoStepConfirmation":true}));
 }

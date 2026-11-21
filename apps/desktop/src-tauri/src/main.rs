@@ -24,6 +24,7 @@ fn main() {
             commands::set_hide_shorts,
             commands::set_grayscale,
             commands::set_entry,
+            commands::set_accessibility,
             commands::designate_site,
             commands::decide_browser_pair,
             commands::revoke_browser_profile

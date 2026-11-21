@@ -1,14 +1,15 @@
 import { catalog } from './sites/catalog';
 
-export const VERSION = 2;
+export const VERSION = 3;
 export type EntryPolicy = { mode: 'allow' } | { mode: 'block' } |
   { mode: 'pause'; seconds: number; finish: 'manual' | 'auto'; frequency: 'visit' | 'page' };
 export type SitePolicy = {
   id: string; label: string; hosts: string[]; grayscale: boolean; entry: EntryPolicy; rules: Record<string, boolean>;
 };
 type LegacySite = Pick<SitePolicy, 'id' | 'rules'>;
-export type Snapshot = { revision: number; sites: (SitePolicy | LegacySite)[] };
-export type PolicySnapshot = { revision: number; sites: SitePolicy[] };
+export type Accessibility = { holdSeconds: number; twoStepConfirmation: boolean };
+export type Snapshot = { revision: number; sites: (SitePolicy | LegacySite)[]; accessibility?: Accessibility };
+export type PolicySnapshot = { revision: number; sites: SitePolicy[]; accessibility: Accessibility };
 
 export function normalizeHost(value: string): string | undefined {
   const hostname = value.trim().replace(/\.+$/, '');
@@ -36,8 +37,15 @@ function validEntry(value: unknown): value is EntryPolicy {
     && (value.finish === 'manual' || value.finish === 'auto') && (value.frequency === 'visit' || value.frequency === 'page');
 }
 
+function validAccessibility(value: unknown): value is Accessibility {
+  return record(value) && keys(value, 'holdSeconds', 'twoStepConfirmation')
+    && typeof value.holdSeconds === 'number' && Number.isInteger(value.holdSeconds)
+    && value.holdSeconds >= 15 && value.holdSeconds <= 600 && typeof value.twoStepConfirmation === 'boolean';
+}
+
 export function validSnapshot(value: unknown): value is Snapshot {
-  if (!record(value) || !keys(value, 'revision', 'sites')) return false;
+  if (!record(value) || !(keys(value, 'revision', 'sites') ||
+    keys(value, 'revision', 'sites', 'accessibility') && validAccessibility(value.accessibility))) return false;
   if (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0 || !Array.isArray(value.sites)) return false;
   const ids = new Set<string>();
   return value.sites.every((entry: unknown) => {
@@ -57,5 +65,5 @@ export function validSnapshot(value: unknown): value is Snapshot {
 }
 
 export function validPolicySnapshot(value: unknown): value is PolicySnapshot {
-  return validSnapshot(value) && value.sites.every((site) => 'entry' in site);
+  return validSnapshot(value) && validAccessibility(value.accessibility) && value.sites.every((site) => 'entry' in site);
 }

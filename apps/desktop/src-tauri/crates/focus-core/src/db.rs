@@ -1,4 +1,4 @@
-use crate::model::{self, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
+use crate::model::{self, Accessibility, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
 use rusqlite::{params, types::ValueRef, Connection, ErrorCode, OptionalExtension, TransactionBehavior::Immediate};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, thread, time::{Duration, Instant}};
@@ -113,7 +113,15 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 2 { return Err(Error::Database); }
+        if version(&db)? == 2 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 2 {
+                tx.execute_batch(include_str!("../migrations/003.sql"))?;
+                tx.pragma_update(None, "user_version", 3)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 3 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
@@ -121,16 +129,17 @@ impl Db {
 
     pub fn legacy_policy(&self) -> Result<(u64, bool)> {
         let tx = self.0.unchecked_transaction()?;
-        if requires_update(&tx)? { return Err(Error::VersionMismatch); }
+        if requires_update(&tx)? || requires_v3(&tx)? { return Err(Error::VersionMismatch); }
         policy(&tx)
     }
 
-    pub fn snapshot(&self, after: Option<u64>) -> Result<(u64, Option<Vec<SitePolicy>>)> {
+    pub fn snapshot(&self, after: Option<u64>, version: u16) -> Result<(u64, Option<(Vec<SitePolicy>, Accessibility)>)> {
         let tx = self.0.unchecked_transaction()?;
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
+        if version < 3 && requires_v3(&tx)? { return Err(Error::VersionMismatch); }
         let revision = policy(&tx)?.0;
-        let sites = if after == Some(revision) { None } else { Some(site_policies(&tx)?) };
-        Ok((revision, sites))
+        let snapshot = if after == Some(revision) { None } else { Some((site_policies(&tx)?, accessibility(&tx)?)) };
+        Ok((revision, snapshot))
     }
 
     pub fn designate_site(&mut self, hostname: &str) -> Result<String> {
@@ -161,6 +170,18 @@ impl Db {
         if !self.1 && value != EntryPolicy::Allow { return Err(Error::VersionMismatch); }
         self.edit_site(revision, site, "UPDATE site_policy SET entry=?2 WHERE site_id=?1 AND entry<>?2",
             serde_json::to_string(&value).map_err(|_| Error::Invalid)?)
+    }
+
+    pub fn set_accessibility(&mut self, revision: u64, value: Accessibility) -> Result<()> {
+        if !(15..=600).contains(&value.hold_seconds) { return Err(Error::Invalid); }
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        if policy(&tx)?.0 != revision { return Err(Error::Stale); }
+        if accessibility(&tx)? != value {
+            tx.execute("UPDATE meta SET hold_seconds=?1, two_step_confirmation=?2, revision=revision+1 WHERE singleton=1",
+                params![value.hold_seconds, value.two_step_confirmation])?;
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     fn edit_site(&mut self, revision: u64, site: &str, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {
@@ -264,7 +285,7 @@ impl Db {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         check_session(&tx, id, session)?;
         let protocol: u16 = tx.query_row("SELECT protocol FROM profile_runtime WHERE profile_id=?1", [id], |r| r.get(0))?;
-        if protocol == 1 && requires_update(&tx)? { return Err(Error::VersionMismatch); }
+        if (protocol == 1 && requires_update(&tx)?) || (protocol < 3 && requires_v3(&tx)?) { return Err(Error::VersionMismatch); }
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let mut check = tx.prepare("SELECT EXISTS(SELECT 1 FROM site_origin WHERE hostname=?1)")?;
@@ -310,21 +331,23 @@ impl Db {
         };
         let profiles = {
             let update_required = requires_update(&tx)?;
+            let v3_required = requires_v3(&tx)?;
             let entry_unsupported = !self.1 && has_entry_policy(&tx)?;
             let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins,r.protocol
                 FROM profile p LEFT JOIN profile_runtime r ON r.profile_id=p.id AND r.expires_at>?1
                 WHERE NOT p.revoked ORDER BY p.rowid")?;
             let rows = q.query_map([now], |r| Ok(ProfileStatus {
                 id: r.get(0)?, label: r.get(1)?, browser: r.get(2)?, online: r.get(3)?, ack_revision: r.get(4)?,
-                update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)),
+                update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required) || (v < 3 && v3_required)),
                 origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
                     .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
             }))?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
         let sites = site_policies(&tx)?;
+        let accessibility = accessibility(&tx)?;
         tx.commit()?;
-        Ok(DesktopState { revision, hide_shorts, pending, profiles, sites, entry_available: self.1 })
+        Ok(DesktopState { revision, hide_shorts, accessibility, pending, profiles, sites, entry_available: self.1 })
     }
 
     pub fn request_open(&mut self, id: &str, session: &str, site_id: Option<&str>) -> Result<()> {
@@ -352,6 +375,18 @@ impl Db {
 fn policy(conn: &Connection) -> Result<(u64, bool)> {
     Ok(conn.query_row("SELECT revision,enabled FROM meta CROSS JOIN site_rule WHERE site_id=?1 AND rule_id=?2",
         params![model::YOUTUBE,model::HIDE_SHORTS], |r| Ok((r.get(0)?,r.get(1)?)))?)
+}
+
+fn accessibility(conn: &Connection) -> Result<Accessibility> {
+    Ok(conn.query_row("SELECT hold_seconds, two_step_confirmation FROM meta WHERE singleton=1", [], |r| {
+        Ok(Accessibility { hold_seconds: r.get(0)?, two_step_confirmation: r.get(1)? })
+    })?)
+}
+
+fn requires_v3(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT hold_seconds<>15 OR two_step_confirmation<>0 OR EXISTS(
+        SELECT 1 FROM site_policy WHERE json_extract(entry,'$.mode')='pause' AND json_extract(entry,'$.finish')='manual'
+    ) FROM meta WHERE singleton=1", [], |r| r.get(0))?)
 }
 
 fn requires_update(conn: &Connection) -> Result<bool> {

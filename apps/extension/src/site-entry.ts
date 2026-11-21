@@ -4,13 +4,19 @@ import type { PolicySnapshot, SitePolicy } from './protocol';
 type PausePolicy = Extract<SitePolicy['entry'], { mode: 'pause' }>;
 export type PendingPause = {
   target: string; page: string; revision: number; siteId: string; nonce: string; deadline: number; seconds: number;
+  gesture?: { kind: 'hold' | 'two-step'; deadline: number };
 };
-export type EntryView = { label?: string; mode?: 'pause' | 'block'; nonce?: string; remaining?: number; finish?: PausePolicy['finish'] };
+export type EntryView = {
+  label?: string; mode?: 'pause' | 'block'; nonce?: string; revision?: number; remaining?: number;
+  finish?: PausePolicy['finish']; manual?: 'continue' | 'hold' | 'two-step'; gestureRemaining?: number;
+};
 type Pass = { kind: 'page' | 'visit'; siteId: string; target: string; started?: true };
-type TabState = { pending?: PendingPause; pass?: Pass; document?: string; original?: string; safePrevious?: true };
+type TabState = { pending?: PendingPause; pass?: Pass; document?: string; original?: string; safePrevious?: string };
 type Nav = { tabId: number; frameId: number; url: string };
 type EntrySender = { url?: string; frameId?: number; tab?: { id?: number; incognito?: boolean } };
-type EntryMessage = { type: 'entry-view' | 'entry-continue' | 'entry-back' | 'entry-auto'; nonce?: unknown };
+type EntryMessage = { type: 'entry-view' | 'entry-continue' | 'entry-back' | 'entry-auto'
+  | 'entry-hold-start' | 'entry-hold-cancel' | 'entry-hold-complete'
+  | 'entry-two-step-start' | 'entry-two-step-confirm'; nonce?: unknown; revision?: unknown };
 type BrowserTab = { id?: number; url?: string; pendingUrl?: string; incognito?: boolean };
 type BrowserEvent<A extends unknown[]> = { addListener(listener: (...args: A) => void): void };
 type StoredSession = { revision?: number; origins?: string[]; tabs?: Record<number, TabState> };
@@ -22,7 +28,7 @@ type EntryBrowser = {
   tabs: {
     onRemoved: BrowserEvent<[number]>; onReplaced?: BrowserEvent<[number, number]>;
     get(id: number): Promise<BrowserTab>; query(query: object): Promise<BrowserTab[]>;
-    update(id: number, update: { url: string }): Promise<BrowserTab>; remove(id: number): Promise<void>; goBack(id: number): Promise<void>;
+    update(id: number, update: { url: string }): Promise<BrowserTab>; remove(id: number): Promise<void>;
   };
   declarativeNetRequest: {
     getDynamicRules(): Promise<EntryRule[]>; getSessionRules(): Promise<EntryRule[]>;
@@ -45,11 +51,13 @@ export class SiteEntry {
   private state: Record<number, TabState> = {};
   private scopes = new Map<string, SitePolicy>();
   private revision = -1;
+  private accessibility = { holdSeconds: 15, twoStepConfirmation: false };
   private generation?: string;
   private saved?: { revision: number; origins: string[] };
   private readonly timers = new Map<number, ReturnType<typeof setTimeout>>();
 
-  constructor(private readonly api: EntryBrowser, private readonly schedule: (task: () => Promise<void>) => void) {
+  constructor(private readonly api: EntryBrowser, private readonly schedule: (task: () => Promise<void>) => void,
+    private readonly engine: 'chromium' | 'firefox' = 'chromium') {
     this.page = api.runtime.getURL('entry.html');
     const navigation = api.webNavigation;
     navigation.onBeforeNavigate.addListener((event: Nav) => {
@@ -147,6 +155,7 @@ export class SiteEntry {
       this.state = {};
     }
     this.scopes = scopes;
+    this.accessibility = policy?.accessibility ?? { holdSeconds: 15, twoStepConfirmation: false };
     this.revision = revision;
     this.saved = { revision, origins };
     await this.persist();
@@ -197,6 +206,9 @@ export class SiteEntry {
 
   private async commit({ tabId, url }: Nav) {
     if (this.scopes.size === 0) return;
+    const current = await this.api.tabs.get(tabId).catch(() => undefined);
+    if (!current || current.incognito || current.pendingUrl && current.pendingUrl !== current.url
+      || (this.isEntry(url) ? current.url !== url : !documentKey(url) || documentKey(current.url ?? '') !== documentKey(url))) return;
     const tab = this.state[tabId] ??= {};
     if (this.isEntry(url)) {
       delete tab.document;
@@ -208,6 +220,7 @@ export class SiteEntry {
     }
     const site = this.gated(url);
     const key = documentKey(url);
+    const destination = tab.original && documentKey(tab.original) === key ? tab.original : url;
     const pass = tab.pass;
     const allowed = site?.entry.mode === 'pause' && pass?.siteId === site.id
       && (pass.kind === 'visit' || documentKey(pass.target) === key);
@@ -215,11 +228,12 @@ export class SiteEntry {
     this.clearTimer(tabId);
     delete tab.pending;
     delete tab.original;
-    if (!site && key) this.state[tabId] = { safePrevious: true };
+    if (!site && key) this.state[tabId] = { safePrevious: url };
     else if (allowed) this.state[tabId] = { document: key, pass: tab.pass };
+    else if (site?.entry.mode === 'pause' && tab.safePrevious) this.state[tabId] = { safePrevious: tab.safePrevious };
     else delete this.state[tabId];
     await this.persist();
-    if (site && !allowed) await this.show(tabId, url); // Includes BFCache and service-worker responses.
+    if (site && !allowed) await this.show(tabId, destination); // Includes BFCache and service-worker responses.
   }
 
   private async navigationError({ tabId, url }: Nav) {
@@ -245,9 +259,9 @@ export class SiteEntry {
     const site = target && this.gated(target.href);
     const record = this.state[id] ??= {};
     if (message.type === 'entry-back') {
-      const goBack = record.safePrevious;
+      const previous = record.safePrevious;
       await this.remove(id);
-      if (goBack) await this.api.tabs.goBack(id).catch(() => this.api.tabs.remove(id));
+      if (previous && !this.gated(previous)) await this.api.tabs.update(id, { url: previous }).catch(() => this.api.tabs.remove(id));
       else await this.api.tabs.remove(id);
       return {};
     }
@@ -272,12 +286,35 @@ export class SiteEntry {
       }
     }
     const now = performance.now();
-    if (((message.type === 'entry-continue' && settings.finish === 'manual') || settings.finish === 'auto')
+    const manual = this.engine === 'firefox' ? 'continue' : this.accessibility.twoStepConfirmation ? 'two-step' : 'hold';
+    if (settings.finish === 'manual' && this.engine === 'chromium'
+      && message.nonce === pending.nonce && message.revision === pending.revision && now >= pending.deadline) {
+      if (manual === 'hold') {
+        if (message.type === 'entry-hold-start' && !pending.gesture) {
+          pending.gesture = { kind: 'hold', deadline: now + this.accessibility.holdSeconds * 1000 };
+        } else if (message.type === 'entry-hold-cancel' && pending.gesture?.kind === 'hold') {
+          delete pending.gesture;
+        } else if (message.type === 'entry-hold-complete' && pending.gesture?.kind === 'hold' && now >= pending.gesture.deadline) {
+          await this.resume(id, record, settings, pending);
+          return {};
+        }
+      } else if (manual === 'two-step') {
+        if (message.type === 'entry-two-step-start' && !pending.gesture) {
+          pending.gesture = { kind: 'two-step', deadline: now + Math.max(35, this.accessibility.holdSeconds) * 1000 };
+        } else if (message.type === 'entry-two-step-confirm' && pending.gesture?.kind === 'two-step' && now >= pending.gesture.deadline) {
+          await this.resume(id, record, settings, pending);
+          return {};
+        }
+      }
+    }
+    if (((message.type === 'entry-continue' && settings.finish === 'manual' && this.engine === 'firefox') || settings.finish === 'auto')
       && consumePause(pending, { now, page, revision: this.revision, nonce: message.nonce })) {
       await this.resume(id, record, settings, pending);
       return {};
     }
-    return { label: site.label, mode: 'pause', nonce: pending.nonce, remaining: Math.max(0, pending.deadline - now), finish: settings.finish };
+    return { label: site.label, mode: 'pause', nonce: pending.nonce, revision: pending.revision,
+      remaining: Math.max(0, pending.deadline - now), finish: settings.finish, manual,
+      gestureRemaining: pending.gesture && Math.max(0, pending.gesture.deadline - now) };
   }
 
   private async resume(id: number, record: TabState, settings: PausePolicy, pending: PendingPause) {

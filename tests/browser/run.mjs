@@ -386,6 +386,7 @@ async function waitForPause(browser, url) {
   await eventually('target Pause interstitial', async () => await currentUrl(browser) === entryUrl(browser, url), 6000);
   if (browser.context) {
     await browser.page.getByText('Pause before opening this site.', { exact: true }).waitFor({ timeout: 6000 });
+    await browser.page.getByRole('button', { name: 'Go back', exact: true }).waitFor({ timeout: 6000 });
   } else {
     await browser.driver.switchTo().window(browser.page);
     await focusWindow('firefox');
@@ -496,7 +497,18 @@ async function clickSite(browser, id, expectedUrl) {
 async function continueEntry(browser, url) {
   assert.equal(await currentUrl(browser), entryUrl(browser, url), 'wrong tab or Pause target');
   if (browser.context) {
-    await browser.page.getByRole('button', { name: 'Continue' }).click({ timeout: 12000 });
+    const button = browser.page.getByRole('button', { name: 'Hold to enter', exact: true });
+    await button.waitFor({ state: 'visible', timeout: 12000 });
+    await eventually('hold enabled after site countdown', () => button.isEnabled(), 12000);
+    await button.focus();
+    const started = Date.now();
+    await browser.page.keyboard.down('Space');
+    try {
+      await eventually('held entry navigation', async () => await currentUrl(browser) !== entryUrl(browser, url), 19000);
+      assert(Date.now() - started >= 15000, 'manual entry must require a real 15-second hold');
+    } finally {
+      await browser.page.keyboard.up('Space');
+    }
   } else {
     await browser.driver.switchTo().window(browser.page);
     await focusWindow('firefox');
@@ -644,17 +656,62 @@ try {
           await checkEntry(`${name}: pause ${kind} first document`, async () => {
             let navigation = 'resolved';
             try { await navigate(tab, path, host); } catch (error) { navigation = error.name; }
-            await sleep(500);
-            const outcome = await currentUrl(tab) === entryUrl(tab, url) ? 'pause' : 'unconfirmed';
-            const commits = tab.commits.get(url) ?? 0;
-            const requests = proxy.documents(host, path);
-            (results.firstDocuments ??= {})[`${name}-pause-${kind}`] = { commits, requests, outcome, navigation };
-            assert.equal(commits, 0, 'gated destination committed');
-            assert.equal(requests, 0, 'gated destination reached fixture server');
-            assert.equal(outcome, 'pause');
+            const workerFallback = name === 'chromium' && kind === 'worker';
+            let outcome = 'unconfirmed';
+            try {
+              await waitForPause(tab, url);
+              outcome = 'pause';
+            } finally {
+              const commits = tab.commits.get(url) ?? 0;
+              const requests = proxy.documents(host, path);
+              (results.firstDocuments ??= {})[`${name}-pause-${kind}`] = { commits, requests, outcome, navigation };
+              if (!workerFallback) assert.equal(commits, 0, 'gated destination committed');
+              assert.equal(requests, 0, 'gated destination reached fixture server');
+            }
           });
         });
       }
+      if (name === 'chromium') await inEntryTab(browser, async tab => {
+        await checkEntry('chromium: worker Pause survives repeated attempts and reload', async () => {
+          const first = '/worker-navigation?attempt=first';
+          const second = '/worker-navigation?attempt=second';
+          const firstUrl = `https://m.youtube.com${first}`;
+          const secondUrl = `https://m.youtube.com${second}`;
+          const trace = (results.workerRepeatTrace ??= {});
+          try {
+            trace.step = 'safe';
+            await navigate(tab, '/safe', 'outside.test');
+            trace.step = 'first';
+            await navigate(tab, first, 'm.youtube.com');
+            await waitForPause(tab, firstUrl);
+            trace.step = 'reload';
+            await tab.page.reload({ waitUntil: 'domcontentloaded' });
+            await waitForPause(tab, firstUrl);
+            trace.step = 'second';
+            await navigate(tab, second, 'm.youtube.com');
+            await waitForPause(tab, secondUrl);
+            trace.step = 'history';
+            await tab.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
+            await eventually('history reaches one usable worker Pause', async () => {
+              const current = await currentUrl(tab);
+              if (current === entryUrl(tab, firstUrl)) { await waitForPause(tab, firstUrl); return true; }
+              if (current === entryUrl(tab, secondUrl)) { await waitForPause(tab, secondUrl); return true; }
+              return false;
+            }, 6000);
+          } finally {
+            const current = await currentUrl(tab).catch(() => '');
+            trace.location = current === entryUrl(tab, firstUrl) ? 'first-pause'
+              : current === entryUrl(tab, secondUrl) ? 'second-pause'
+              : current === firstUrl ? 'first-destination' : current === secondUrl ? 'second-destination' : 'other';
+          }
+          assert.equal(proxy.documents('m.youtube.com', first), 0);
+          assert.equal(proxy.documents('m.youtube.com', second), 0);
+          await tab.page.getByRole('button', { name: 'Go back', exact: true }).click();
+          await eventually('worker Pause Go back reaches safe page', async () =>
+            tab.page.isClosed() || await currentUrl(tab) === 'https://outside.test/safe', 6000);
+          assert.equal(tab.page.isClosed(), false, 'safe previous tab must not close');
+        });
+      });
       await inEntryTab(browser, async tab => {
         const path = `/watch?id=73&pause=${name}`;
         const url = `https://www.youtube.com${path}`;
@@ -744,6 +801,52 @@ try {
         });
       });
     }
+    const confirmationEnabled = await checkEntry('enable Chromium two-step confirmation', async () => {
+      await admin('accessibility', String((await state()).revision),
+        JSON.stringify({ holdSeconds: 15, twoStepConfirmation: true }));
+      const { revision } = await state();
+      await ack(chromeId, revision, youtubeOrigins);
+      await ack(foxId, revision, youtubeOrigins);
+    });
+    if (confirmationEnabled) await inEntryTab(chrome, async tab => {
+      await checkEntry('chromium: two-step requires 35 seconds and explicit confirmation', async () => {
+        const path = '/watch?id=two-step-chromium';
+        const url = `https://www.youtube.com${path}`;
+        await navigate(tab, path);
+        await waitForPause(tab, url);
+        const start = tab.page.getByRole('button', { name: 'Start confirmation', exact: true });
+        await eventually('two-step enabled after site countdown', () => start.isEnabled(), 12000);
+        await start.focus();
+        await tab.page.screenshot({ path: join(root, 'artifacts/extensions/entry-focus.png') });
+        await tab.page.emulateMedia({ reducedMotion: 'reduce', forcedColors: 'active' });
+        await tab.page.screenshot({ path: join(root, 'artifacts/extensions/entry-forced-colors.png') });
+        await tab.page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
+        const zoomTab = await tab.setup.evaluate(async url => {
+          const target = (await chrome.tabs.query({})).find(item => item.url === url);
+          if (!target?.id) throw new Error('Pause tab not found for zoom');
+          await chrome.tabs.setZoom(target.id, 2);
+          return { id: target.id, zoom: await chrome.tabs.getZoom(target.id) };
+        }, entryUrl(tab, url));
+        assert.equal(zoomTab.zoom, 2);
+        await tab.page.screenshot({ path: join(root, 'artifacts/extensions/entry-zoom-200.png') });
+        await tab.setup.evaluate(async id => chrome.tabs.setZoom(id, 1), zoomTab.id);
+        const started = Date.now();
+        await start.press('Enter');
+        const enter = tab.page.getByRole('button', { name: 'Enter site', exact: true });
+        await eventually('two-step Enter site enabled', () => enter.isEnabled(), 40000);
+        assert(Date.now() - started >= 35000, 'confirmation must wait at least 35 seconds');
+        assert.equal(await currentUrl(tab), entryUrl(tab, url), 'waiting alone must not grant entry');
+        await enter.press('Enter');
+        await verifyDestination(tab, 'www.youtube.com', path);
+      });
+    });
+    if (confirmationEnabled) await checkEntry('restore default Chromium confirmation', async () => {
+      await admin('accessibility', String((await state()).revision),
+        JSON.stringify({ holdSeconds: 15, twoStepConfirmation: false }));
+      const { revision } = await state();
+      await ack(chromeId, revision, youtubeOrigins);
+      await ack(foxId, revision, youtubeOrigins);
+    });
     await check('apply block policy', () => applyEntry({ mode: 'block' }));
     for (const [name, browser] of engines) {
       const targets = [['unrelated-error', 'outside.test', `/unrelated-block-control-${name}`]];

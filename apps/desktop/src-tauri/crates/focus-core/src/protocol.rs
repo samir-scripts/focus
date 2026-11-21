@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::io::{self, Read, Write};
 use uuid::Uuid;
 
-pub const VERSION: u16 = 2;
+pub const VERSION: u16 = 3;
 pub const MAX_BYTES: usize = 64 * 1024;
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 
@@ -89,10 +89,10 @@ impl Session {
             (1..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
         }).unwrap_or_default();
         let version = input.get("v").and_then(Value::as_u64);
-        if version.is_some_and(|v| v != 1 && v != u64::from(VERSION)) {
+        if version.is_some_and(|v| !(1..=u64::from(VERSION)).contains(&v)) {
             return failure(1, id, "version_mismatch");
         }
-        let version = if version == Some(2) { VERSION } else { 1 };
+        let version = version.and_then(|v| u16::try_from(v).ok()).unwrap_or(1);
         if id.is_empty() { return failure(version, id, Error::Invalid.code()); }
         let Ok(request) = Request::deserialize(&input) else { return failure(version, id, Error::Invalid.code()); };
         if !request.body.is_object() { return failure(version, &request.id, Error::Invalid.code()); }
@@ -135,10 +135,11 @@ impl Session {
                 db.check_session(profile, &self.session)?;
                 let Snapshot { after_revision } = decode(body)?;
                 if body.get("afterRevision").is_none() || after_revision.is_some_and(|r| r > MAX_REVISION) { return Err(Error::Invalid); }
-                if req.v == VERSION {
-                    let (revision, sites) = db.snapshot(after_revision)?;
-                    return Ok(match sites {
-                        Some(sites) => json!({"revision":revision,"sites":sites}),
+                if req.v >= 2 {
+                    let (revision, snapshot) = db.snapshot(after_revision, req.v)?;
+                    return Ok(match snapshot {
+                        Some((sites, accessibility)) if req.v >= 3 => json!({"revision":revision,"sites":sites,"accessibility":accessibility}),
+                        Some((sites, _)) => json!({"revision":revision,"sites":sites}),
                         None => json!({"revision":revision}),
                     });
                 }
