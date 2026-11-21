@@ -23,7 +23,7 @@ let serial = Promise.resolve();
 let connecting = false;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 const entry = web.declarativeNetRequest && web.webNavigation && web.storage.session
-  ? new SiteEntry(web, (task) => { void ready.then(() => queue(task)); }, typeof browser === 'undefined' ? 'chromium' : 'firefox')
+  ? new SiteEntry(web, (task) => { void ready.then(() => queue(task)); }, api.runtime.getURL('').startsWith('moz-extension://') ? 'firefox' : 'chromium')
   : undefined;
 
 function call(object: any, method: string, ...args: any[]): Promise<any> {

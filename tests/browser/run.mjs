@@ -505,7 +505,9 @@ async function continueEntry(browser, url) {
     await browser.page.keyboard.down('Space');
     try {
       await eventually('held entry navigation', async () => await currentUrl(browser) !== entryUrl(browser, url), 19000);
-      assert(Date.now() - started >= 15000, 'manual entry must require a real 15-second hold');
+      const elapsedMs = Date.now() - started;
+      ((results.timings ??= {}).chromiumHolds ??= []).push(elapsedMs);
+      assert(elapsedMs >= 15000, 'manual entry must require a real 15-second hold');
     } finally {
       await browser.page.keyboard.up('Space');
     }
@@ -631,7 +633,10 @@ try {
         const known = ['target Pause interstitial', 'site document has committed', 'actual SPA history change',
           'target fixture document committed', 'Firefox accessibility', 'wrong tab or Pause target',
           'wrong Firefox browsing context', 'wrong fixture document before click', 'fixture control missing',
-          'fixture control is not visible', 'same-document anchor', 'is not a constructor', 'is not a function', 'Unexpected token'];
+          'fixture control is not visible', 'same-document anchor', 'safe previous tab must not close',
+          'worker Pause Go back reaches safe page', 'hold enabled after site countdown', 'held entry navigation',
+          'two-step enabled after site countdown', 'two-step Enter site enabled', 'Pause tab not found for zoom',
+          'is not a constructor', 'is not a function', 'Unexpected token'];
         results.transitions[label] = { status: 'failed', error: error.name,
           detail: known.find(text => String(error.message).includes(text)) ?? navigationCode(error.message) ?? 'other' };
         return false;
@@ -707,9 +712,11 @@ try {
           assert.equal(proxy.documents('m.youtube.com', first), 0);
           assert.equal(proxy.documents('m.youtube.com', second), 0);
           await tab.page.getByRole('button', { name: 'Go back', exact: true }).click();
+          trace.step = 'back';
           await eventually('worker Pause Go back reaches safe page', async () =>
             tab.page.isClosed() || await currentUrl(tab) === 'https://outside.test/safe', 6000);
-          assert.equal(tab.page.isClosed(), false, 'safe previous tab must not close');
+          trace.closed = tab.page.isClosed();
+          assert.equal(trace.closed, false, 'safe previous tab must not close');
         });
       });
       await inEntryTab(browser, async tab => {
@@ -834,7 +841,8 @@ try {
         await start.press('Enter');
         const enter = tab.page.getByRole('button', { name: 'Enter site', exact: true });
         await eventually('two-step Enter site enabled', () => enter.isEnabled(), 40000);
-        assert(Date.now() - started >= 35000, 'confirmation must wait at least 35 seconds');
+        (results.timings ??= {}).chromiumTwoStep = Date.now() - started;
+        assert(results.timings.chromiumTwoStep >= 35000, 'confirmation must wait at least 35 seconds');
         assert.equal(await currentUrl(tab), entryUrl(tab, url), 'waiting alone must not grant entry');
         await enter.press('Enter');
         await verifyDestination(tab, 'www.youtube.com', path);

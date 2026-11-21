@@ -28,7 +28,8 @@ function browser(initial: { id: number; url: string; pendingUrl?: string } = { i
   const removed = event<[number]>();
   const api = {
     runtime: { getURL: () => 'chrome-extension://focus/entry.html' },
-    webNavigation: { onBeforeNavigate: before, onCommitted: commit, onErrorOccurred: error, onHistoryStateUpdated: event<[Navigation]>() },
+    webNavigation: { onBeforeNavigate: before, onCommitted: commit, onErrorOccurred: error, onHistoryStateUpdated: event<[Navigation]>(),
+      getFrame: async () => ({ url: tab.url }) },
     tabs: { onRemoved: removed, get: async () => tab, query: async () => [tab], update: async (_id: number, next: { url: string }) => (tab = { ...tab, ...next }), remove: async () => { removed.emit(tab.id); }, goBack: async () => {} },
     scripting: { insertCSS: async () => {}, removeCSS: async () => {} },
     storage: { session: { get: async () => stored, set: async (next: object) => { stored = structuredClone(next); } } },
@@ -216,6 +217,22 @@ it('ignores a stale committed event after the tab has navigated away', async () 
   fake.commit.emit({ tabId: 4, frameId: 0, url: stale });
   await fake.drain();
   expect(fake.read()).toBe(safe);
+  fake.setUrl(page);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: page });
+  await fake.drain();
+  await entry.message({ type: 'entry-back' }, { frameId: 0, url: page, tab: { id: 4 } });
+  expect(fake.read()).toBe(safe);
+});
+
+it('keeps Go back available when an ungranted safe page has no tabs.get URL', async () => {
+  const safe = 'https://outside.example/';
+  const fake = browser({ id: 4, url: safe });
+  const get = fake.api.tabs.get;
+  fake.api.tabs.get = async () => fake.read() === safe ? { id: 4, url: undefined as unknown as string } : get();
+  const entry = fake.newWorker();
+  await entry.reconcile(snapshot(1), origins);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: safe });
+  await fake.drain();
   fake.setUrl(page);
   fake.commit.emit({ tabId: 4, frameId: 0, url: page });
   await fake.drain();

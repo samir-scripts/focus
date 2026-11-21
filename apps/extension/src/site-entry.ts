@@ -24,7 +24,9 @@ type RuleUpdate = { removeRuleIds?: number[]; addRules?: EntryRule[] };
 type Injection = { target: { tabId: number }; css: string; origin: 'USER' };
 type EntryBrowser = {
   runtime: { getURL(path: string): string };
-  webNavigation: Record<'onBeforeNavigate' | 'onCommitted' | 'onErrorOccurred' | 'onHistoryStateUpdated', BrowserEvent<[Nav]>>;
+  webNavigation: Record<'onBeforeNavigate' | 'onCommitted' | 'onErrorOccurred' | 'onHistoryStateUpdated', BrowserEvent<[Nav]>> & {
+    getFrame(details: { tabId: number; frameId: number }): Promise<{ url?: string } | null>;
+  };
   tabs: {
     onRemoved: BrowserEvent<[number]>; onReplaced?: BrowserEvent<[number, number]>;
     get(id: number): Promise<BrowserTab>; query(query: object): Promise<BrowserTab[]>;
@@ -207,8 +209,9 @@ export class SiteEntry {
   private async commit({ tabId, url }: Nav) {
     if (this.scopes.size === 0) return;
     const current = await this.api.tabs.get(tabId).catch(() => undefined);
-    if (!current || current.incognito || current.pendingUrl && current.pendingUrl !== current.url
-      || (this.isEntry(url) ? current.url !== url : !documentKey(url) || documentKey(current.url ?? '') !== documentKey(url))) return;
+    if (!current || current.incognito || current.pendingUrl && current.pendingUrl !== current.url) return;
+    const currentUrl = current.url ?? (await this.api.webNavigation.getFrame({ tabId, frameId: 0 }).catch(() => null))?.url;
+    if (this.isEntry(url) ? currentUrl !== url : !documentKey(url) || documentKey(currentUrl ?? '') !== documentKey(url)) return;
     const tab = this.state[tabId] ??= {};
     if (this.isEntry(url)) {
       delete tab.document;
