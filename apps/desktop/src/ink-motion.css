@@ -1,0 +1,19 @@
+/* Desktop-only decorative ink. The continuous control borders remain underneath. */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .page-heading::after, .rule-row::before, .palette-picker::after, .effect-preference::after,
+  .family::before, .row + .row::before,
+  .appearances::before, .outline::before, .section-heading button::before,
+  .family button::before, dialog::before, dialog button::before {
+    animation: ink-static 1.8s steps(1, end) infinite;
+    animation-play-state: var(--toner-play-state, running);
+  }
+  :root:has(.shell.toner-paused) dialog::before,
+  :root:has(.shell.toner-paused) dialog button::before { animation-play-state: paused; }
+}
+
+@keyframes ink-static {
+  0%, 100% { mask-image: url('./assets/ink-rule.svg'); -webkit-mask-image: url('./assets/ink-rule.svg'); }
+  25% { mask-image: url('./assets/ink-rule-b.svg'); -webkit-mask-image: url('./assets/ink-rule-b.svg'); }
+  50% { mask-image: url('./assets/ink-rule-c.svg'); -webkit-mask-image: url('./assets/ink-rule-c.svg'); }
+  75% { mask-image: url('./assets/ink-rule-b.svg'); -webkit-mask-image: url('./assets/ink-rule-b.svg'); }
+}

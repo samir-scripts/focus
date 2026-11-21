@@ -252,6 +252,7 @@
                 <label class="preference">
                   <input type="checkbox" checked={browserState.hideShorts} disabled={editingRule}
                     onchange={(event) => saveRule(event.currentTarget)} />
+                  <span class="choice-mark" aria-hidden="true"></span>
                   <span>{site.rules[0].label}</span>
                 </label>
                 <p>Each browser profile needs access to the YouTube address it’s visiting.</p>
@@ -297,6 +298,7 @@
                       <label class="preference">
                         <input type="radio" name={`${value}-palette`} value={id} checked={appearance[value] === id}
                           onchange={() => setPalette(value, id)} />
+                        <span class="choice-mark" aria-hidden="true"></span>
                         <span class="swatch" data-swatch={`${id}-${value}`} aria-hidden="true"></span>
                         <span>{palettes[id]}</span>
                       </label>
@@ -307,11 +309,13 @@
               <label class="preference effect-preference">
                 <input type="checkbox" checked={appearance.printIllustrations}
                   onchange={(event) => setPrintIllustrations(event.currentTarget.checked)} />
+                <span class="choice-mark" aria-hidden="true"></span>
                 <span>Print illustrations</span>
               </label>
               <label class="preference effect-preference">
                 <input type="checkbox" checked={appearance.tonerPaused}
                   onchange={(event) => setTonerPaused(event.currentTarget.checked)} />
+                <span class="choice-mark" aria-hidden="true"></span>
                 <span>Pause toner particles</span>
               </label>
             </fieldset>
@@ -331,6 +335,18 @@
     background: var(--canvas);
     color: var(--ink);
     font: 15px/1.5 var(--font-ui);
+  }
+
+  @media (forced-colors: none) {
+    :global(html) { scrollbar-color: var(--ink) var(--canvas); }
+    .toolbar.native-mac + .workspace { scrollbar-color: var(--ink) var(--canvas); }
+  }
+  @supports not (scrollbar-color: auto) {
+    @media (forced-colors: none) {
+      :global(html::-webkit-scrollbar), .toolbar.native-mac + .workspace::-webkit-scrollbar { background: var(--canvas); }
+      :global(html::-webkit-scrollbar-thumb), .toolbar.native-mac + .workspace::-webkit-scrollbar-thumb { background: var(--ink); }
+      :global(html::-webkit-scrollbar-track), .toolbar.native-mac + .workspace::-webkit-scrollbar-track { background: var(--canvas); }
+    }
   }
 
   .shell { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -442,6 +458,18 @@
   .page { max-width: 760px; }
 
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
+  @media (forced-colors: none) {
+    .page-heading, .rule-row, .palette-picker, .effect-preference { position: relative; border-color: transparent; }
+    .page-heading::after, .rule-row::before, .palette-picker::after, .effect-preference::after {
+      content: ''; position: absolute; inset-inline: 0; height: 3px; pointer-events: none;
+      background: var(--ink);
+      -webkit-mask: url('./assets/ink-rule.svg') repeat-x left center / 223px 3px;
+      mask: url('./assets/ink-rule.svg') repeat-x left center / 223px 3px;
+    }
+    .page-heading::after, .palette-picker::after, .effect-preference::after { bottom: -1px; }
+    .rule-row::before { top: -1px; }
+    .palette-picker:nth-of-type(even)::after, .effect-preference:nth-of-type(even)::after { mask-position: -67px center; -webkit-mask-position: -67px center; }
+  }
   h1, h2, p { margin: 0; }
   h1 { font-size: 28px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
   .site-heading h1 { font: 800 50px/.98 var(--font-display); --toner-sweep-width: 72px; }
@@ -466,8 +494,18 @@
   .outline:not(:hover, :active) { background: var(--surface); }
   fieldset { border: 0; padding: 0; min-width: 0; }
   legend { padding: 0; margin-bottom: 8px; }
-  .appearances { display: flex; width: fit-content; max-width: 100%; }
+  .appearances { position: relative; display: flex; width: fit-content; max-width: 100%; }
   .appearances label { position: relative; display: flex; align-items: center; min-height: 36px; padding: 4px 16px; border: 1px solid var(--edge); font-size: 14px; cursor: pointer; }
+  @media (forced-colors: none) {
+    .appearances::before, .outline::before {
+      content: ''; position: absolute; inset: -2px; pointer-events: none; border: 2px solid var(--ink);
+      border-radius: inherit;
+      -webkit-mask: url('./assets/ink-rule.svg') repeat left center / 223px 2px;
+      mask: url('./assets/ink-rule.svg') repeat left center / 223px 2px;
+    }
+    .appearances::before { border-radius: var(--radius-control); }
+    .outline { position: relative; }
+  }
   .appearances label:first-child { border-radius: var(--radius-control) 0 0 var(--radius-control); }
   .appearances label:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
   .appearances label + label { border-inline-start: 0; }
@@ -512,6 +550,26 @@
   .palette-options .preference:has(:checked) { background: var(--selected); }
   .preference:hover { text-decoration: underline; text-underline-offset: 3px; }
   .preference input { flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .choice-mark { display: none; }
+  @media (forced-colors: none) {
+    .preference { position: relative; }
+    .preference input { position: absolute; inline-size: 16px; block-size: 16px; opacity: 0; }
+    .choice-mark {
+      display: grid; place-items: center; flex: none; box-sizing: border-box;
+      inline-size: 16px; block-size: 16px; border: 1px solid var(--ink);
+      background: var(--surface); pointer-events: none;
+    }
+    .preference input[type='radio'] + .choice-mark { border-radius: 50%; }
+    .preference input:checked + .choice-mark { background: var(--ink); }
+    .preference input:checked + .choice-mark::after { content: ''; display: block; background: var(--surface); }
+    .preference input[type='checkbox']:checked + .choice-mark::after {
+      inline-size: 10px; block-size: 9px; clip-path: polygon(0 45%, 18% 27%, 39% 51%, 81% 4%, 100% 22%, 39% 92%);
+    }
+    .preference input[type='radio']:checked + .choice-mark::after { inline-size: 6px; block-size: 6px; border-radius: 50%; }
+    .preference input:focus-visible + .choice-mark { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .preference input:disabled + .choice-mark { opacity: .55; }
+    .preference:has(input:disabled) { cursor: default; }
+  }
 
   @media (max-width: 635px) {
     .toolbar { display: flex; flex-wrap: wrap; }

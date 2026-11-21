@@ -47,6 +47,10 @@
   .quick { --tile: url('./assets/toner-quick.svg'); --drift-time: 43s; --drift-steps: 129; --sway: 7px; }
 
   @media (prefers-reduced-motion: no-preference) {
+    .stock::before {
+      animation: grain-static 3.6s steps(1, end) infinite;
+      animation-play-state: var(--toner-play-state, running);
+    }
     .toner {
       animation: drift-toner var(--drift-time) steps(var(--drift-steps), end) infinite;
       animation-play-state: var(--toner-play-state, running);
@@ -60,6 +64,14 @@
       animation-duration: var(--drift-time), 26s;
       animation-timing-function: steps(var(--drift-steps), end), ease-in-out;
     }
+  }
+
+  @keyframes grain-static {
+    0%, 100% { -webkit-mask-image: url('./assets/paper-grain.svg'); mask-image: url('./assets/paper-grain.svg'); }
+    8%, 46%, 82% { -webkit-mask-image: url('./assets/paper-grain-b.svg'); mask-image: url('./assets/paper-grain-b.svg'); }
+    21%, 58% { -webkit-mask-image: url('./assets/paper-grain-c.svg'); mask-image: url('./assets/paper-grain-c.svg'); }
+    34%, 71% { -webkit-mask-image: url('./assets/paper-grain-d.svg'); mask-image: url('./assets/paper-grain-d.svg'); }
+    94% { -webkit-mask-image: url('./assets/paper-grain-c.svg'); mask-image: url('./assets/paper-grain-c.svg'); }
   }
 
   @keyframes toner-density {

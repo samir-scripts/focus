@@ -63,7 +63,7 @@ try {
   await command('Emulation.setDeviceMetricsOverride', {
     width: 480, height: 320, deviceScaleFactor: 1, mobile: false
   });
-  await command('Page.navigate', { url: 'http://localhost:1420/' });
+  await command('Page.navigate', { url: process.env.FOCUS_DEV_URL ?? 'http://localhost:1420/' });
   await until("Boolean(document.querySelector('.toolbar.native-mac'))");
   const scroll = await evaluate(`(() => {
     const workspace = document.querySelector('.workspace');
@@ -106,12 +106,69 @@ try {
     assert(Math.abs(midpointX - 380) < 0.01, `${layer} toner must travel half a tile by midloop`);
   }
   console.log('All toner layers hold poses at 12 fps without changing travel speed.');
+  const grain = "document.getAnimations().filter(a => a.animationName?.includes('grain-static'))";
+  const ink = "document.getAnimations().filter(a => a.animationName === 'ink-static')";
+  await until(ink + ".some(a => a.playState === 'running')");
+  const inkPoses = await evaluate(`(() => {
+    const heading = document.querySelector('.page-heading');
+    const animation = heading.getAnimations({ subtree: true }).find(a => a.animationName === 'ink-static');
+    animation.pause();
+    animation.currentTime = 0;
+    const first = [getComputedStyle(heading, '::after').maskImage, getComputedStyle(heading, '::after').maskPosition];
+    animation.currentTime = 500;
+    const next = [getComputedStyle(heading, '::after').maskImage, getComputedStyle(heading, '::after').maskPosition];
+    animation.play();
+    return [first, next];
+  })()`);
+  assert.notEqual(inkPoses[0][0], inkPoses[1][0], 'Ink static must change block patterns');
+  assert.equal(inkPoses[0][1], inkPoses[1][1], 'Ink static must not shuffle the line');
+  await until(grain + ".some(a => a.playState === 'running')");
+  const grainPoses = await evaluate(`(() => {
+    const stock = document.querySelector('main .stock');
+    const animation = stock.getAnimations({ subtree: true }).find(a => a.animationName?.includes('grain-static'));
+    animation.pause();
+    animation.currentTime = 0;
+    const first = [getComputedStyle(stock, '::before').maskImage, getComputedStyle(stock, '::before').transform];
+    animation.currentTime = 300;
+    const next = [getComputedStyle(stock, '::before').maskImage, getComputedStyle(stock, '::before').transform];
+    animation.play();
+    return [first, next];
+  })()`);
+  assert.notEqual(grainPoses[0][0], grainPoses[1][0], 'Paper grain must change its static pattern');
+  assert.equal(grainPoses[0][1], grainPoses[1][1], 'Paper grain must not shake');
+  // Seeking animations through WAAPI overrides CSS play-state; reload before checking the control.
+  const reloaded = new Promise(resolve => {
+    function receive({ data }) {
+      if (JSON.parse(data).method !== 'Page.loadEventFired') return;
+      socket.removeEventListener('message', receive);
+      resolve();
+    }
+    socket.addEventListener('message', receive);
+  });
+  await command('Page.reload');
+  await reloaded;
+  await until(grain + ".some(a => a.playState === 'running')");
+  await evaluate("document.querySelector('nav button[aria-label=\"Settings\"]').click()");
+  await until("Boolean(document.querySelector('input[type=checkbox]'))");
+  await evaluate("[...document.querySelectorAll('label')].find(e => e.textContent.includes('Pause toner particles')).click()");
+  await until(grain + ".every(a => a.playState === 'paused')");
+  await until(drift + ".every(a => a.playState === 'paused')");
+  await until(ink + ".every(a => a.playState === 'paused')");
+  await evaluate("[...document.querySelectorAll('label')].find(e => e.textContent.includes('Pause toner particles')).click()");
+  await until(grain + ".some(a => a.playState === 'running')");
+  await until(drift + ".some(a => a.playState === 'running')");
+  await until(ink + ".some(a => a.playState === 'running')");
+  console.log('Paper and ink static change in place; pause stops and resumes them with toner.');
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await until(drift + '.length === 0');
+  await until(grain + '.length === 0');
+  await until(ink + '.length === 0');
   await command('Emulation.setEmulatedMedia', { features: [] });
   await until(drift + ".some(a => a.playState === 'running')");
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
   await until("getComputedStyle(document.querySelector('main .stock')).display === 'none'");
+  await until(grain + '.length === 0');
+  await until(ink + '.length === 0');
   await until(drift + '.length === 0');
   console.log('Toner follows live reduced-motion and forced-colors changes.');
 } finally {
