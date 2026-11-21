@@ -2,7 +2,8 @@
 <html><head><meta charset="utf-8"><title>YouTube fixture</title></head><body>
 <nav><ytd-guide-entry-renderer id="shorts-nav"><a href="/shorts/">Shorts</a></ytd-guide-entry-renderer><ytd-guide-entry-renderer id="subscriptions-nav"><a href="/feed/subscriptions">Subscriptions</a></ytd-guide-entry-renderer></nav>
 <form id="site-search" action="/results"><label>Search <input name="search_query"></label></form>
-<button id="spa-route" type="button" onclick="history.pushState({}, '', '/watch?id=spa')">Open next page</button>
+<button id="spa-route" type="button" onclick="history.pushState({}, '', '/watch?id=spa&engine=' + new URL(location.href).searchParams.get('pause'))">Open next page</button>
+<a id="fixture-anchor" href="#comments">Go to comments</a>
 <button id="install-worker" type="button" onclick="navigator.serviceWorker.register('/fixture-worker.js').then(() => navigator.serviceWorker.ready).then(() => this.textContent = 'Worker ready')">Install fixture worker</button>
 <main>
 <ytd-rich-shelf-renderer id="shorts-shelf" is-shorts><a href="/shorts/one">Short</a></ytd-rich-shelf-renderer>

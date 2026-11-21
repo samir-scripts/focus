@@ -264,6 +264,25 @@ async function navigate(browser, path = '/', host = 'www.youtube.com') {
   if (browser.context) await browser.page.goto(url, { waitUntil: 'domcontentloaded' });
   else { await browser.driver.switchTo().window(browser.page); await browser.driver.get(url); }
 }
+async function currentUrl(browser) {
+  return browser.context ? browser.page.url() : browser.driver.getCurrentUrl();
+}
+
+async function clickSite(browser, id) {
+  await eventually('site document has committed and its control is visible', () => visible(browser, `#${id}`));
+  if (browser.context) await browser.page.locator(`#${id}`).click();
+  else await (await browser.driver.findElement(By.id(id))).click();
+}
+
+async function continueEntry(browser) {
+  if (browser.context) {
+    await browser.page.getByRole('button', { name: 'Continue' }).click({ timeout: 20000 });
+  } else {
+    focusWindow('firefox');
+    firefoxUi('enabled', 'push button', 'Continue');
+    firefoxUi('click', 'push button', 'Continue');
+  }
+}
 async function visible(browser, selector) {
   if (browser.context) return browser.page.locator(selector).isVisible();
   await browser.driver.switchTo().window(browser.page);
@@ -355,7 +374,11 @@ try {
         await navigate(browser);
       }
     });
-    const workerFailures = [];
+    const entryFailures = [];
+    async function checkEntry(label, run) {
+      try { await check(label, run); }
+      catch (error) { entryFailures.push({ label, error }); }
+    }
     for (const mode of ['pause', 'block']) {
       await check(`apply ${mode} policy`, async () => {
         admin('entry', String(state().revision), 'youtube', JSON.stringify(mode === 'pause'
@@ -371,22 +394,31 @@ try {
         }
       });
       if (mode === 'pause') for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
-        const label = `${name}: pause intercepts service-worker-controlled documents`;
-        try {
-          await check(label, async () => {
-            const path = `/worker-navigation?pause=${name}`;
-            await navigate(browser, path, 'm.youtube.com');
-            const url = browser.context ? browser.page.url() : await browser.driver.getCurrentUrl();
-            (results.workerInterception ??= {})[name] = url.includes('/entry.html#');
-            assert.match(url, /-extension:\/\/[^/]+\/entry\.html#/);
-            assert.equal(new URL(url).hash.slice(1), `https://m.youtube.com${path}`);
-          });
-        } catch (error) {
-          workerFailures.push({ label, error });
-        }
+        await checkEntry(`${name}: pause intercepts service-worker-controlled documents`, async () => {
+          const path = `/worker-navigation?pause=${name}`;
+          await navigate(browser, path, 'm.youtube.com');
+          const url = await currentUrl(browser);
+          (results.workerInterception ??= {})[name] = url.includes('/entry.html#');
+          assert.match(url, /-extension:\/\/[^/]+\/entry\.html#/);
+          assert.equal(new URL(url).hash.slice(1), `https://m.youtube.com${path}`);
+        });
+      }
+      if (mode === 'pause') for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
+        await checkEntry(`${name}: one-page pass does not follow a gated redirect`, async () => {
+          const query = `?id=redirect&engine=${name}`;
+          const from = `/fixture-redirect${query}`;
+          const to = `/watch${query}`;
+          await navigate(browser, from, 'youtu.be');
+          assert.equal(proxy.documents('youtu.be', from), 0);
+          await continueEntry(browser);
+          await eventually('redirect destination has its own interstitial', async () =>
+            new URL(await currentUrl(browser)).hash === `#https://www.youtube.com${to}`);
+          assert.equal(proxy.documents('youtu.be', from), 1);
+          assert.equal(proxy.documents('www.youtube.com', to), 0);
+        });
       }
       for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
-        await check(`${name}: ${mode} makes zero destination document requests`, async () => {
+        await checkEntry(`${name}: ${mode} makes zero destination document requests`, async () => {
           const path = `/watch?id=73&${mode}=${name}`;
           if (mode === 'block') {
             await navigate(browser, path).catch(() => {}); // Native blocked pages may reject navigation.
@@ -416,30 +448,67 @@ try {
             assert.equal(proxy.documents('www.youtube.com', secondPath), 0);
           }
           if (mode === 'pause') {
-            if (browser.context) {
-              const proceed = browser.page.getByRole('button', { name: 'Continue' });
-              await eventually('manual countdown becomes ready', () => proceed.isEnabled());
-              await proceed.click();
-            } else {
-              focusWindow('firefox');
-              firefoxUi('enabled', 'push button', 'Continue');
-              firefoxUi('click', 'push button', 'Continue');
-            }
-            await eventually('resumed document is requested exactly once', () => proxy.documents('www.youtube.com', path) === 1);
-            if (browser.context) await browser.page.locator('#spa-route').click();
-            else await (await browser.driver.findElement(By.id('spa-route'))).click();
+            await continueEntry(browser);
+            await eventually('resumed destination commits and is ready for interaction', async () =>
+              (await currentUrl(browser)) === `https://www.youtube.com${path}` &&
+              proxy.documents('www.youtube.com', path) === 1 && await visible(browser, '#fixture-anchor'));
+            const spaPath = `/watch?id=spa&engine=${name}`;
+            await clickSite(browser, 'fixture-anchor');
+            await eventually('anchor navigation does not start a new Pause', async () =>
+              (await currentUrl(browser)) === `https://www.youtube.com${path}#comments`);
+            assert.equal(proxy.documents('www.youtube.com', path), 1);
+            await clickSite(browser, 'spa-route');
             await eventually('page-mode SPA route requires another pause', async () => {
-              const url = browser.context ? browser.page.url() : await browser.driver.getCurrentUrl();
-              return url.includes('/entry.html#https://www.youtube.com/watch?id=spa');
+              const url = await currentUrl(browser);
+              assert.match(url, /-extension:\/\/[^/]+\/entry\.html#/);
+              assert.equal(new URL(url).hash, `#https://www.youtube.com${spaPath}`);
+              return true;
             });
-            assert.equal(proxy.documents('www.youtube.com', '/watch?id=spa'), 0);
+            assert.equal(proxy.documents('www.youtube.com', spaPath), 0);
+            await continueEntry(browser);
+            await eventually('SPA destination resumes as a fresh document', async () =>
+              (await currentUrl(browser)) === `https://www.youtube.com${spaPath}` &&
+              await visible(browser, '#spa-route'));
+            assert.equal(proxy.documents('www.youtube.com', spaPath), 1);
+            if (browser.context) await browser.page.reload({ waitUntil: 'domcontentloaded' });
+            else await browser.driver.navigate().refresh();
+            await eventually('page-mode reload requires another Pause', async () =>
+              (await currentUrl(browser)).includes(`/entry.html#https://www.youtube.com${spaPath}`));
+            assert.equal(proxy.documents('www.youtube.com', spaPath), 1);
           }
         });
       }
     }
-    if (workerFailures.length) {
-      step = workerFailures[0].label;
-      throw workerFailures[0].error;
+    for (const browser of [chrome, fox]) {
+      // Auto must start from an outside page, not an existing gate switched to Auto.
+      await navigate(browser, '/safe', 'outside.test');
+    }
+    await check('apply automatic visit Pause', async () => {
+      admin('entry', String(state().revision), 'youtube', JSON.stringify({ mode: 'pause', seconds: 8, finish: 'auto', frequency: 'visit' }));
+      await ack(chromeId, state().revision, youtubeOrigins);
+      await ack(foxId, state().revision, youtubeOrigins);
+    });
+    for (const [name, browser] of [['chromium', chrome], ['firefox', fox]]) {
+      await checkEntry(`${name}: auto opens after waiting and visit ends upon leaving`, async () => {
+        const path = `/watch?id=73&auto=${name}`;
+        const start = Date.now();
+        await navigate(browser, path);
+        assert.equal(proxy.documents('www.youtube.com', path), 0);
+        await eventually('auto-resume commits the original document', async () =>
+          (await currentUrl(browser)) === `https://www.youtube.com${path}` && proxy.documents('www.youtube.com', path) === 1);
+        assert(Date.now() - start >= 8000);
+        await navigate(browser, path, 'youtube.com');
+        assert.equal(proxy.documents('youtube.com', path), 1);
+        await navigate(browser, '/safe', 'outside.test');
+        await navigate(browser, path);
+        assert.equal(proxy.documents('www.youtube.com', path), 1);
+        assert.match(await currentUrl(browser), /-extension:\/\/[^/]+\/entry\.html#/);
+      });
+    }
+    if (entryFailures.length) {
+      results.entryFailures = entryFailures.map(({ label, error }) => ({ check: label, error: error.name }));
+      step = entryFailures[0].label;
+      throw new AggregateError(entryFailures.map(({ error }) => error), 'Entry qualification failed');
     }
   } else {
   await check('enable once and grant only Chromium', async () => {

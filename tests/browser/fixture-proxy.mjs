@@ -6,7 +6,7 @@ import { createServer as httpsServer } from 'node:https';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 
-const hosts = ['www.youtube.com', 'youtube.com', 'm.youtube.com', 'youtu.be'];
+const hosts = ['www.youtube.com', 'youtube.com', 'm.youtube.com', 'youtu.be', 'outside.test'];
 const loopback = '127.0.0.1';
 
 // HTTPS upgrades are normal for YouTube. Give only these disposable profiles
@@ -57,6 +57,10 @@ export async function startFixtureProxy(fixturePath, directory) {
     if (request.headers['sec-fetch-dest'] === 'document') {
       const key = url.hostname + url.pathname + url.search;
       documents.set(key, (documents.get(key) ?? 0) + 1);
+    }
+    if (url.hostname === 'youtu.be' && url.pathname === '/fixture-redirect') {
+      response.writeHead(302, { Location: `https://www.youtube.com/watch${url.search}`, 'Cache-Control': 'no-store' }).end();
+      return;
     }
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(fixture);
   }
