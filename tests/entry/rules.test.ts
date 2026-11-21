@@ -29,6 +29,19 @@ describe('entry rules', () => {
     expect(block.priority).toBeGreaterThan(visit.priority);
   });
 
+  it('keeps each visit grant restricted to its exact scheme and hostname', () => {
+    const visit = passRule(99, 12, [
+      'http://youtube.com/*', 'https://youtube.com/*',
+      'https://www.youtube.com/*', 'http://m.youtube.com/*',
+    ]);
+    for (const url of ['http://youtube.com/', 'https://youtube.com:8443/watch', 'https://www.youtube.com/', 'http://m.youtube.com/']) {
+      expect(matches(visit, url)).toBe(true);
+    }
+    for (const url of ['http://www.youtube.com/', 'https://m.youtube.com/', 'https://other.youtube.com/', 'https://youtube.com.evil.test/']) {
+      expect(matches(visit, url)).toBe(false);
+    }
+  });
+
   it('keeps the canonical destination, excludes anchors from page identity and rejects credentials', () => {
     expect(webTarget('https://www.youtube.com/watch?id=73#chapter')?.href).toBe('https://www.youtube.com/watch?id=73#chapter');
     expect(documentKey('https://www.youtube.com/watch?id=73#chapter')).toBe('https://www.youtube.com/watch?id=73');
