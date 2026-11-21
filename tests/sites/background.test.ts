@@ -37,7 +37,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   });
   // Reload the real worker after installing the per-test browser API boundary.
   await import('../../apps/extension/src/background');
-  function send(op: string, { body = {}, version = 3 }: Incoming = {}) {
+  function send(op: string, { body = {}, version = 4 }: Incoming = {}) {
     const request = sent.find((entry) => entry.op === op);
     if (!request) throw new Error(`Missing pending ${op} request`);
     inbox.emit({ v: version, id: request.id, ok: true, body });

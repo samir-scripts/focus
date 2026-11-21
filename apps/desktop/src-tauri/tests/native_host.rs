@@ -79,7 +79,7 @@ fn rejects_protocol_mismatch_and_revoked_profiles() {
     let mut h = Harness::new();
     let fixture: Value = serde_json::from_str(include_str!("../../../../tests/protocol/v1.json")).unwrap();
     let mut hello = fixture["hello"].clone();
-    hello["v"] = json!(4);
+    hello["v"] = json!(5);
     assert_eq!(h.request(hello), fixture["versionMismatch"]);
     assert_eq!(h.pair(PROFILE,TOKEN)["ok"], true);
     let state: Value = serde_json::from_slice(&h.admin(&["state"]).stdout).unwrap();

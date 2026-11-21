@@ -121,7 +121,15 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 3 { return Err(Error::Database); }
+        if version(&db)? == 3 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 3 {
+                tx.execute_batch(include_str!("../migrations/004.sql"))?;
+                tx.pragma_update(None, "user_version", 4)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 4 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
@@ -286,6 +294,7 @@ impl Db {
         check_session(&tx, id, session)?;
         let protocol: u16 = tx.query_row("SELECT protocol FROM profile_runtime WHERE profile_id=?1", [id], |r| r.get(0))?;
         if (protocol == 1 && requires_update(&tx)?) || (protocol < 3 && requires_v3(&tx)?) { return Err(Error::VersionMismatch); }
+        if protocol < 4 && requires_chromium_block(&tx, id)? { return Err(Error::VersionMismatch); }
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let mut check = tx.prepare("SELECT EXISTS(SELECT 1 FROM site_origin WHERE hostname=?1)")?;
@@ -332,16 +341,22 @@ impl Db {
         let profiles = {
             let update_required = requires_update(&tx)?;
             let v3_required = requires_v3(&tx)?;
+            let block = has_block_policy(&tx)?;
             let entry_unsupported = !self.1 && has_entry_policy(&tx)?;
             let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins,r.protocol
                 FROM profile p LEFT JOIN profile_runtime r ON r.profile_id=p.id AND r.expires_at>?1
                 WHERE NOT p.revoked ORDER BY p.rowid")?;
-            let rows = q.query_map([now], |r| Ok(ProfileStatus {
-                id: r.get(0)?, label: r.get(1)?, browser: r.get(2)?, online: r.get(3)?, ack_revision: r.get(4)?,
-                update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required) || (v < 3 && v3_required)),
-                origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
-                    .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
-            }))?;
+            let rows = q.query_map([now], |r| {
+                let browser: String = r.get(2)?;
+                let gecko = matches!(browser.as_str(), "firefox" | "zen");
+                Ok(ProfileStatus {
+                    id: r.get(0)?, label: r.get(1)?, browser, online: r.get(3)?, ack_revision: r.get(4)?,
+                    update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)
+                        || (v < 3 && v3_required) || (v < 4 && block && !gecko)),
+                    origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
+                        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
+                })
+            })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
         let sites = site_policies(&tx)?;
@@ -397,6 +412,17 @@ fn requires_update(conn: &Connection) -> Result<bool> {
 fn has_entry_policy(conn: &Connection) -> Result<bool> {
     Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_policy WHERE json_extract(entry,'$.mode')<>'allow')",
         [], |r| r.get(0))?)
+}
+
+fn has_block_policy(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_policy WHERE json_extract(entry,'$.mode')='block')",
+        [], |r| r.get(0))?)
+}
+
+fn requires_chromium_block(conn: &Connection, id: &str) -> Result<bool> {
+    Ok(conn.query_row("SELECT browser NOT IN ('firefox','zen') AND EXISTS(
+        SELECT 1 FROM site_policy WHERE json_extract(entry,'$.mode')='block'
+    ) FROM profile WHERE id=?1", [id], |r| r.get(0))?)
 }
 
 fn bump(conn: &Connection, site: &str) -> Result<()> {

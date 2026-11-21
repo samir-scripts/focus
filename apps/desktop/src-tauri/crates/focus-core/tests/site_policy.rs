@@ -158,3 +158,30 @@ fn older_protocols_cannot_acknowledge_accessibility_or_manual_pause() {
     db.as_mut().unwrap().set_entry(2, "youtube", EntryPolicy::Pause { seconds: 15, finish: Finish::Manual, frequency: Frequency::Visit }).unwrap();
     assert_eq!(session.message(&request("applied", json!({"revision":3,"origins":[]})), &mut db, || Ok(()))["error"]["code"], "version_mismatch");
 }
+
+#[cfg(debug_assertions)]
+#[test]
+fn chromium_block_requires_v4_before_acknowledgement() {
+    use focus_core::{model::Browser, protocol::Session};
+    use serde_json::json;
+    let temp = tempfile::tempdir().unwrap();
+    let mut db = Db::open_entry_fixture(&temp.path().join("focus.sqlite3")).unwrap();
+    let id = "9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90";
+    let token = "a".repeat(64);
+    db.begin_pair(id, Browser::Chrome, "Local", &token).unwrap();
+    db.decide_pair(&db.state().unwrap().pending[0].id, true, None).unwrap();
+    let mut db = Ok(db);
+    let mut old = Session::new(false);
+    let request = |version, op: &str, body| serde_json::to_vec(&json!({"v":version,"id":"1","op":op,"body":body})).unwrap();
+    assert_eq!(old.message(&request(3, "hello", json!({"profileId":id,"token":token})), &mut db, || Ok(()))["ok"], true);
+    assert_eq!(old.message(&request(3, "applied", json!({"revision":0,"origins":[]})), &mut db, || Ok(()))["ok"], true);
+    db.as_mut().unwrap().set_entry(0, "youtube", EntryPolicy::Block).unwrap();
+    assert_eq!(old.message(&request(3, "snapshot", json!({"afterRevision":0})), &mut db, || Ok(()))["body"]["sites"][0]["entry"]["mode"], "block");
+    assert_eq!(old.message(&request(3, "applied", json!({"revision":1,"origins":[]})), &mut db, || Ok(()))["error"]["code"], "version_mismatch");
+    assert!(db.as_ref().unwrap().state().unwrap().profiles[0].update_required);
+    let mut current = Session::new(false);
+    assert_eq!(current.message(&request(4, "hello", json!({"profileId":id,"token":token})), &mut db, || Ok(()))["ok"], true);
+    assert_eq!(current.message(&request(4, "snapshot", json!({"afterRevision":null})), &mut db, || Ok(()))["body"]["sites"][0]["entry"]["mode"], "block");
+    assert_eq!(current.message(&request(4, "applied", json!({"revision":1,"origins":[]})), &mut db, || Ok(()))["ok"], true);
+    assert!(!db.as_ref().unwrap().state().unwrap().profiles[0].update_required);
+}
