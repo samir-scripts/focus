@@ -20,9 +20,13 @@ Use System appearance by default. Keep System/Light/Dark independent of the save
 
 Define whole-shell palettes in `tokens.css`. Preserve the restrained utility styling: 3px controls, 4px notices and 6px dialogs, thin rules, no gradients or glow. Use subtle paper grain and variably sized toner flakes on the canvas and library backgrounds. Keep the curl in the wide Sites heading margin and the Statistics empty-state illustration; print illustrations can be turned off. Keep background texture off text, controls and data.
 
+Printed ink: use the [Dither UI review](docs/design/dither-ui/README.md), [light-wear comparison](docs/design/dither-ui/printed-ink-light-wear-comparison.png), and [Light Cobalt target](docs/design/dither-ui/printed-ink-light-cobalt-target.png) as references while retaining the desktop's geometry and type. Decorative rules may have irregular dry skips; interactive frames keep continuously contrasting boundaries with wear on their perimeter. Paper grain and ink wear may change in place in static frames; pause both with toner and suppress movement under reduced motion. Inspect at 960×640 and 100%, and suppress wear in forced colors. Theme values remain in `packages/ui/src/tokens.css`.
+
 Use opaque ink-reversal fills for hover and press, including selected controls. Ease hover colors in and out over 280ms independently of press motion. Motion uses Grace's ease-out curve: a one-pixel press, a sliding view marker, and a brief scale-and-fade for pointer-driven view changes. Keyboard navigation and OS reduced motion must not animate view changes.
 
-Let toner flakes drift gently and persist the user’s pause preference across launches. Limit the toner sweep to one pass per pointer hover on the `focus.` wordmark and large site title, without obscuring lettering. Disable flake drift and sweeps under reduced motion. In forced colors, suppress decorative artwork and effects, including paper grain, flakes, sweeps and SVG halftoning; keep text, controls and site marks legible.
+Hold toner drift poses at 12 fps on the canvas and library without slowing the travel or stepping the density fade. Persist the user’s pause preference across launches and pause drift while the window is hidden. Limit the toner sweep to one pass per pointer hover on the `focus.` wordmark and large site title, without obscuring lettering. Disable flake drift and sweeps under reduced motion. In forced colors, suppress decorative artwork and effects, including paper grain, flakes, sweeps and SVG halftoning; keep text, controls and site marks legible.
+
+For toner changes, follow the motion check in [Dither UI review](docs/design/dither-ui/README.md). For changes to flake geometry, run `python3 -B apps/desktop/tools/test_paper_stock.py` and keep the generated masks in sync with `apps/desktop/tools/build-paper-stock.py`.
 
 ## Development and verification
 
@@ -50,7 +54,9 @@ Keep the two tested archives with their SHA-256 hashes and browser versions. The
 
 ## Branch protection and promotion
 
-`dev` is development; all three branches accept reviewed PRs only. Promote `dev` → `stage` → `release`. Promotion PRs must originate in this repository from the immediately preceding branch and have a merge-result tree identical to the source tree. This permits metadata-only merge commits but rejects conflict resolutions that change content. Keep the branch current and rerun checks after any base or source movement. Workflow edits require maintainer review. Release publication is not enabled; future qualification on `stage` must test and attest exact candidate artifacts before promotion and publishing.
+The intended hosted promotion path is `dev` → `stage` → `release`, with `dev` as the development branch. The GitHub remote exists, but hosted protections are not configured. Keep local integration on a separate branch; a clean integration branch is not a reviewed promotion.
+
+Once configured, all three branches accept reviewed PRs only. Promotion PRs must originate in this repository from the immediately preceding branch and have a merge-result tree identical to the source tree. This permits metadata-only merge commits but rejects conflict resolutions that change content. Keep the branch current and rerun checks after any base or source movement. Workflow edits require maintainer review. Release publication is not enabled; future qualification on `stage` must test and attest exact candidate artifacts before promotion and publishing.
 
 Review the CI workflow and ruleset migration separately. Once a remote is configured, verify the hosted dev, stage and release environments, set `dev` as the default branch, and configure branch protection:
 

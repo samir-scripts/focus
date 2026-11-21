@@ -31,6 +31,15 @@
   h2 { font-size: 18px; }
   label { display: grid; gap: 4px; margin-block: 12px; }
   input, button { font: inherit; color: inherit; border: 1px solid var(--edge); background: var(--canvas); border-radius: var(--radius-control); padding: 6px 8px; }
+  @media (forced-colors: none) {
+    button { position: relative; }
+    dialog::before, button::before {
+      content: ''; position: absolute; inset: -2px; pointer-events: none;
+      border: 2px solid var(--ink); border-radius: inherit;
+      -webkit-mask: url('./assets/ink-rule.svg') repeat left center / 223px 2px;
+      mask: url('./assets/ink-rule.svg') repeat left center / 223px 2px;
+    }
+  }
   button:enabled:hover { background: var(--ink); color: var(--canvas); cursor: pointer; }
   input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }

@@ -17,7 +17,7 @@ Actual macOS app captures are available for [Sites at 960×640](native/native-si
 
 The native review covered all six palette and appearance combinations, keyboard focus, and pointer navigation with the content scrolled at double zoom. The small detail heading uses Focus Bitmap Bold. The disconnected status and settings button use Focus Bitmap Regular. The native toolbar stays pinned while the library stacks and the paper fills the viewport.
 
-With the desktop dev server running on port 1420, run `node apps/desktop/tools/check-motion.mjs` to check toolbar layout, held toner poses, reduced motion, and forced colors in Chromium. The check uses an isolated profile. Set `CHROME_BIN` to select an installed browser. The normal unit suite covers pause persistence and saved palette settings.
+With the desktop dev server running on port 1420, run `node apps/desktop/tools/check-motion.mjs` to check toolbar layout, held toner poses, paper grain and ink static, pause, reduced motion, and forced colors in Chromium. The check uses an isolated profile. Set `FOCUS_DEV_URL` for another dev server URL or `CHROME_BIN` to select an installed browser. The normal unit suite covers pause persistence and saved palette settings.
 
 ### Slice 1 closeout
 
