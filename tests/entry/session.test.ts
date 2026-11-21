@@ -21,7 +21,7 @@ function browser(initial: { id: number; url: string; pendingUrl?: string } = { i
     return { addListener: (listener: (...args: T) => void) => listeners.push(listener),
       emit: (...args: T) => listeners.forEach(listener => listener(...args)) };
   };
-  type Navigation = { tabId: number; frameId: number; url: string };
+  type Navigation = { tabId: number; frameId: number; url: string; documentId?: string };
   const before = event<[Navigation]>();
   const commit = event<[Navigation]>();
   const error = event<[Navigation]>();
@@ -249,11 +249,55 @@ it('does not redirect a committed worker response after its host permission is r
   const policy = snapshot(1);
   policy.sites[0].entry = { mode: 'block' };
   await entry.reconcile(policy, origins);
-  fake.api.scripting.insertCSS = async () => { fake.revoke(); };
+  let checks = 0;
+  const getAll = fake.api.permissions.getAll;
+  fake.api.permissions.getAll = async () => {
+    if (++checks === 2) fake.revoke();
+    return getAll();
+  };
+  let covered = false;
+  fake.api.scripting.insertCSS = async () => { covered = true; };
+  fake.api.scripting.removeCSS = async () => {
+    if (!(await getAll()).origins.length) throw new Error('permission revoked');
+    covered = false;
+  };
   fake.setUrl(target);
   fake.commit.emit({ tabId: 4, frameId: 0, url: target });
   await fake.drain();
   expect(fake.read()).toBe(target);
+  expect(covered).toBe(false);
+});
+
+it.each([
+  ['chromium', 'pause', true], ['firefox', 'block', true], ['chromium', 'block', false],
+] as const)('%s %s retains its expected cover behavior', async (engine, mode, expected) => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: 'https://outside.example/' });
+  const entry = fake.newWorker(engine);
+  const policy = snapshot(1);
+  if (mode === 'block') policy.sites[0].entry = { mode };
+  await entry.reconcile(policy, origins);
+  let covered = false;
+  fake.api.scripting.insertCSS = async () => { covered = true; };
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(covered).toBe(expected);
+  expect(fake.read()).toBe(page);
+});
+
+it.each([true, false])('redirects only when the Chromium Block commit identifies the current document (%s)', async matches => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: 'https://outside.example/' });
+  const entry = fake.newWorker();
+  const policy = snapshot(1);
+  policy.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(policy, origins);
+  fake.api.webNavigation.getFrame = async () => ({ url: target, documentId: 'new-document' });
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target, documentId: matches ? 'new-document' : 'old-document' });
+  await fake.drain();
+  expect(fake.read()).toBe(matches ? page : target);
 });
 
 it('does not redirect a worker response after its tab navigates elsewhere', async () => {
@@ -264,7 +308,8 @@ it('does not redirect a worker response after its tab navigates elsewhere', asyn
   const policy = snapshot(1);
   policy.sites[0].entry = { mode: 'block' };
   await entry.reconcile(policy, origins);
-  fake.api.scripting.insertCSS = async () => { fake.setUrl(safe); };
+  const getAll = fake.api.permissions.getAll;
+  fake.api.permissions.getAll = async () => { fake.setUrl(safe); return getAll(); };
   fake.setUrl(target);
   fake.commit.emit({ tabId: 4, frameId: 0, url: target });
   await fake.drain();
@@ -280,11 +325,56 @@ it('does not redirect a worker response after Block changes to Allow', async () 
   await entry.reconcile(block, origins);
   const allow = snapshot(2);
   allow.sites[0].entry = { mode: 'allow' };
-  fake.api.scripting.insertCSS = async () => { await entry.reconcile(allow, origins); };
+  const getAll = fake.api.permissions.getAll;
+  fake.api.permissions.getAll = async () => { await entry.reconcile(allow, origins); return getAll(); };
   fake.setUrl(target);
   fake.commit.emit({ tabId: 4, frameId: 0, url: target });
   await fake.drain();
   expect(fake.read()).toBe(target);
+});
+
+it.each(['departure', 'removal'] as const)('cancels Chromium Block on a newer %s before redirect', async reason => {
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: 'https://outside.example/' });
+  const entry = fake.newWorker();
+  const policy = snapshot(1);
+  policy.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(policy, origins);
+  let checks = 0;
+  const getAll = fake.api.permissions.getAll;
+  fake.api.permissions.getAll = async () => {
+    if (++checks === 2) {
+      if (reason === 'departure') fake.before.emit({ tabId: 4, frameId: 0, url: 'https://outside.example/new' });
+      else fake.removed.emit(4);
+    }
+    return getAll();
+  };
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(fake.read()).toBe(target);
+});
+
+it.each(['matching', 'revision', 'origins'] as const)('restores a Chromium Block predecessor only for matching policy and origins (%s)', async change => {
+  const safe = 'https://outside.example/';
+  const target = 'https://www.youtube.com/watch?id=73';
+  const fake = browser({ id: 4, url: safe });
+  fake.api.tabs.remove = async () => { fake.setUrl('closed'); };
+  const entry = fake.newWorker();
+  const policy = snapshot(1);
+  policy.sites[0].entry = { mode: 'block' };
+  await entry.reconcile(policy, origins);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: safe });
+  await fake.drain();
+  fake.setUrl(target);
+  fake.commit.emit({ tabId: 4, frameId: 0, url: target });
+  await fake.drain();
+  expect(fake.read()).toBe(page);
+  const restarted = fake.newWorker();
+  await restarted.reconcile({ ...policy, revision: change === 'revision' ? 2 : 1 },
+    change === 'origins' ? [...origins, 'http://www.youtube.com/*'] : origins);
+  await restarted.message({ type: 'entry-back' }, { frameId: 0, url: page, tab: { id: 4 } });
+  expect(fake.read()).toBe(change === 'matching' ? safe : 'closed');
 });
 
 it('preserves a worker navigation fragment in the Pause destination', async () => {

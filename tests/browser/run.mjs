@@ -675,6 +675,7 @@ try {
           'target fixture document committed', 'Firefox accessibility', 'wrong tab or Pause target',
           'wrong Firefox browsing context', 'wrong fixture document before click', 'fixture control missing',
           'fixture control is not visible', 'same-document anchor', 'safe previous tab must not close',
+          'history traverses and recommits a worker destination',
           'worker Pause Go back reaches safe page', 'hold enabled after site countdown', 'held entry navigation',
           'two-step enabled after site countdown', 'two-step Enter site enabled', 'Pause tab not found for zoom',
           'is not a constructor', 'is not a function', 'Unexpected token'];

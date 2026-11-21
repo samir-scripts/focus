@@ -52,12 +52,17 @@ export async function runChromiumBlock({
       await navigate(tab, second, host);
       await waitForBlock(tab, secondUrl);
       assert.ok((tab.commits.get(secondUrl) ?? 0) >= 1, 'second worker response must have committed before fallback');
-      await tab.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
-      await eventually('history reaches a usable worker Block page', async () => {
-        const url = await currentUrl(tab);
-        return url === entryUrl(tab, firstUrl) || url === entryUrl(tab, secondUrl);
+      const before = { first: tab.commits.get(firstUrl) ?? 0, second: tab.commits.get(secondUrl) ?? 0 };
+      const history = await tab.cdp.send('Page.getNavigationHistory');
+      const previous = history.entries[history.currentIndex - 1];
+      assert.ok(previous, 'history must contain an earlier entry');
+      await tab.cdp.send('Page.navigateToHistoryEntry', { entryId: previous.id });
+      let historyUrl;
+      await eventually('history traverses and recommits a worker destination', () => {
+        if ((tab.commits.get(firstUrl) ?? 0) > before.first) historyUrl = firstUrl;
+        else if ((tab.commits.get(secondUrl) ?? 0) > before.second) historyUrl = secondUrl;
+        return historyUrl;
       }, 6000);
-      const historyUrl = await currentUrl(tab) === entryUrl(tab, firstUrl) ? firstUrl : secondUrl;
       await waitForBlock(tab, historyUrl);
       assert.equal(proxy.documents(host, first), 0);
       assert.equal(proxy.documents(host, second), 0);

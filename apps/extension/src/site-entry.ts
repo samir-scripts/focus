@@ -12,7 +12,7 @@ export type EntryView = {
 };
 type Pass = { kind: 'page' | 'visit'; siteId: string; target: string };
 type TabState = { pending?: PendingPause; pass?: Pass; document?: string; original?: string; safePrevious?: string };
-type Nav = { tabId: number; frameId: number; url: string };
+type Nav = { tabId: number; frameId: number; url: string; documentId?: string };
 type EntrySender = { url?: string; frameId?: number; tab?: { id?: number; incognito?: boolean } };
 type EntryMessage = { type: 'entry-view' | 'entry-continue' | 'entry-back' | 'entry-auto'
   | 'entry-hold-start' | 'entry-hold-cancel' | 'entry-hold-complete'
@@ -25,7 +25,7 @@ type Injection = { target: { tabId: number }; css: string; origin: 'USER' };
 type EntryBrowser = {
   runtime: { getURL(path: string): string };
   webNavigation: Record<'onBeforeNavigate' | 'onCommitted' | 'onErrorOccurred' | 'onHistoryStateUpdated', BrowserEvent<[Nav]>> & {
-    getFrame(details: { tabId: number; frameId: number }): Promise<{ url?: string } | null>;
+    getFrame(details: { tabId: number; frameId: number }): Promise<{ url?: string; documentId?: string } | null>;
   };
   tabs: {
     onRemoved: BrowserEvent<[number]>; onReplaced?: BrowserEvent<[number, number]>;
@@ -57,16 +57,30 @@ export class SiteEntry {
   private generation?: string;
   private saved?: { revision: number; origins: string[] };
   private readonly timers = new Map<number, ReturnType<typeof setTimeout>>();
+  private nextNavigation = 0;
+  private readonly navigation = new Map<number, number>();
+
+  private navigationIdentity(id: number) {
+    let identity = this.navigation.get(id);
+    if (identity === undefined) this.navigation.set(id, identity = ++this.nextNavigation);
+    return identity;
+  }
 
   constructor(private readonly api: EntryBrowser, private readonly schedule: (task: () => Promise<void>) => void,
     private readonly engine: 'chromium' | 'firefox' = 'chromium') {
     this.page = api.runtime.getURL('entry.html');
     const navigation = api.webNavigation;
     navigation.onBeforeNavigate.addListener((event: Nav) => {
-      if (event.frameId === 0) schedule(() => this.before(event));
+      if (event.frameId === 0) {
+        if (this.engine === 'chromium') this.navigation.set(event.tabId, ++this.nextNavigation);
+        schedule(() => this.before(event));
+      }
     });
     navigation.onCommitted.addListener((event: Nav) => {
-      if (event.frameId === 0) schedule(() => this.commit(event));
+      if (event.frameId === 0) {
+        const identity = this.engine === 'chromium' ? this.navigationIdentity(event.tabId) : undefined;
+        schedule(() => this.commit(event, identity));
+      }
     });
     navigation.onErrorOccurred.addListener((event: Nav) => {
       if (event.frameId === 0) schedule(() => this.navigationError(event));
@@ -74,8 +88,14 @@ export class SiteEntry {
     navigation.onHistoryStateUpdated.addListener((event: Nav) => {
       if (event.frameId === 0) schedule(() => this.route(event));
     });
-    api.tabs.onRemoved.addListener((id: number) => schedule(() => this.remove(id)));
-    api.tabs.onReplaced?.addListener((_added: number, removed: number) => schedule(() => this.remove(removed)));
+    api.tabs.onRemoved.addListener((id: number) => {
+      this.navigation.delete(id);
+      schedule(() => this.remove(id));
+    });
+    api.tabs.onReplaced?.addListener((_added: number, removed: number) => {
+      this.navigation.delete(removed);
+      schedule(() => this.remove(removed));
+    });
   }
 
   private gated(value: string) {
@@ -134,6 +154,15 @@ export class SiteEntry {
           if (id === undefined || !url) continue;
           const old: TabState | undefined = stored.tabs?.[id];
           if (!old) continue;
+          if (this.engine === 'chromium' && this.isEntry(url)) {
+            const target = webTarget(url.slice(this.page.length + 1));
+            const previous = old.safePrevious && webTarget(old.safePrevious);
+            if (target && scopes.get(matchPattern(target))?.entry.mode === 'block'
+              && previous && !scopes.has(matchPattern(previous))) {
+              this.state[id] = { safePrevious: previous.href };
+            }
+            continue;
+          }
           const site = webTarget(url);
           const current = site && scopes.get(matchPattern(site));
           if (current?.entry.mode !== 'pause') continue;
@@ -172,8 +201,11 @@ export class SiteEntry {
     this.generation = generation;
   }
 
-  private async show(id: number, target: string) {
-    if (!this.gated(target)) return;
+  private async show(id: number, target: string, identity?: number, documentId?: string) {
+    const site = this.gated(target);
+    if (!site) return;
+    const uncoveredBlock = this.engine === 'chromium' && site.entry.mode === 'block';
+    if (uncoveredBlock) identity ??= this.navigationIdentity(id);
     const revision = this.revision;
     const targetUrl = webTarget(target);
     const { origins } = await this.api.permissions.getAll();
@@ -182,18 +214,23 @@ export class SiteEntry {
     const tab = await this.api.tabs.get(id).catch(() => undefined);
     if (tab?.incognito || tab?.pendingUrl || documentKey(tab?.url ?? '') !== documentKey(target)) return;
     const injection: Injection = { target: { tabId: id }, css: coverCSS, origin: 'USER' };
-    await this.api.scripting.insertCSS(injection).catch(() => {});
+    if (!uncoveredBlock) await this.api.scripting.insertCSS(injection).catch(() => {});
     try {
-      const [current, permissions] = await Promise.all([this.api.tabs.get(id), this.api.permissions.getAll()]);
-      if (current.pendingUrl || documentKey(current.url ?? '') !== documentKey(target)
+      const [current, permissions, frame] = await Promise.all([
+        this.api.tabs.get(id), this.api.permissions.getAll(),
+        uncoveredBlock && documentId ? this.api.webNavigation.getFrame({ tabId: id, frameId: 0 }) : undefined,
+      ]);
+      if (current.pendingUrl || (uncoveredBlock ? current.url !== target : documentKey(current.url ?? '') !== documentKey(target))
+        || uncoveredBlock && documentId !== undefined && frame?.documentId !== documentId
+        || uncoveredBlock && this.navigation.get(id) !== identity
         || !permissions.origins?.some(origin => origin === matchPattern(targetUrl) || origin === `*://${targetUrl.hostname}/*`)
         || revision !== this.revision || !this.gated(target)) {
-        await this.api.scripting.removeCSS(injection).catch(() => {});
+        if (!uncoveredBlock) await this.api.scripting.removeCSS(injection).catch(() => {});
         return;
       }
       await this.api.tabs.update(id, { url: `${this.page}#${target}` });
     }
-    catch { await this.api.scripting.removeCSS(injection).catch(() => {}); }
+    catch { if (!uncoveredBlock) await this.api.scripting.removeCSS(injection).catch(() => {}); }
   }
 
   private async before({ tabId, url }: Nav) {
@@ -214,7 +251,7 @@ export class SiteEntry {
     await this.persist();
   }
 
-  private async commit({ tabId, url }: Nav) {
+  private async commit({ tabId, url, documentId }: Nav, identity?: number) {
     if (this.scopes.size === 0) return;
     const current = await this.api.tabs.get(tabId).catch(() => undefined);
     if (!current || current.incognito || current.pendingUrl && current.pendingUrl !== current.url) return;
@@ -244,7 +281,7 @@ export class SiteEntry {
     else if (site && tab.safePrevious) this.state[tabId] = { safePrevious: tab.safePrevious };
     else delete this.state[tabId];
     await this.persist();
-    if (site && !allowed) await this.show(tabId, destination); // Includes BFCache and service-worker responses.
+    if (site && !allowed) await this.show(tabId, destination, identity, documentId); // Includes BFCache and service-worker responses.
   }
 
   private async navigationError({ tabId, url }: Nav) {
