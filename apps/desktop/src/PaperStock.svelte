@@ -41,13 +41,14 @@
     mask: var(--tile) var(--toner-origin, 0 0) / var(--tile-width) 594px repeat;
   }
 
-  .slow { --tile: url('./assets/toner-slow.svg'); --drift-time: 77s; --sway: 3px; }
-  .mid { --tile: url('./assets/toner-mid.svg'); --drift-time: 57s; --sway: -6px; }
-  .quick { --tile: url('./assets/toner-quick.svg'); --drift-time: 43s; --sway: 7px; }
+  /* Step counts are 12 fps over each quarter of the drift loop. */
+  .slow { --tile: url('./assets/toner-slow.svg'); --drift-time: 77s; --drift-steps: 231; --sway: 3px; }
+  .mid { --tile: url('./assets/toner-mid.svg'); --drift-time: 57s; --drift-steps: 171; --sway: -6px; }
+  .quick { --tile: url('./assets/toner-quick.svg'); --drift-time: 43s; --drift-steps: 129; --sway: 7px; }
 
   @media (prefers-reduced-motion: no-preference) {
     .toner {
-      animation: drift-toner var(--drift-time) linear infinite;
+      animation: drift-toner var(--drift-time) steps(var(--drift-steps), end) infinite;
       animation-play-state: var(--toner-play-state, running);
     }
   }
@@ -57,7 +58,7 @@
     .toner.quick {
       animation-name: drift-toner, toner-density;
       animation-duration: var(--drift-time), 26s;
-      animation-timing-function: linear, ease-in-out;
+      animation-timing-function: steps(var(--drift-steps), end), ease-in-out;
     }
   }
 
@@ -68,6 +69,7 @@
 
   @keyframes drift-toner {
     25% { transform: translate3d(calc(var(--tile-width) / 4), var(--sway), 0); }
+    50% { transform: translate3d(calc(var(--tile-width) / 2), 0, 0); }
     75% { transform: translate3d(calc(var(--tile-width) * .75), calc(-1 * var(--sway)), 0); }
     100% { transform: translate3d(var(--tile-width), 0, 0); }
   }

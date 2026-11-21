@@ -82,6 +82,30 @@ try {
   console.log('The native toolbar spans the viewport while the workspace scrolls.');
   const drift = "document.getAnimations().filter(a => a.animationName?.includes('drift-toner'))";
   await until(drift + ".some(a => a.playState === 'running')");
+  const poses = await evaluate(`['slow', 'mid', 'quick'].map(layer => {
+    const toner = document.querySelector('main .toner.' + layer);
+    const drift = toner.getAnimations().find(a => a.animationName?.includes('drift-toner'));
+    const duration = drift.effect.getComputedTiming().duration;
+    drift.pause();
+    const transformAt = ms => {
+      drift.currentTime = ms;
+      return getComputedStyle(toner).transform;
+    };
+    const quarters = [0, 0.25, 0.5, 0.75].map(fraction =>
+      [5, 75, 90].map(offset => transformAt(fraction * duration + offset)));
+    const midpointX = new DOMMatrixReadOnly(transformAt(duration / 2)).m41;
+    drift.currentTime = 0;
+    drift.play();
+    return { layer, quarters, midpointX };
+  })`);
+  for (const { layer, quarters, midpointX } of poses) {
+    for (const [index, [first, held, next]] of quarters.entries()) {
+      assert.equal(held, first, `${layer} toner quarter ${index + 1} must hold the first pose`);
+      assert.notEqual(next, held, `${layer} toner quarter ${index + 1} must advance after 1/12 s`);
+    }
+    assert(Math.abs(midpointX - 380) < 0.01, `${layer} toner must travel half a tile by midloop`);
+  }
+  console.log('All toner layers hold poses at 12 fps without changing travel speed.');
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await until(drift + '.length === 0');
   await command('Emulation.setEmulatedMedia', { features: [] });
