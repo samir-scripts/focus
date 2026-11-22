@@ -30,6 +30,8 @@ The same retained Chromium and Firefox ZIPs passed Linux shared-rule and two fre
 
 Track source, license, hash and an editable scene or reproducible import and render recipe. Review camera-matched clay and Cobalt exports side by side with the approved reference at actual size. Verify the low front-right camera, separate near spacebar and keycaps, paper meeting the platen, hard facets and bounded print treatment. Deliver local static art for later surfaces. No runtime 3D.
 
+The [3B artwork and review evidence](design/productivity/typewriter/README.md) include the static export, offline Blender recipe, same-camera clay and hero-size comparison.
+
 ### 3C — Shell and Sites
 
 `feature/productivity-3c-shell-sites` applies the poster-led stock, six themes, Sites library and 360px popup treatment. Preserve the existing Add site workflow and move its action to the anchored library position. Keep smaller art on Sites. Home and its interactive toolbar hit region land with the dashboard in 3D.

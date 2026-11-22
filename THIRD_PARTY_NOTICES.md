@@ -18,6 +18,8 @@ LinkedIn is represented by a neutral monogram rather than its logo: its [guideli
 
 The vector paper grain and seeded particle shapes are original artwork from the approved focus. design study. The grain tile is editable SVG. Run `python3 apps/desktop/tools/build-paper-stock.py` to rebuild the three SVG flake tiles offline.
 
+The Cobalt typewriter illustration adapts the [Grab3D Typewriter](https://grab3d.com/models/electronics/typewriter/) by Grab3D, published in Germany under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/). focus. reworked the casing, keycaps, platen knobs and paper geometry and replaced the original textures with new flat ink shading, screening and grain. See the [source notice, pinned GLB and render recipe](docs/design/productivity/typewriter/README.md).
+
 ## Mona Sans and Mona Sans Mono
 
 The bundled variable WOFF2 fonts were copied from the sibling Grace project, whose font provenance identifies the GitHub Mona Sans project: https://github.com/github/mona-sans. The fonts are distributed under the following license.
