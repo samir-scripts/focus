@@ -36,7 +36,7 @@ pub(crate) async fn list_schedules() -> Result<Vec<Entry>, &'static str> {
         let mut entries = Vec::new();
         for schedule in db.schedules()? {
             let next_at = schedule.next_after(time)?.map(|instant| instant.timestamp());
-            let outcome = db.latest_schedule_outcome(schedule.id)?;
+            let outcome = db.latest_schedule_outcome(&schedule)?;
             if next_at.is_some() || outcome.as_deref() != Some("started") {
                 entries.push(Entry { schedule, next_at, outcome });
             }

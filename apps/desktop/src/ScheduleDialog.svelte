@@ -153,7 +153,9 @@
   input:not([type=checkbox]) { font: inherit; color: inherit; background: var(--rail); border: 1px solid var(--edge); border-radius: var(--radius-control); box-sizing: border-box; padding: 4px 7px; }
   input[type=date] { width: 100%; margin-bottom: 4px; }
   input[type=time] { width: 118px; }
-  input[type=checkbox] { accent-color: var(--accent); }
+  input[type=checkbox] { appearance: none; display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid var(--ink); border-radius: 2px; background: var(--rail); }
+  input[type=checkbox]:checked { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  input[type=checkbox]:checked::before { content: ''; width: 8px; height: 4px; border: solid currentColor; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
   .time, .repeat { display: flex; align-items: center; gap: 8px; }
   .repeat { margin-top: 7px; font-weight: normal; }
   .repeat input { margin: 0; }
@@ -174,6 +176,8 @@
     .fields { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--edge); }
   }
   @media (forced-colors: active) {
+    input[type=checkbox] { appearance: auto; }
+    input[type=checkbox]:checked::before { content: none; }
     button[aria-pressed=true] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
   }
 </style>

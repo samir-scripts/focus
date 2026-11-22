@@ -86,7 +86,10 @@ fn racing_claims_and_restart_do_not_replay_an_interrupted_launch() {
     });
     drop(db);
     let mut db = Db::open(&path).unwrap();
-    assert_eq!(db.latest_schedule_outcome(schedule.id).unwrap().as_deref(), Some("unconfirmed"));
+    assert_eq!(db.latest_schedule_outcome(&schedule).unwrap().as_deref(), Some("unconfirmed"));
+    let edited = Schedule { date: "2026-11-24".into(), ..schedule.clone() };
+    db.save_schedule(&edited).unwrap();
+    assert_eq!(db.latest_schedule_outcome(&edited).unwrap(), None);
     assert_eq!(db.claim_schedule(&schedule, due).unwrap(), None);
 }
 

@@ -76,11 +76,11 @@
 <section aria-labelledby="schedules-heading">
   <header>
     <h2 id="schedules-heading">Schedules</h2>
-    {#if available}<button type="button" bind:this={add} onclick={create}>+ Schedule a session</button>{/if}
+    {#if available}<button type="button" bind:this={add} onclick={create}>New schedule</button>{/if}
   </header>
   {#if available}
     <p>Keep focus. running or minimized to start scheduled sessions.</p>
-    {#if entries.length === 0 && !error}<p>No upcoming sessions.</p>{/if}
+    {#if entries.length === 0 && !error}<p>No scheduled starts yet.</p>{/if}
     <ul>
       {#each entries as { schedule, nextAt, outcome } (schedule.id)}
         {@const label = nextAt === null ? `${dateLabel(schedule.date, { dateStyle: 'medium' })} · ${schedule.time} · ${schedule.zone}` : occurrenceLabel(nextAt, schedule.zone)}
@@ -108,7 +108,7 @@
 {#if active}<ScheduleDialog initial={active} {close} saved={() => { void refresh(); }} />{/if}
 
 <style>
-  section { position: relative; border-top: 1px solid var(--edge); padding-block: 14px; }
+  section { position: relative; margin-inline: 16px; border-top: 1px solid var(--edge); padding: 14px 9px; }
   header, li, .actions { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
   h2 { font-size: 19px; margin: 0; }
   p { margin: 4px 0 0; }

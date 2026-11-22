@@ -189,11 +189,18 @@ impl Db {
         Ok(())
     }
 
-    pub fn latest_schedule_outcome(&self, id: Uuid) -> Result<Option<String>> {
-        Ok(self.0.query_row(
-            "SELECT outcome FROM grace_occurrence WHERE schedule_id=?1 ORDER BY due DESC LIMIT 1",
-            [id.as_bytes()], |row| row.get(0),
-        ).optional()?)
+    pub fn latest_schedule_outcome(&self, schedule: &Schedule) -> Result<Option<String>> {
+        let mut stmt = self.0.prepare(
+            "SELECT due, outcome FROM grace_occurrence WHERE schedule_id=?1 ORDER BY due DESC",
+        )?;
+        let mut rows = stmt.query([schedule.id.as_bytes()])?;
+        while let Some(row) = rows.next()? {
+            let due: i64 = row.get(0)?;
+            if schedule.next_after(due - 1)?.is_some_and(|date| date.timestamp() == due) {
+                return Ok(Some(row.get(1)?));
+            }
+        }
+        Ok(None)
     }
 
     pub fn policy(&self) -> Result<(u64, bool)> { policy(&self.0) }
