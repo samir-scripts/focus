@@ -2,18 +2,85 @@
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import type { Accessibility, EntryPolicy } from '../../extension/src/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
+import { mountTypewriter } from './typewriter/viewer';
+
+vi.mock('./typewriter/viewer', () => ({ mountTypewriter: vi.fn() }));
+
+const mountViewer = vi.mocked(mountTypewriter);
+const artName = 'Blue typewriter floating over a pink disc';
+const canvasName = 'Cobalt typewriter';
+
+function prepareViewer() {
+  const viewer = { destroy: vi.fn(), reset: vi.fn(), setPaused: vi.fn() };
+  mountViewer.mockReturnValueOnce(viewer);
+  return viewer;
+}
 
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  mountViewer.mockReset();
   document.documentElement.dataset.theme = 'system';
   delete document.documentElement.dataset.paletteLight;
   delete document.documentElement.dataset.paletteDark;
 });
 
 describe('desktop shell', () => {
+  it('owns a fresh viewer on every Home visit, and none when illustrations are disabled', async () => {
+    const first = prepareViewer();
+    render(App);
+    const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+    expect(screen.getByRole('img', { name: artName })).toBeTruthy();
+    await waitFor(() => expect(mountViewer).toHaveBeenCalledTimes(1));
+    const [oldCanvas, oldOptions] = mountViewer.mock.calls[0];
+    await open('Sites');
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(oldCanvas.isConnected).toBe(false);
+
+    const second = prepareViewer();
+    await open('Home');
+    await waitFor(() => expect(mountViewer).toHaveBeenCalledTimes(2));
+    const [canvas, options] = mountViewer.mock.calls[1];
+    expect(canvas).not.toBe(oldCanvas);
+    oldOptions.onMode('live');
+    expect(screen.queryByRole('application', { name: canvasName })).toBeNull();
+    options.onMode('live');
+    expect(await screen.findByRole('application', { name: canvasName })).toBe(canvas);
+    expect(canvas.tabIndex).toBe(0);
+    expect(document.getElementById(canvas.getAttribute('aria-describedby') ?? '')?.textContent).toMatch(/Esc resets/);
+    expect(screen.queryByRole('img', { name: artName })).toBeNull();
+
+    await open('Settings');
+    expect(second.destroy).toHaveBeenCalledOnce();
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
+    await open('Home');
+    expect(screen.queryByRole('img', { name: artName })).toBeNull();
+    expect(screen.queryByRole('application', { name: canvasName })).toBeNull();
+    expect(mountViewer).toHaveBeenCalledTimes(2);
+  });
+
+  it('retains saved toner pause and launches Grace during loading and after renderer failure', async () => {
+    window.localStorage.setItem('focus.tonerPaused', 'true');
+    prepareViewer();
+    const startGrace = vi.fn(async () => 'unconfirmed' as const);
+    render(App, { startGrace });
+    const start = screen.getByRole('button', { name: 'Start in Grace' });
+    expect(screen.getByRole('img', { name: artName })).toBeTruthy();
+    expect(screen.queryByRole('application', { name: canvasName })).toBeNull();
+    await fireEvent.click(start);
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/could not confirm/i));
+    await waitFor(() => expect(mountViewer).toHaveBeenCalledOnce());
+    const [canvas, options] = mountViewer.mock.calls[0];
+    expect(options.paused).toBe(true);
+    options.onMode('static');
+    await waitFor(() => expect(canvas.hidden).toBe(true));
+    expect(screen.getByRole('img', { name: artName })).toBeTruthy();
+    await fireEvent.click(start);
+    expect(startGrace).toHaveBeenCalledTimes(2);
+  });
+
   it('opens Home and keeps Sites labeled alongside the named icon controls', async () => {
     render(App);
     const navigation = within(screen.getByRole('navigation', { name: 'Main' }));

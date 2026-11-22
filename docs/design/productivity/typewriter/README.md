@@ -93,3 +93,7 @@ node "$preview/record.mjs" "$evidence/viewer.html" "$evidence"
 ```
 
 Open `viewer.html` directly, without a server. It contains the renderer, model, atlas, still, fonts and license notices. The Playwright verification opens both the offline file and the loopback preview with external traffic blocked. It exercises all 46 physical keys, touch cancellation, bob, cap latching, exact wrap on both axes across real mouse and touch drags under reduced motion, keyboard orbit, reset, WebGL failure and cleanup. It captures 960 × 640 and 390px screenshots, top, underside, front, side and rear orbit frames, and the held pose before and after it catches up. It compares gentle and fast 96px releases and checks coast direction, bounds, settling and interruption. `render.mjs` renders the transparent rest still and enlarged keyboard proof; `record.mjs` captures the vertical turn and equal-distance gestures. PNG byte identity is qualified on the recorded Chrome/SwiftShader version, not across drivers. Both the live preview and the keyboard proof need review before Home integration.
+
+## Home integration (3D.3)
+
+Home loads the reviewed viewer on demand when Print illustrations is on. The matching still occupies the same art field during startup or if 3D is unavailable. Leaving Home releases the viewer; the next visit starts at rest with the saved toner preference. Forced colors suppress the art. The Grace action precedes the live canvas in keyboard order and does not depend on the renderer.

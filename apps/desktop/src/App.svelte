@@ -14,7 +14,7 @@
   import { normalizeHost } from '../../extension/src/protocol';
   import { graceMessage, startGraceSession, type GraceOutcome } from './grace';
   import graceMark from './assets/grace-mark.svg';
-  import typewriter from './assets/typewriter-cobalt.png';
+  import HomeTypewriter from './typewriter/HomeTypewriter.svelte';
 
   let {
     browserBridge = isTauri() ? nativeBrowserBridge : null,
@@ -362,9 +362,6 @@
         <div class="page" class:home-page={page === 'Home'} class:reveal={revealPage && page === 'Settings'}>
           {#if page === 'Home'}
             <div class="launch-hero">
-              {#if appearance.printIllustrations}
-                <img class="hero-art" src={typewriter} alt="" data-print="launch" />
-              {/if}
               <div class="hero-copy">
                 <h1 tabindex="-1" bind:this={heading}>Start a<br />session</h1>
                 <p>Grace opens and runs your session.</p>
@@ -373,6 +370,9 @@
                 </button>
                 <p class="launch-status" role="status">{launchPending ? 'Waiting for Grace…' : launchOutcome ? graceMessage[launchOutcome] : ''}</p>
               </div>
+              {#if appearance.printIllustrations}
+                <HomeTypewriter paused={appearance.tonerPaused} />
+              {/if}
             </div>
           {:else if page === 'Sites'}
             <header class="page-heading site-title-row">
@@ -704,16 +704,8 @@
 
   main.home { padding: 0; }
   .home-page { max-width: none; background: transparent; }
-  .launch-hero { position: relative; display: grid; align-items: center; min-height: max(345px, 47vw); }
-  .hero-art {
-    position: absolute;
-    inset: 32px 0 auto auto;
-    display: block;
-    width: 74.5%;
-    height: auto;
-    pointer-events: none;
-  }
-  .hero-copy { position: relative; width: fit-content; max-width: min(52%, 410px); margin: 32px 0 32px 3.8%; }
+  .launch-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; min-height: max(345px, 47vw); }
+  .hero-copy { position: relative; width: fit-content; max-width: min(88%, 410px); margin: 32px 0 32px 7.6%; }
   .hero-copy h1 { font: 800 clamp(42px, 6.85vw, 72px)/.99 var(--font-display); }
   .hero-copy p { color: var(--ink); }
   .hero-copy h1 + p { margin: 18px 0 32px; font-size: 17px; }
@@ -731,13 +723,11 @@
   .launch-action[aria-disabled='true'] { cursor: wait; }
   .hero-copy .launch-status { position: absolute; top: calc(100% + 5px); margin-top: 0; }
   @media (max-width: 635px) {
-    .launch-hero { align-items: start; min-height: 0; }
-    .hero-copy { grid-row: 1; max-width: none; margin: 28px 16px; }
+    .launch-hero { grid-template-columns: minmax(0, 1fr); align-items: start; min-height: 0; }
+    .hero-copy { max-width: calc(100% - 32px); margin: 28px 16px; }
     .hero-copy .launch-status { position: static; margin-top: 8px; }
-    .hero-art { grid-row: 2; position: static; justify-self: end; width: min(100%, 520px); }
   }
   @media (forced-colors: active) {
-    .hero-art { display: none; }
     .launch-action { border-color: ButtonText; color: ButtonText; }
   }
 
