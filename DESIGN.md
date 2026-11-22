@@ -2,7 +2,7 @@
 
 ## Overview
 
-The desktop is a quiet workspace on printed stock. Give the poster composition room on Home, and keep editing, settings and data easy to scan. The [approved Cobalt dashboard](docs/design/productivity/omp-handoff.md) is the future target. The [Dither UI native captures](docs/design/dither-ui/README.md#native-review) record the earlier shell. See the [roadmap](docs/roadmap.md) for what is present in the baseline and when each target lands.
+The desktop is a quiet workspace on printed stock. Give the poster composition room on Home, and keep editing, settings and data easy to scan. The [approved Cobalt Grace-launch dashboard](docs/design/productivity/references/approved-cobalt-grace-launch.png) is the 3D visual target. It supersedes the [historical timer comp](docs/design/productivity/references/approved-cobalt-dashboard.png). The [Dither UI native captures](docs/design/dither-ui/README.md#native-review) record the earlier shell. The [roadmap](docs/roadmap.md) owns slice boundaries.
 
 ## Colors
 
@@ -49,8 +49,9 @@ Keep the established 3px controls, 4px notices and 6px dialogs. Reserve the ring
 
 ## Components
 
-- **Navigation.** The baseline opens Sites with a left wordmark and a right icon group. The target centers the typewriter mark and wordmark as one Home button. Label Sites visibly; use SVG buttons for Stats and Settings with tooltips, accessible names and keyboard focus. Keep the thin active underline. On macOS, overlay the toolbar behind the native traffic lights. Keep the baseline top 46pt/right 124pt and zoom handling aligned until the toolbar changes. When the target lands, exclude both the interactive center and the right navigation hit regions from AppKit dragging and keep the traffic lights clickable. Drag with the original mouse-down event. Windows and Linux retain system title bars.
+- **Navigation.** Center the typewriter mark and wordmark as one Home button. Label Sites visibly; use SVG buttons for Statistics and Settings with tooltips, accessible names and keyboard focus. Keep the thin active underline. On macOS, overlay the toolbar behind the native traffic lights; exclude both the Home and right navigation hit regions from AppKit dragging at the current WebKit page zoom. Drag with the original mouse-down event. Windows and Linux retain system title bars.
 - **Controls.** Use opaque ink reversal on hover and press, including selected controls. Ease hover colors over 280ms independently of the one-pixel press. Use the shared Grace ease-out curve, sliding view marker and brief scale-and-fade for pointer-driven changes. Keyboard navigation and reduced motion skip view animations. Use a single toner sweep per pointer hover on `focus.` or the large site title, clear of the lettering.
+- **Grace start.** Put the canonical Grace mark once inside **Start in Grace**, next to the label. Keep it decorative and unmodified. The mockup's Schedules section belongs to 3E; 3D has no scheduling controls. Grace may use one standard native confirmation on first use; no added custom settings or other visual treatment.
 - **Browser access and marks.** Keep browser setup in Settings. Use approved official or pinned licensed marks with attribution and theme foreground colors. Marks identify sites and imply no affiliation. Static SVG halftoning is optional only where terms allow and the mark stays recognizable. Keep the original neutral `LI` for LinkedIn and use labeled neutral monograms where other marks are unavailable under their terms.
 - **Site marks.** Use a single monochrome SVG following the existing theme foreground states. Ask for approval before adding a decorative color, shape, or animation to any site mark.
 - **Statistics.** The baseline shows an honest empty state. Slice 5 adds a date selector, large bitmap total, bars for actual opt-in local data and exact accessible site values. Leave out scores, streaks and coaching.

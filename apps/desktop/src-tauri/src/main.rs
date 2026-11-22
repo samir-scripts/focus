@@ -4,6 +4,9 @@
 mod titlebar;
 mod commands;
 mod browser_setup;
+mod grace_launch;
+#[cfg(target_os = "macos")]
+mod focus_launch_identity;
 
 use tauri::Manager;
 
@@ -18,6 +21,7 @@ fn main() {
         }))
         .invoke_handler(tauri::generate_handler![
             commands::browser_state,
+            grace_launch::start_grace,
             commands::scan_browsers,
             commands::start_browser_installation,
             commands::remove_browser_installation,

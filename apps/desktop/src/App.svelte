@@ -12,8 +12,17 @@
   import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState } from './browser';
   import SiteEntryEditor from './SiteEntryEditor.svelte';
   import { normalizeHost } from '../../extension/src/protocol';
+  import { graceMessage, startGraceSession, type GraceOutcome } from './grace';
+  import graceMark from './assets/grace-mark.svg';
+  import typewriter from './assets/typewriter-cobalt.png';
 
-  let { browserBridge = isTauri() ? nativeBrowserBridge : null }: { browserBridge?: BrowserBridge | null } = $props();
+  let {
+    browserBridge = isTauri() ? nativeBrowserBridge : null,
+    startGrace = isTauri() ? startGraceSession : null,
+  }: {
+    browserBridge?: BrowserBridge | null;
+    startGrace?: (() => Promise<GraceOutcome>) | null;
+  } = $props();
 
   const pages = ['Sites', 'Statistics', 'Settings'] as const;
   const nativeMacToolbar = isTauri() && navigator.platform.startsWith('Mac');
@@ -22,14 +31,16 @@
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
   ] as const;
-  type Page = (typeof pages)[number];
+  type Page = 'Home' | (typeof pages)[number];
   const paletteModes = [
     { value: 'light', label: 'Light palette' },
     { value: 'dark', label: 'Dark palette' },
   ] as const;
   const paletteIds = Object.keys(palettes) as Palette[];
 
-  let page = $state<Page>('Sites');
+  let page = $state<Page>('Home');
+  let launchPending = $state(false);
+  let launchOutcome = $state<GraceOutcome>();
   let browserState = $state.raw<BrowserState>();
   let siteId = $state(curatedSites[0].id);
   let libraryList: HTMLUListElement | undefined = $state();
@@ -239,6 +250,19 @@
     saveAppearance('tonerPaused', paused);
   }
 
+  async function launchGrace() {
+    if (launchPending) return;
+    launchPending = true;
+    launchOutcome = undefined;
+    try {
+      launchOutcome = startGrace ? await startGrace() : 'unsupported';
+    } catch {
+      launchOutcome = 'unconfirmed';
+    } finally {
+      launchPending = false;
+    }
+  }
+
   async function openPage(next: Page, event: MouseEvent) {
     if (next === page) return;
     revealPage = event.detail > 0;
@@ -261,25 +285,31 @@
 <div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
     <PaperStock />
-    <div class="brand"><TypewriterMark size={22} /> <span class="toner-type">focus.</span></div>
-    <nav aria-label="Main" class:move-indicator={revealPage} style:--active-index={pages.indexOf(page)}>
-      {#each pages as entry}
-        <button type="button" aria-label={entry} title={entry} aria-current={page === entry ? 'page' : undefined}
-          onclick={(event) => openPage(entry, event)}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    <nav aria-label="Main" class:move-indicator={revealPage} data-page={page}>
+      <button type="button" class="brand" aria-label="Home" title="Home"
+        aria-current={page === 'Home' ? 'page' : undefined} onclick={(event) => openPage('Home', event)}>
+        <TypewriterMark size={32} /> <span class="toner-type">focus<span class="brand-stop">.</span></span>
+      </button>
+      <div class="nav-items">
+        {#each pages as entry}
+          <button type="button" aria-label={entry} title={entry} aria-current={page === entry ? 'page' : undefined}
+            onclick={(event) => openPage(entry, event)}>
             {#if entry === 'Sites'}
-              <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-              <path d="M4 9.5h16M9.5 10v9" />
-            {:else if entry === 'Statistics'}
-              <path d="M5 19v-5m7 5V9m7 10V4" stroke-width="2.5" />
+              Sites
             {:else}
-              <path d="M10 3.5h4l.6 2.4 1.7 1 2.4-.7 2 3.5-1.8 1.7v2l1.8 1.7-2 3.5-2.4-.7-1.7 1-.6 2.4h-4l-.6-2.4-1.7-1-2.4.7-2-3.5 1.8-1.7v-2L3.3 9.7l2-3.5 2.4.7 1.7-1z" />
-              <circle cx="12" cy="12.4" r="2.7" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                {#if entry === 'Statistics'}
+                  <path d="M5 19v-5m7 5V9m7 10V4" stroke-width="2.5" />
+                {:else}
+                  <path d="M10 3.5h4l.6 2.4 1.7 1 2.4-.7 2 3.5-1.8 1.7v2l1.8 1.7-2 3.5-2.4-.7-1.7 1-.6 2.4h-4l-.6-2.4-1.7-1-2.4.7-2-3.5 1.8-1.7v-2L3.3 9.7l2-3.5 2.4.7 1.7-1z" />
+                  <circle cx="12" cy="12.4" r="2.7" />
+                {/if}
+              </svg>
             {/if}
-          </svg>
-        </button>
-      {/each}
+          </button>
+        {/each}
+      </div>
     </nav>
   </header>
 
@@ -323,14 +353,28 @@
       </section>
     {/if}
 
-    <main>
+    <main class:home={page === 'Home'}>
       <PaperStock particles />
       {#if browserError || actionError}
         <p class="browser-error" role="alert">{browserError || actionError}</p>
       {/if}
       {#key page}
-        <div class="page" class:reveal={revealPage && page === 'Settings'}>
-          {#if page === 'Sites'}
+        <div class="page" class:home-page={page === 'Home'} class:reveal={revealPage && page === 'Settings'}>
+          {#if page === 'Home'}
+            <div class="launch-hero">
+              {#if appearance.printIllustrations}
+                <img class="hero-art" src={typewriter} alt="" data-print="launch" />
+              {/if}
+              <div class="hero-copy">
+                <h1 tabindex="-1" bind:this={heading}>Start a<br />session</h1>
+                <p>Grace opens and runs your session.</p>
+                <button class="launch-action" type="button" aria-disabled={launchPending} onclick={launchGrace}>
+                  <img src={graceMark} alt="" width="26" height="18" />Start in Grace
+                </button>
+                <p class="launch-status" role="status">{launchPending ? 'Waiting for Grace…' : launchOutcome ? graceMessage[launchOutcome] : ''}</p>
+              </div>
+            </div>
+          {:else if page === 'Sites'}
             <header class="page-heading site-title-row">
               {#key site.id}
                 <div class="site-heading">
@@ -529,43 +573,57 @@
   .toolbar, .library { --grain-opacity: var(--grain-rail); }
 
   .toolbar {
+    --home-target: 124px;
+    --navigation-width: 148px;
+    --traffic-inset: 0px;
     display: flex;
-    align-items: stretch;
-    justify-content: space-between;
     min-height: 46px;
     background: var(--rail);
     border-bottom: 1px solid var(--divider);
   }
 
-  /* AppKit scales the 46px toolbar and 124px navigation hit region with page zoom. */
-  .toolbar.native-mac { flex: none; box-sizing: border-box; height: 46px; padding-inline-start: 72px; flex-wrap: nowrap; user-select: none; }
-  .toolbar.native-mac nav { flex: none; flex-wrap: nowrap; }
-  .toolbar.native-mac .brand { padding-inline: 3px 12px; }
+  /* These CSS-pixel hit regions match titlebar.rs before WebKit page zoom. */
+  .toolbar.native-mac { --traffic-inset: 72px; flex: none; box-sizing: border-box; height: 46px; user-select: none; }
 
   .workspace { flex: 1; display: flex; flex-direction: column; }
-  .brand, nav, .library h2, .library ul, .library-action { background: var(--rail); }
+  .brand, .nav-items, .library h2, .library ul, .library-action { background: var(--rail); }
   /* Keep the scrollbar below the toolbar so AppKit and the navigation share the same right edge. */
   .toolbar.native-mac + .workspace { overflow: auto; }
   .with-library { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
 
-  .brand {
+  nav .brand {
+    position: absolute;
+    inset-inline-start: max(var(--traffic-inset), min(calc((100% - var(--home-target)) / 2), calc(100% - var(--navigation-width) - var(--home-target))));
+    inset-block: 0;
     display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 0 16px;
+    justify-content: center;
+    gap: 6px;
+    width: var(--home-target);
+    padding: 0;
     font: 700 24px/1 var(--font-wordmark);
   }
+  .brand-stop { color: var(--secondary); }
+  .brand[aria-current]::after {
+    content: '';
+    position: absolute;
+    inset: auto 9px 0;
+    height: 2px;
+    background: var(--accent);
+    pointer-events: none;
+  }
 
-  nav {
-    --nav-target: 36px;
+  nav { position: relative; display: flex; justify-content: end; width: 100%; }
+  .nav-items {
+    --sites-target: 60px;
     --nav-gap: 2px;
-    --nav-start: 4px;
-    --indicator-width: 18px;
     position: relative;
+    box-sizing: border-box;
     display: flex;
+    flex: none;
+    width: var(--navigation-width);
     gap: var(--nav-gap);
     align-items: center;
-    padding-inline: var(--nav-start) 8px;
+    padding-inline: 4px 8px;
   }
   ul { display: grid; margin: 0; padding: 0; list-style: none; }
   li { min-width: 0; }
@@ -586,24 +644,27 @@
   nav button {
     position: relative;
     justify-content: center;
-    width: var(--nav-target);
-    height: var(--nav-target);
+    width: 36px;
+    min-height: 36px;
     padding: 0;
     border-radius: var(--radius-control);
-    color: var(--muted);
+    color: var(--ink);
   }
-  nav button[aria-current] { color: var(--ink); background: var(--selected); }
+  .nav-items button:first-child { width: var(--sites-target); font-weight: 700; }
   nav button:focus-visible { outline-offset: -2px; }
-  nav::after {
+  .nav-items::after {
     content: '';
     position: absolute;
-    inset: auto auto 0 calc(var(--nav-start) + (var(--nav-target) - var(--indicator-width)) / 2);
-    width: var(--indicator-width);
+    inset: auto auto 0 4px;
+    width: 18px;
     height: 2px;
     background: var(--accent);
     pointer-events: none;
-    transform: translateX(calc(var(--active-index) * (var(--nav-target) + var(--nav-gap))));
+    transform: translateX(var(--indicator-left, calc((var(--sites-target) - 18px) / 2)));
   }
+  nav[data-page='Home'] .nav-items::after { display: none; }
+  nav[data-page='Statistics'] .nav-items { --indicator-left: calc(var(--sites-target) + var(--nav-gap) + 9px); }
+  nav[data-page='Settings'] .nav-items { --indicator-left: calc(var(--sites-target) + 2 * var(--nav-gap) + 45px); }
   li button { width: 100%; min-height: 42px; gap: 12px; }
   li button:focus-visible { outline-offset: -4px; }
   .site-mark { display: grid; place-items: center; flex: none; color: var(--muted); }
@@ -640,6 +701,45 @@
   .page, .browser-error { background: var(--canvas); }
   .page { max-width: 760px; }
   .page:not([hidden]) { display: flow-root; }
+
+  main.home { padding: 0; }
+  .home-page { max-width: none; background: transparent; }
+  .launch-hero { position: relative; display: grid; align-items: center; min-height: max(345px, 47vw); }
+  .hero-art {
+    position: absolute;
+    inset: 32px 0 auto auto;
+    display: block;
+    width: 74.5%;
+    height: auto;
+    pointer-events: none;
+  }
+  .hero-copy { position: relative; width: fit-content; max-width: min(52%, 410px); margin: 32px 0 32px 3.8%; }
+  .hero-copy h1 { font: 800 clamp(42px, 6.85vw, 72px)/.99 var(--font-display); }
+  .hero-copy p { color: var(--ink); }
+  .hero-copy h1 + p { margin: 18px 0 32px; font-size: 17px; }
+  .launch-action {
+    min-height: 44px;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-control);
+    padding: 5px 16px;
+    color: var(--accent);
+    background: var(--canvas);
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .launch-action img { flex: none; }
+  .launch-action[aria-disabled='true'] { cursor: wait; }
+  .hero-copy .launch-status { position: absolute; top: calc(100% + 5px); margin-top: 0; }
+  @media (max-width: 635px) {
+    .launch-hero { align-items: start; min-height: 0; }
+    .hero-copy { grid-row: 1; max-width: none; margin: 28px 16px; }
+    .hero-copy .launch-status { position: static; margin-top: 8px; }
+    .hero-art { grid-row: 2; position: static; justify-self: end; width: min(100%, 520px); }
+  }
+  @media (forced-colors: active) {
+    .hero-art { display: none; }
+    .launch-action { border-color: ButtonText; color: ButtonText; }
+  }
 
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
   @media (forced-colors: none) {
@@ -770,9 +870,9 @@
   }
 
   @media (max-width: 635px) {
-    .toolbar { display: flex; flex-wrap: wrap; }
-    .brand { min-height: 44px; }
-    nav { min-height: 44px; }
+    .toolbar { --home-target: 112px; --navigation-width: 130px; }
+    .nav-items { --sites-target: 50px; --nav-gap: 0px; padding-inline-end: 4px; }
+    nav .brand { font-size: 21px; }
     .with-library { display: flex; flex-direction: column; }
     .library { padding: 8px 12px; border-inline-end: 0; border-bottom: 1px solid var(--divider); }
     .library h2 { padding-inline: 8px; }
@@ -798,10 +898,11 @@
 
   @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
     @supports (background-clip: text) or (-webkit-background-clip: text) {
+      .brand:is(:hover, :active) .toner-type { --sweep-ink: var(--on-accent); }
       .toner-type:hover {
         --sweep-width: var(--toner-sweep-width, 36px);
         color: transparent;
-        background-color: var(--ink);
+        background-color: var(--sweep-ink, var(--ink));
         background-image: url('./assets/toner-sweep.svg');
         background-repeat: no-repeat;
         background-size: var(--sweep-width) 100%;
@@ -818,7 +919,7 @@
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    nav.move-indicator::after { transition: transform var(--motion-interaction) var(--ease); }
+    nav.move-indicator .nav-items::after { transition: transform var(--motion-interaction) var(--ease); }
     .reveal {
       transform-origin: top left;
       animation: settle var(--motion-view) var(--ease);

@@ -1,3 +1,5 @@
+/// <reference lib="es2024.promise" />
+
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import type { Accessibility, EntryPolicy } from '../../extension/src/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -12,23 +14,46 @@ afterEach(() => {
 });
 
 describe('desktop shell', () => {
-  it('provides named icon controls and marks the current page', async () => {
+  it('opens Home and keeps Sites labeled alongside the named icon controls', async () => {
     render(App);
     const navigation = within(screen.getByRole('navigation', { name: 'Main' }));
-    for (const name of ['Sites', 'Statistics', 'Settings']) {
+    const home = navigation.getByRole('button', { name: 'Home' });
+    expect(home.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('heading', { name: 'Start a session' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'New schedule' })).toBeNull();
+    const sites = navigation.getByRole('button', { name: 'Sites' });
+    expect(sites.textContent?.trim()).toBe('Sites');
+    for (const name of ['Statistics', 'Settings']) {
       const button = navigation.getByRole('button', { name });
       expect(button.textContent?.trim()).toBe('');
       expect(button.querySelector('svg')).toBeTruthy();
     }
-    expect(navigation.getByRole('button', { name: 'Sites' }).getAttribute('aria-current')).toBe('page');
-    const settings = navigation.getByRole('button', { name: 'Settings' });
-    await fireEvent.click(settings);
-    expect(settings.getAttribute('aria-current')).toBe('page');
-    expect(navigation.getByRole('button', { name: 'Sites' }).getAttribute('aria-current')).toBeNull();
+    await fireEvent.click(sites);
+    expect(sites.getAttribute('aria-current')).toBe('page');
+    expect(home.getAttribute('aria-current')).toBeNull();
+    await fireEvent.click(home, { detail: 0 });
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Start a session' }));
+  });
+
+  it('does not dispatch a second Grace start while waiting or claim success without acceptance', async () => {
+    const { promise, resolve } = Promise.withResolvers<'unconfirmed'>();
+    let calls = 0;
+    render(App, { startGrace: () => {
+      calls++;
+      return promise;
+    } });
+    const start = screen.getByRole('button', { name: 'Start in Grace' });
+    await fireEvent.click(start);
+    await fireEvent.click(start);
+    expect(calls).toBe(1);
+    expect(screen.getByRole('status').textContent).not.toMatch(/session started/i);
+    resolve('unconfirmed');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/could not confirm.*check Grace/i));
   });
 
   it('moves between branded site rows and shows the selected hostname', async () => {
     render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     const library = within(screen.getByRole('region', { name: 'Site Library' }));
     const rows = library.getAllByRole('button');
     const names = ['YouTube', 'Reddit', 'Instagram', 'X / Twitter', 'Facebook', 'TikTok', 'LinkedIn', 'WhatsApp Web', 'Google Search'];
@@ -57,6 +82,7 @@ describe('desktop shell', () => {
       decidePair: async () => {},
       revoke: async () => {},
     } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     const rule = await screen.findByRole<HTMLInputElement>('checkbox', { name: /Hide Shorts/ });
     expect(rule.disabled).toBe(false);
     await fireEvent.click(rule);
@@ -80,6 +106,7 @@ describe('desktop shell', () => {
       decidePair: async () => {},
       revoke: async () => {},
     } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     expect(await screen.findByText(/Needs access/)).toBeTruthy();
     expect(screen.getByText(/Missing:.*http:\/\/www\.youtube\.com\/\*/)).toBeTruthy();
     expect(screen.getByText(/Missing:.*https:\/\/m\.youtube\.com\/\*/)).toBeTruthy();
@@ -107,6 +134,7 @@ describe('desktop shell', () => {
       },
       decidePair: async () => {}, revoke: async () => {},
     } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     await screen.findByRole('radio', { name: 'Allow' });
     expect(screen.queryByLabelText('Wait (seconds)')).toBeNull();
     await fireEvent.click(screen.getByRole('radio', { name: 'Pause' }));
@@ -127,6 +155,7 @@ describe('desktop shell', () => {
       setHideShorts: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
       setEntry: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
     } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     const library = within(screen.getByRole('region', { name: 'Site Library' }));
     await fireEvent.click(await library.findByRole('button', { name: 'Add site' }), { detail: 0 });
     expect(document.activeElement).toBe(library.getByRole('textbox', { name: 'Hostname or URL' }));
@@ -158,6 +187,7 @@ describe('desktop shell', () => {
 
   it('reports disconnected and empty states without presenting active filtering or tracking controls', async () => {
     render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     expect(screen.getByText('No browsers connected')).toBeTruthy();
     expect(screen.queryByRole('switch')).toBeNull();
     await fireEvent.click(screen.getByRole('button', { name: 'Statistics' }));
@@ -223,6 +253,8 @@ describe('desktop shell', () => {
     const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
     const impression = () => screen.getByRole('main').querySelector('[data-print]');
 
+    expect(impression()).not.toBeNull();
+    await open('Sites');
     expect(impression()?.getAttribute('aria-hidden')).toBe('true');
     await open('Statistics');
     expect(impression()).not.toBeNull();

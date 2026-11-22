@@ -1,12 +1,20 @@
 # Productivity art references
 
-These eight user-supplied PNGs are unresized, byte-for-byte copies. Use them for art direction only. Keep their artwork, characters, watermarks and lettering out of the app. Read the [design contract](../../../../DESIGN.md) for how to apply these studies.
+These user-supplied PNGs are unresized, byte-for-byte copies. Use them for art direction only. Keep their artwork, characters, watermarks and lettering out of the app. Read the [design contract](../../../../DESIGN.md) for how to apply these studies.
 
-## Approved Light Cobalt dashboard
+## Approved Light Cobalt Grace-launch dashboard
+
+![Light Cobalt dashboard with the Start in Grace action and a blue typewriter](approved-cobalt-grace-launch.png)
+
+Newer user-approved generated PNG (`exec-989997c4-bff0-4e41-841e-8d694dcf5b75.png`). The user also approved the canonical Grace mark inside the launch action. The Schedules row is a 3E reference, not part of 3D.
+
+SHA-256 `7705da529e13321a9b189f1ee5a8e11d941680826c79ac614ffa3eea8c3cba44`
+
+## Historical Light Cobalt timer comp
 
 ![Light Cobalt dashboard with a low front-right view of a blue typewriter beside a work timer](approved-cobalt-dashboard.png)
 
-User-approved generated dashboard mockup. The camera sits low on the typewriter’s front-right side. Open cool paper holds the session name and timer; a hot pink field sits behind the Cobalt hero. This is the future dashboard target.
+Earlier user-approved mockup. It records the low front-right camera and bounded pink field, but the session timer and controls are superseded by the Grace-launch dashboard.
 
 SHA-256 `2f6fec6f5e6d19baee4b71c94900b4e74633a1e04c5a0d22a0d6316b1230cb4a`
 

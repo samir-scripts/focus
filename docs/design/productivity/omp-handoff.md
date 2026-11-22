@@ -1,8 +1,8 @@
-![Approved Light Cobalt dashboard with a typewriter seen from a low front-right angle](references/approved-cobalt-dashboard.png)
+![Approved Light Cobalt dashboard with Start in Grace and a typewriter hero](references/approved-cobalt-grace-launch.png)
 
 # Productivity desktop implementation plan and OMP handoff
 
-The image is the approved visual target. It depicts the visual direction for a future work session. Start the session from focus. and run it in the Grace application. See the roadmap for the revised 3D and 3E acceptance gates, and obtain approval before introducing new visual treatments. The [design contract](../../../DESIGN.md) defines the visual rules, the [roadmap](../../roadmap.md) owns slice scope and acceptance, and the [reference index](references/README.md) records source artwork and digests.
+This is the newer authorized 3D reference, with the existing Grace mark approved inside the Start in Grace action. The [earlier timer comp](references/approved-cobalt-dashboard.png) is historical. Grace owns the session and may show the approved standard native first-use confirmation. The pictured Schedules section belongs to 3E. The [design contract](../../../DESIGN.md) defines the visual rules, the [roadmap](../../roadmap.md) owns slice scope and acceptance, and the [reference index](references/README.md) records source artwork and digests. See the [3D implementation plan](3d-grace-launch-plan.md).
 
 ## Slice 3A candidate
 

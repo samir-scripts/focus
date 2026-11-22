@@ -48,6 +48,8 @@ Build the start interface on a separate, reviewed Grace branch and checkout. The
 
 The focus. entry point uses the approved shell and existing visual language. Present any new visual treatment for approval before implementing it. Keep the existing site-mark correction.
 
+The 3D candidate uses one standard native Grace confirmation on first manual use, with no setup files or custom settings. The shared desktop entry point is [`grace_launch::launch`](../apps/desktop/src-tauri/src/grace_launch.rs); 3E must pass its stable occurrence UUID and cannot request consent. See the [3D candidate plan](design/productivity/3d-grace-launch-plan.md) for the launch and review boundaries.
+
 ### 3E — Grace session coordination
 
 Keep one-off and selected-weekday schedules in focus. While focus. is running or minimized, a due schedule sends the same start request as a manual launch. Skip elapsed or overlapping starts and deduplicate repeated local times. Grace owns session timing and phase transitions. Use Grace's authoritative state for any browser coordination. Apply any separately authorized session rules as an expiring layer over focus. site settings, only in profiles with exact-origin grants. Preserve Pause/Block availability guards. Verify missing and disconnected Grace, duplicate and overlapping requests, phase changes, and local data and policy recovery at the end of work.

@@ -8,6 +8,32 @@ The browser names and marks in Settings identify software installed on the devic
 - **Chromium** uses the Chromium Authors' product mark, revision `bfe4d0f3141035d46858b92f00807452ca7bf1e9`. The theme supplies the ink. Opacity distinguishes the original segments and the canvas shows through the center ring. [Original SVG](https://chromium.googlesource.com/chromium/src/+/bfe4d0f3141035d46858b92f00807452ca7bf1e9/chrome/app/theme/chromium/product_logo.svg) · [Bundled BSD license](packages/ui/src/assets/browsers/CHROMIUM-LICENSE.txt)
 - **Chrome**, **Firefox**, and **Zen** use original focus. lettermarks CH, FX, and ZN. Google's brand guidance, Mozilla's compatibility guidance, and Zen's noncommercial logo license informed that choice. [Google product marks](https://about.google/brand-resource-center/products-and-services/) · [Mozilla trademark guidelines](https://www.mozilla.org/en-US/foundation/trademarks/policy/) · [Zen branding license](https://github.com/zen-browser/branding-archive)
 
+## Grace mark
+
+focus. uses Grace’s canonical unmodified SVG only to identify the **Start in Grace** action. [Grace source](https://github.com/samir-scripts/grace/blob/458ae9f5734854c481a127631ca8eb9e1bc5eb26/assets/brand/grace-mark.svg) (introduced by Samir Katakamsetty in `a7701fb`); [brand provenance](https://github.com/samir-scripts/grace/blob/458ae9f5734854c481a127631ca8eb9e1bc5eb26/assets/brand/README.md). Its [local copy](apps/desktop/src/assets/grace-mark.svg) has SHA-256 `3c4124ed9842c98b0f43a666b4d1993b7630b5f293310b87e7e38f4f9599fb13`. Grace distributes the repository under the [MIT license](https://github.com/samir-scripts/grace/blob/458ae9f5734854c481a127631ca8eb9e1bc5eb26/LICENSE):
+
+> MIT License
+>
+> Copyright (c) 2018 Christopher Murphy
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
 ## Font Awesome Free brand icons
 
 The YouTube, Instagram, X, Reddit, Facebook, TikTok, WhatsApp and Google icons in `packages/ui/src/SiteMark.svelte` are from Font Awesome Free 6.7.2, Copyright Fonticons, Inc. (https://fontawesome.com), licensed under Creative Commons Attribution 4.0 International: https://creativecommons.org/licenses/by/4.0/. Source: https://github.com/FortAwesome/Font-Awesome/tree/6.7.2/svgs/brands. The paths are unmodified and rendered in monochrome for theme contrast. Trademarks belong to their respective owners and identify services only, not affiliation or endorsement.

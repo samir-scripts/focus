@@ -9,7 +9,8 @@ use tauri::Manager;
 
 // Layout dimensions in CSS pixels, before the user applies page zoom.
 const TOOLBAR_HEIGHT: f64 = 46.0;
-const NAVIGATION_WIDTH: f64 = 124.0;
+const COMPACT_WIDTH: f64 = 635.0;
+const TRAFFIC_INSET: f64 = 72.0;
 
 fn page_zoom(view: &NSView) -> Option<f64> {
     if let Some(webview) = view.downcast_ref::<WKWebView>() {
@@ -20,7 +21,15 @@ fn page_zoom(view: &NSView) -> Option<f64> {
 }
 
 fn inside_drag_region(x: f64, from_top: f64, width: f64, zoom: f64) -> bool {
-    (0.0..TOOLBAR_HEIGHT * zoom).contains(&from_top) && x < width - NAVIGATION_WIDTH * zoom
+    if !(0.0..TOOLBAR_HEIGHT * zoom).contains(&from_top) {
+        return false;
+    }
+    let width = width / zoom;
+    let x = x / zoom;
+    let (home_width, nav_width) = if width <= COMPACT_WIDTH { (112.0, 130.0) } else { (124.0, 148.0) };
+    let nav_left = width - nav_width;
+    let home_left = ((width - home_width) / 2.0).min(nav_left - home_width).max(TRAFFIC_INSET);
+    x < nav_left && !(home_left..home_left + home_width).contains(&x)
 }
 
 pub(super) fn install(app: &tauri::App) -> Result<(), Box<dyn Error>> {
@@ -99,10 +108,15 @@ mod tests {
     #[test]
     fn separates_zoomed_navigation_and_content_from_draggable_toolbar() {
         for zoom in [0.8, 1.0, 2.0] {
-            let boundary = 960.0 - 124.0 * zoom;
-            assert!(inside_drag_region(boundary - 1.0, 45.0 * zoom, 960.0, zoom));
-            assert!(!inside_drag_region(boundary, 23.0 * zoom, 960.0, zoom));
+            let navigation = 960.0 - if zoom >= 2.0 { 130.0 } else { 148.0 } * zoom;
+            assert!(inside_drag_region(navigation - 1.0, 45.0 * zoom, 960.0, zoom));
+            assert!(!inside_drag_region(navigation, 23.0 * zoom, 960.0, zoom));
+            assert!(!inside_drag_region(480.0, 23.0 * zoom, 960.0, zoom));
             assert!(!inside_drag_region(100.0, 46.0 * zoom, 960.0, zoom));
         }
+        assert!(inside_drag_region(150.0, 40.0, 635.0, 2.0));
+        assert!(!inside_drag_region(155.0, 40.0, 635.0, 2.0));
+        assert!(!inside_drag_region(374.0, 40.0, 635.0, 2.0));
+        assert!(!inside_drag_region(375.0, 40.0, 635.0, 2.0));
     }
 }

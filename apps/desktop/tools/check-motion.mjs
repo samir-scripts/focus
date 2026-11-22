@@ -86,6 +86,8 @@ try {
   });
   await command('Page.navigate', { url: process.env.FOCUS_DEV_URL ?? 'http://localhost:1420/' });
   await until("Boolean(document.querySelector('.toolbar.native-mac'))");
+  await evaluate("document.querySelector('nav button[aria-label=\"Sites\"]').click()");
+  await until("Boolean(document.querySelector('.with-library'))");
   const scroll = await evaluate(`(() => {
     const workspace = document.querySelector('.workspace');
     workspace.scrollTop = 100;
