@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { readFile } from 'node:fs/promises';
-import { Mesh, Texture, Vector3 } from 'three';
+import { Matrix4, Mesh, Texture, Vector3 } from 'three';
 import { beforeAll, expect, it } from 'vitest';
 import { atlas, keys } from './keyboard.json';
 import { createMachine, setView } from './scene';
@@ -70,15 +70,19 @@ it('projects all depths up by the same CSS distance and retains the same hit tar
 
 it('keeps the complete machine inside the art field through allowed orbit and float', () => {
   const point = new Vector3();
+  const viewProjection = new Matrix4();
+  const modelViewProjection = new Matrix4();
   const bounds = { x: 0, y: 0 };
-  for (let u = 0; u <= 16; u++) {
-    for (let v = 0; v <= 12; v++) {
-      setView(machine.camera, -1.27 + 2.10 * u / 16, -.17 + .71 * v / 12);
+  for (let u = 0; u < 36; u++) {
+    for (let v = 0; v <= 8; v++) {
+      setView(machine.camera, 2 * Math.PI * u / 36, -.17 + .71 * v / 8);
+      viewProjection.multiplyMatrices(machine.camera.projectionMatrix, machine.camera.matrixWorldInverse);
       machine.root.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const positions = object.geometry.attributes.position;
+        modelViewProjection.multiplyMatrices(viewProjection, object.matrixWorld);
         for (let i = 0; i < positions.count; i++) {
-          point.fromBufferAttribute(positions, i).applyMatrix4(object.matrixWorld).project(machine.camera);
+          point.fromBufferAttribute(positions, i).applyMatrix4(modelViewProjection);
           bounds.x = Math.max(bounds.x, Math.abs(point.x));
           bounds.y = Math.max(bounds.y, Math.abs(point.y));
         }
@@ -88,4 +92,16 @@ it('keeps the complete machine inside the art field through allowed orbit and fl
   expect(bounds.x).toBeLessThan(.99);
   // Even at a narrow 280px art field, retain room for the 6 CSS px float.
   expect(bounds.y + 12 / (280 * 192 / 208)).toBeLessThan(.99);
+}, 12000);
+
+it('returns the same projected view after full turns in either direction', () => {
+  const point = new Vector3(.11, .14, -.07);
+  for (const yaw of [0, -.9, Math.PI]) {
+    setView(machine.camera, yaw, .2);
+    const expected = point.clone().project(machine.camera);
+    for (const turns of [-2, -1, 1, 2]) {
+      setView(machine.camera, yaw + turns * 2 * Math.PI, .2);
+      expect(point.clone().project(machine.camera).distanceTo(expected)).toBeLessThan(1e-12);
+    }
+  }
 });

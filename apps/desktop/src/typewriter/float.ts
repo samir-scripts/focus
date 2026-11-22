@@ -1,4 +1,4 @@
-type PauseReason = 'hover' | 'engaged' | 'gesture' | 'hidden' | 'offscreen' | 'reduced' | 'toner';
+type PauseReason = 'hidden' | 'offscreen' | 'reduced' | 'toner';
 
 /** Freeze the last displayed sample, not the position of a future frame. */
 export class FloatClock {
@@ -13,10 +13,7 @@ export class FloatClock {
     const running = this.running;
     if (paused) this.pauses.add(reason);
     else this.pauses.delete(reason);
-    if (this.pauses.has('reduced') && !this.pauses.has('hover') &&
-        !this.pauses.has('engaged') && !this.pauses.has('gesture')) {
-      this.elapsed = this.shown = 0;
-    }
+    if (this.pauses.has('reduced')) this.elapsed = this.shown = 0;
     if (!running && this.running) this.from = now - this.elapsed;
   }
 

@@ -5,7 +5,8 @@ import { createRenderer, loadMachine, setView } from './scene';
 import type { MachineScene } from './scene';
 
 const byCode = new Map(keys.map(key => [key.code, key]));
-const TURN = .007;
+const TURN = Math.PI / 180;
+const PITCH_SPEED = .007;
 const DRAG = 6;
 const arrows: Record<string, [number, number]> = {
   ArrowLeft: [.13, 0], ArrowRight: [-.13, 0], ArrowUp: [0, .13], ArrowDown: [0, -.13],
@@ -87,7 +88,7 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   }
 
   function rotate(nextYaw: number, nextPitch: number) {
-    yaw = Math.max(-1.27, Math.min(.83, nextYaw));
+    yaw = nextYaw % (2 * Math.PI);
     pitch = Math.max(-.17, Math.min(.54, nextPitch));
     if (machine) setView(machine.camera, yaw, pitch);
     sync();
@@ -128,7 +129,6 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     gesture = undefined;
     if (pointer !== undefined && canvas.hasPointerCapture(pointer)) canvas.releasePointerCapture(pointer);
     delete canvas.dataset.dragging;
-    pause('gesture', false);
   }
 
   function releaseKeys() {
@@ -140,8 +140,6 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   function clearInteraction() {
     releaseGesture();
     releaseKeys();
-    pause('engaged', false);
-    pause('hover', false);
     delete canvas.dataset.overKey;
   }
 
@@ -193,35 +191,25 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
 
   function endPointer(event: PointerEvent, cancelled: boolean) {
     if (gesture?.pointer !== event.pointerId) return;
-    if (event.pointerType === 'mouse') {
-      const b = canvas.getBoundingClientRect();
-      pause('hover', event.clientX >= b.left && event.clientX < b.right && event.clientY >= b.top && event.clientY < b.bottom);
-    }
-    if (!cancelled && !gesture.dragged && gesture.cap &&
-        Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < DRAG &&
-        pick(event.clientX, event.clientY) === gesture.cap) {
-      pulse(gesture.cap);
-      say(gesture.cap);
-    }
+    const { cap, dragged, x, y } = gesture;
     releaseGesture();
-    sync();
+    if (!cancelled && !dragged && cap && Math.hypot(event.clientX - x, event.clientY - y) < DRAG) {
+      pulse(cap);
+      say(cap);
+    }
   }
 
-  canvas.addEventListener('pointerenter', event => {
-    if (event.pointerType !== 'touch') pause('hover', true);
-  }, eventOptions);
   canvas.addEventListener('pointerleave', () => {
-    if (!gesture) pause('hover', false);
     delete canvas.dataset.overKey;
   }, eventOptions);
   canvas.addEventListener('pointerdown', event => {
     if (!machine || gesture || !event.isPrimary || event.button !== 0) return;
     event.preventDefault();
-    pause('gesture', true);
+    // Raycast against the projection and cap poses already on screen.
+    const cap = pick(event.clientX, event.clientY);
     releasePulses();
     canvas.setPointerCapture(event.pointerId);
-    gesture = { pointer: event.pointerId, x: event.clientX, y: event.clientY, yaw, pitch,
-      cap: pick(event.clientX, event.clientY), dragged: false };
+    gesture = { pointer: event.pointerId, x: event.clientX, y: event.clientY, yaw, pitch, cap, dragged: false };
     sync();
   }, eventOptions);
   canvas.addEventListener('pointermove', event => {
@@ -235,16 +223,14 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     if (!gesture.dragged && Math.hypot(dx, dy) < DRAG) return;
     gesture.dragged = true;
     canvas.dataset.dragging = 'true';
-    rotate(gesture.yaw - dx * TURN, gesture.pitch + dy * TURN);
+    rotate(gesture.yaw - dx * TURN, gesture.pitch + dy * PITCH_SPEED);
   }, eventOptions);
   canvas.addEventListener('pointerup', event => endPointer(event, false), eventOptions);
   canvas.addEventListener('pointercancel', event => endPointer(event, true), eventOptions);
   canvas.addEventListener('lostpointercapture', event => endPointer(event, true), eventOptions);
 
-  canvas.addEventListener('focus', () => pause('engaged', true), eventOptions);
   canvas.addEventListener('blur', () => {
     releaseKeys();
-    pause('engaged', false);
     sync();
   }, eventOptions);
   canvas.addEventListener('keydown', event => {
@@ -253,7 +239,6 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     const key = byCode.get(event.code);
     if (!delta && !key && event.code !== 'Escape') return;
     event.preventDefault();
-    pause('engaged', true);
     if (event.code === 'Escape') reset();
     else if (delta) rotate(yaw + delta[0], pitch + delta[1]);
     else if (key && !held.has(key.id)) {

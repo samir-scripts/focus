@@ -1,12 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
 const [artifact, evidence] = process.argv.slice(2);
 if (!artifact || !evidence) throw new Error('Usage: node record.mjs HTML EVIDENCE_DIR');
-const { rest, orbited } = JSON.parse(await readFile(resolve(evidence, 'targets.json'), 'utf8'));
 const dir = resolve(evidence, 'recording');
 await mkdir(dir, { recursive: true });
 const browser = await chromium.launch({
@@ -20,22 +19,19 @@ try {
   await page.goto(pathToFileURL(artifact).href);
   const canvas = page.getByRole('application');
   await canvas.waitFor();
+  const { x, y } = await canvas.boundingBox();
+  const startX = x + 28;
+  const startY = y + 95;
+  await page.mouse.move(startX, startY);
+  await canvas.focus();
   await page.waitForTimeout(6250);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  const box = await canvas.boundingBox();
-  const point = ([u, v]) => [box.x + box.width * u, box.y + box.height * v];
-  const [x, y] = point(rest.KeyA);
-  await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + 90, y, { steps: 18 });
+  for (let dx = 4; dx <= 360; dx += 4) {
+    await page.mouse.move(startX + dx, startY);
+    await page.waitForTimeout(dx === 216 ? 380 : 20); // Hold the rear view briefly.
+  }
   await page.mouse.up();
   await page.waitForTimeout(350);
-  for (const id of ['KeyA', 'KeyS']) {
-    await page.mouse.click(...point(orbited[id]));
-    if (await page.getByRole('status').getAttribute('data-key') !== id) throw new Error(`Missed ${id}`);
-    await page.waitForTimeout(425);
-  }
-  await canvas.focus();
   for (const code of ['a', 's']) {
     await page.keyboard.press(code, { delay: 430 });
     await page.waitForTimeout(240);

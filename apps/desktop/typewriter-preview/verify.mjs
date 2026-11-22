@@ -69,7 +69,7 @@ try {
   await page.mouse.move(x, y);
   await page.mouse.down();
   assert.deepEqual(await canvas.screenshot(), before, 'pointerdown alone must not press a cap');
-  await page.mouse.move(x + 90, y, { steps: 8 });
+  await page.mouse.move(x + 36, y, { steps: 8 });
   const rotated = await canvas.screenshot();
   assert.notDeepEqual(rotated, before, 'drag must orbit');
   await page.mouse.up();
@@ -116,6 +116,7 @@ try {
   assert.deepEqual(await touchCanvas.screenshot(), stillFrame);
   await touchPage.emulateMedia({ reducedMotion: 'reduce' });
   await touchPage.screenshot({ path: `${evidence}/mobile-390.png` });
+  const touchRest = await touchCanvas.screenshot();
   assert.equal(await touchPage.evaluate(() => document.documentElement.scrollWidth), 390);
   const touchBox = await touchCanvas.boundingBox();
   const touchPoint = ([u,v]) => [touchBox.x + touchBox.width * u, touchBox.y + touchBox.height * v];
@@ -128,9 +129,23 @@ try {
     await cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
   }
   await touchPage.waitForTimeout(180);
-  assert.notDeepEqual(await touchCanvas.screenshot(), stillFrame, 'touch capture orbits');
+  assert.notDeepEqual(await touchCanvas.screenshot(), touchRest, 'touch capture orbits');
   assert.equal(await touchPage.getByRole('status').getAttribute('data-key'), 'KeyS', 'cancelled drag does not press');
-  console.log('PASS 390px, toner pause, touch tap, captured touch orbit and cancellation');
+  await touchPage.getByRole('button', { name: 'Reset view' }).click();
+  assert.deepEqual(await touchCanvas.screenshot(), touchRest);
+  const finger = { x: touchBox.x + 28, y: touchBox.y + 95 };
+  for (let half = 0; half < 2; half++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [finger] });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x: finger.x + 180, y: finger.y }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const frame = await touchCanvas.screenshot();
+    if (half === 0) assert.notDeepEqual(frame, touchRest, '180px touch drag reaches the opposite view');
+    else assert.deepEqual(frame, touchRest, 'two 180px touch drags complete a full turn');
+  }
+  assert.equal(await touchPage.getByRole('status').getAttribute('data-key'), 'KeyS', 'touch drags do not actuate');
+  console.log('PASS 390px, toner pause, touch tap, cancelled drag and two captured half turns');
 
   const live = await browser.newContext({ viewport });
   await live.route('**/*', route => new URL(route.request().url()).origin === new URL(origin).origin
@@ -147,17 +162,80 @@ try {
   assert.notDeepEqual(await liveCanvas.screenshot(), initialArt, 'unpaused machine floats');
   assert.deepEqual(await livePage.screenshot({ clip: plateTop }), initialPlate, 'plate stays stationary');
   await livePage.mouse.move(liveBox.x + liveBox.width / 2, liveBox.y + liveBox.height / 2);
-  const hovered = await liveCanvas.screenshot();
-  await livePage.waitForTimeout(280);
-  assert.deepEqual(await liveCanvas.screenshot(), hovered, 'hover freezes displayed frame');
+  async function expectBob(state) {
+    const first = await liveCanvas.screenshot();
+    for (let i = 0; i < 3; i++) {
+      await livePage.waitForTimeout(220);
+      if (!(await liveCanvas.screenshot()).equals(first)) return;
+    }
+    assert.fail(`machine must bob ${state}`);
+  }
+  await expectBob('on hover');
   await liveCanvas.focus();
   await livePage.mouse.move(4, 4);
-  await livePage.waitForTimeout(280);
-  assert.deepEqual(await liveCanvas.screenshot(), hovered, 'keyboard focus outlasts the hover pause');
-  await livePage.keyboard.press('Tab');
-  await livePage.waitForTimeout(380);
-  assert.notDeepEqual(await liveCanvas.screenshot(), hovered, 'float resumes only after engagement clears');
-  console.log('PASS ambient float, stationary plate, hover and keyboard pause overlap');
+  await expectBob('with keyboard focus');
+
+  // Start at a known pose, then resume bob during the captured press.
+  await livePage.emulateMedia({ reducedMotion: 'reduce' });
+  const [spaceX, spaceY] = rest.Space;
+  const latchX = liveBox.x + spaceX * liveBox.width;
+  const latchY = liveBox.y + spaceY * liveBox.height + 2;
+  const liveStatus = livePage.getByRole('status');
+  await liveStatus.evaluate(el => {
+    el.dataset.announcements = '0';
+    new MutationObserver(records => {
+      el.dataset.announcements = String(Number(el.dataset.announcements) + records.length);
+    }).observe(el, { childList: true });
+  });
+  await livePage.mouse.move(latchX, latchY);
+  await livePage.mouse.down();
+  await livePage.emulateMedia({ reducedMotion: 'no-preference' });
+  await expectBob('while the pointer is held still');
+  await livePage.waitForTimeout(1000);
+  assert.equal(await liveStatus.getAttribute('data-announcements'), '0', 'pointerdown alone does not actuate');
+  await livePage.mouse.up();
+  assert.equal(await liveStatus.getAttribute('data-key'), 'Space', 'release actuates the latched cap, not the current pixel');
+  await livePage.mouse.click(latchX, latchY);
+  assert.equal(await liveStatus.getAttribute('data-announcements'), '1', 'the old pixel no longer hits once the cap has moved');
+
+  await livePage.mouse.move(liveBox.x + 30, liveBox.y + 100);
+  await livePage.mouse.down();
+  await livePage.mouse.move(liveBox.x + 90, liveBox.y + 100);
+  await expectBob('during a captured drag');
+  await livePage.mouse.up();
+  assert.equal(await liveStatus.getAttribute('data-announcements'), '1', 'drag does not actuate a cap');
+  assert.deepEqual(await livePage.screenshot({ clip: plateTop }), initialPlate, 'plate stays stationary during drag');
+  console.log('PASS continuous bob on hover, keyboard focus, held pointer and drag; stationary plate; moving cap latched once');
+
+  const orbitPage = await context.newPage();
+  await orbitPage.goto(url);
+  const orbitCanvas = orbitPage.getByRole('application');
+  const orbitBox = await orbitCanvas.boundingBox();
+  const startX = orbitBox.x + 28;
+  const startY = orbitBox.y + 95;
+  const opening = await orbitCanvas.screenshot();
+  await orbitPage.mouse.move(startX, startY);
+  await orbitPage.mouse.down();
+  const views = [opening];
+  for (const [view, dx] of [['front', 34], ['side', 124], ['rear', 214]]) {
+    await orbitPage.mouse.move(startX + dx, startY, { steps: 8 });
+    const image = await orbitCanvas.screenshot({ path: `${evidence}/orbit-${view}.png` });
+    assert.ok(views.every(prior => !image.equals(prior)), `${view} must be a distinct rendered view`);
+    views.push(image);
+  }
+  await orbitPage.mouse.move(startX + 360, startY, { steps: 12 });
+  await orbitPage.mouse.up();
+  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'one 360px drag makes a full turn and wraps exactly');
+  assert.equal(await orbitPage.getByRole('status').getAttribute('data-key'), null, 'full turn is not a click');
+  await orbitCanvas.focus();
+  for (let i = 0; i < 8; i++) await orbitPage.keyboard.press('ArrowLeft');
+  const pastStop = await orbitCanvas.screenshot();
+  for (let i = 0; i < 12; i++) await orbitPage.keyboard.press('ArrowLeft');
+  assert.notDeepEqual(await orbitCanvas.screenshot(), pastStop, 'keyboard keeps turning beyond the old yaw stop');
+  await orbitPage.keyboard.press('Escape');
+  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'reset after a full orbit restores the approved camera');
+  await orbitPage.close();
+  console.log('PASS captured 360° drag, distinct front/side/rear, exact wrap and reset, keyboard past old stop');
 
   const teardown = `${origin}/__typewriter_teardown__`;
   await live.route(teardown, route => route.fulfill({ contentType: 'text/html', body:

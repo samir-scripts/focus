@@ -32,9 +32,9 @@ describe('ambient float', () => {
     const clock = new FloatClock();
     clock.set('offscreen', false, 0);
     const shown = clock.offset(1000);
-    clock.set('hover', true, 1040);
+    clock.set('hidden', true, 1040);
     clock.set('toner', true, 1530);
-    clock.set('hover', false, 2000);
+    clock.set('hidden', false, 2000);
     expect(clock.running).toBe(false);
     expect(clock.offset(2500)).toBe(shown);
     clock.set('toner', false, 3000);
@@ -42,14 +42,12 @@ describe('ambient float', () => {
     expect(clock.offset(3500)).toBeCloseTo(6);
   });
 
-  it('rests centered under reduced motion unless an engaged pointer would lose its target', () => {
+  it('centers reduced motion even if toner was paused mid-bob', () => {
     const clock = new FloatClock();
     clock.set('offscreen', false, 0);
-    const shown = clock.offset(1500);
-    clock.set('hover', true, 1500);
+    expect(clock.offset(1500)).toBeCloseTo(6);
+    clock.set('toner', true, 1500);
     clock.set('reduced', true, 1750);
-    expect(clock.offset(2000)).toBe(shown);
-    clock.set('hover', false, 2500);
     expect(clock.offset(2500)).toBe(0);
     expect(clock.running).toBe(false);
   });

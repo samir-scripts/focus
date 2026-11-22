@@ -21,14 +21,14 @@ const restElevation = .057;
 export function setView(camera: PerspectiveCamera, yaw = 0, lift = 0) {
   const angle = restYaw + yaw;
   const elevation = restElevation + lift;
-  // Foreshortening increases the projected height when looking down at
-  // the keyboard. Back off only on upward orbit, never at the approved rest.
-  const distance = DISTANCE + .20 * Math.max(0, lift);
+  // Back off as the diagonal silhouette grows, with no change at rest.
+  // Both the fit and roll are periodic at the yaw wrap.
+  const distance = DISTANCE + .20 * Math.max(0, lift) + .11 * (1 - Math.cos(yaw)) / 2;
   const radial = Math.cos(elevation);
   camera.position.set(Math.sin(angle) * radial, Math.sin(elevation), Math.cos(angle) * radial)
     .multiplyScalar(distance).add(pivot);
   camera.lookAt(pivot);
-  camera.rotateZ(-.20 * MathUtils.clamp(angle / restYaw, -1, 1));
+  camera.rotateZ(-.20 * MathUtils.clamp(Math.sin(angle) / Math.sin(restYaw), -1, 1));
   camera.updateMatrixWorld();
 }
 
