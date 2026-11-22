@@ -32,6 +32,7 @@
   let page = $state<Page>('Sites');
   let browserState = $state.raw<BrowserState>();
   let siteId = $state(curatedSites[0].id);
+  let libraryList: HTMLUListElement | undefined = $state();
   let sites = $derived([...curatedSites, ...(browserState?.sites ?? [])
     .filter((entry) => entry.id.startsWith('custom:'))
     .map((entry) => ({ id: entry.id, label: entry.label, hosts: entry.hosts, hostname: entry.hosts[0], rules: [] }))]);
@@ -46,6 +47,10 @@
   let revealSite = $state(false);
   let appearance = $state(readAppearance());
   let windowHidden = $state(document.hidden);
+  const staticSiteInk = window.matchMedia?.('(prefers-reduced-motion: reduce), (forced-colors: active)');
+  let siteInk = $state.raw<{ row: string | null; pass: number }>();
+  let inkPass = 0;
+  let hoveredInk: EventTarget | null = null;
   let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
   let browserError = $state('');
@@ -76,9 +81,13 @@
         if (target && next.open.siteId) siteId = next.open.siteId;
         revealPage = false;
         revealSite = false;
+        siteInk = undefined;
         page = target ? 'Sites' : 'Settings';
-        await tick();
-        heading?.focus();
+        if (target) await focusSiteSelection();
+        else {
+          await tick();
+          heading?.focus();
+        }
       }
     }).catch(() => {
       browserError = 'Database unavailable';
@@ -93,6 +102,62 @@
     const timer = window.setInterval(refresh, 1000);
     return () => window.clearInterval(timer);
   });
+
+  onMount(() => {
+    const stop = () => { if (staticSiteInk?.matches) siteInk = undefined; };
+    staticSiteInk?.addEventListener('change', stop);
+    return () => staticSiteInk?.removeEventListener('change', stop);
+  });
+
+  function printSiteInk(row: string | null) {
+    if (appearance.tonerPaused || windowHidden || staticSiteInk?.matches) return;
+    siteInk = { row, pass: ++inkPass };
+  }
+
+  function finishSiteInk(event: AnimationEvent) {
+    if (siteInk && event.target instanceof HTMLElement && event.target.dataset.siteInkPass === String(siteInk.pass)) {
+      siteInk = undefined;
+    }
+  }
+
+  function hoverSiteInk(event: PointerEvent, row: string | null) {
+    // Layout can dispatch pointerenter without a pointer move (e.g. keyboard navigation).
+    if (hoveredInk === event.currentTarget || event.pointerType === 'touch') return;
+    hoveredInk = event.currentTarget;
+    printSiteInk(row);
+  }
+
+  function leaveSiteInk(event: PointerEvent) {
+    if (hoveredInk === event.currentTarget) hoveredInk = null;
+  }
+
+  function selectSite(id: string, event: MouseEvent) {
+    if (siteId === id) return;
+    revealSite = event.detail > 0;
+    siteId = id;
+    // A quick enter/click is one gesture; keep its row impression rather than starting a second one.
+    if (!revealSite) siteInk = undefined;
+    else if (siteInk?.row !== id) printSiteInk(null);
+  }
+
+  async function focusSiteSelection() {
+    await tick();
+    const rail = libraryList;
+    // At narrow widths the list stacks into the workspace, which heading focus may scroll.
+    if (!rail || getComputedStyle(rail).overflowY !== 'auto') {
+      heading?.focus();
+      return;
+    }
+    const row = rail.querySelector('button[aria-pressed="true"]');
+    if (row) {
+      const viewportTop = rail.getBoundingClientRect().top + rail.clientTop;
+      const viewportBottom = viewportTop + rail.clientHeight;
+      const { top, bottom } = row.getBoundingClientRect();
+      if (top < viewportTop) rail.scrollTop += Math.floor(top - viewportTop);
+      else if (bottom > viewportBottom) rail.scrollTop += Math.ceil(bottom - viewportBottom);
+    }
+    heading?.focus({ preventScroll: true });
+  }
 
   async function savePolicy(change: (bridge: BrowserBridge, revision: number) => Promise<void>) {
     if (!browserBridge || !browserState || editingRule) return;
@@ -153,9 +218,9 @@
       siteId = id;
       adding = false;
       revealSite = false;
+      siteInk = undefined;
       hostInput = '';
-      await tick();
-      heading?.focus();
+      await focusSiteSelection();
     } catch {
       actionError = 'Could not add this hostname.';
     } finally {
@@ -214,6 +279,7 @@
 
   function setTonerPaused(paused: boolean) {
     appearance.tonerPaused = paused;
+    if (paused) siteInk = undefined;
     saveAppearance('tonerPaused', paused);
   }
 
@@ -221,6 +287,7 @@
     if (next === page) return;
     revealPage = event.detail > 0;
     revealSite = false;
+    siteInk = undefined;
     openPalette = null;
     page = next;
     await tick();
@@ -228,7 +295,10 @@
   }
 </script>
 
-<svelte:document onvisibilitychange={() => windowHidden = document.hidden} />
+<svelte:document onvisibilitychange={() => {
+  windowHidden = document.hidden;
+  if (windowHidden) siteInk = undefined;
+}} />
 
 {#if pendingPair}
   {#key pendingPair.id}
@@ -236,7 +306,8 @@
   {/key}
 {/if}
 
-<div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
+<div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}
+  onanimationend={finishSiteInk}>
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
     <PaperStock />
     <div class="brand"><TypewriterMark size={22} /> <span class="toner-type">focus.</span></div>
@@ -266,15 +337,14 @@
       <section class="library" aria-labelledby="library-heading">
         <PaperStock particles />
         <h2 id="library-heading">Site Library</h2>
-        <ul>
+        <ul bind:this={libraryList}>
           {#each sites as entry (entry.id)}
             <li>
-              <button type="button" aria-label={entry.label} aria-pressed={siteId === entry.id} onclick={(event) => {
-                if (siteId === entry.id) return;
-                revealSite = event.detail > 0;
-                siteId = entry.id;
-              }}>
-                <span class="site-mark"><SiteMark id={entry.id} size={20} /></span>
+              <button type="button" aria-label={entry.label} aria-pressed={siteId === entry.id}
+                onpointermove={(event) => hoverSiteInk(event, entry.id)} onpointerleave={leaveSiteInk}
+                onclick={(event) => selectSite(entry.id, event)}>
+                <span class="site-mark"><SiteMark id={entry.id} size={20} printed
+                  inkPass={siteInk?.row === entry.id ? siteInk.pass : undefined} /></span>
                 <span class="library-label">{entry.label}<small>{entry.hostname}</small></span>
               </button>
             </li>
@@ -311,10 +381,11 @@
           {#if page === 'Sites'}
             <header class="page-heading site-title-row">
               {#key site.id}
-                <div class="site-heading" class:reveal={revealPage || revealSite}>
-                  <span class="site-mark"><SiteMark id={site.id} size={27} /></span>
-                  <h1 class="toner-type" tabindex="-1" bind:this={heading}>{site.label}</h1>
-                  <p class="host">{site.hostname}</p>
+                <div class="site-heading" role="presentation" onpointermove={(event) => hoverSiteInk(event, null)} onpointerleave={leaveSiteInk}>
+                  <span class="site-mark"><SiteMark id={site.id} size={27} printed
+                    inkPass={siteInk?.row === null ? siteInk.pass : undefined} /></span>
+                  <h1 class="toner-type" tabindex="-1" bind:this={heading}><span class:reveal={revealPage || revealSite}>{site.label}</span></h1>
+                  <p class="host" class:reveal={revealPage || revealSite}>{site.hostname}</p>
                 </div>
               {/key}
               {#if appearance.printIllustrations}
@@ -635,6 +706,7 @@
   h1, h2, p { margin: 0; }
   h1 { font-size: 28px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
   .site-heading h1 { font: 800 50px/.98 var(--font-display); --toner-sweep-width: 72px; }
+  .site-heading h1 > span { display: block; }
   h1:focus { outline: none; }
   .site-title-row, .statistics-empty { display: flex; justify-content: space-between; gap: 16px; }
   .site-title-row { align-items: center; padding-bottom: 12px; }

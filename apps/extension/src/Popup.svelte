@@ -51,7 +51,7 @@
 
 <main class="popup">
   <header><TypewriterMark size={22} /><span class="wordmark">focus.</span></header>
-  <h1>{#if site}<SiteMark id={site.id} /> <span>{site.label}</span>{:else}Browser access{/if}</h1>
+  <h1>{#if site}<SiteMark id={site.id} printed /> <span>{site.label}</span>{:else}Browser access{/if}</h1>
   <p class="connection" class:connected={status === 'Connected'}>{status}</p>
   {#if !hasAccess}
     <p class="muted">Needs access on supported sites. Choose exact addresses in browser setup.</p>
@@ -81,7 +81,6 @@
   .popup { inline-size: 360px; max-inline-size: 100%; padding: 16px 20px 20px; }
   header { margin: 0 0 16px; padding-bottom: 10px; }
   h1 { display: flex; align-items: center; gap: 8px; margin: 0; font: 700 22px/1.2 var(--font-ui); overflow-wrap: anywhere; }
-  h1 :global(svg) { flex: none; }
   p { margin: 8px 0 0; font-size: 15px; }
   .connection { display: flex; align-items: center; gap: 7px; font-weight: 700; }
   .connection::before { content: ''; inline-size: 6px; block-size: 6px; flex: none; background: var(--secondary); }

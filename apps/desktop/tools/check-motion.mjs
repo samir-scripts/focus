@@ -59,6 +59,27 @@ try {
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `
     Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
     window.isTauri = true;
+    // Substitute only the native IPC boundary; exercise the real desktop UI in Chromium.
+    const customSite = host => ({
+      id: 'custom:' + host, label: host, hosts: [host],
+      grayscale: false, rules: {}, entry: { mode: 'allow' },
+    });
+    const sites = Array.from({ length: 20 }, (_, n) => customSite('fixture-' + n + '.example'));
+    window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {
+      if (command === 'browser_state') {
+        const open = window.reviewOpenSite ? { siteId: window.reviewOpenSite } : null;
+        window.reviewOpenSite = null;
+        return { revision: sites.length, hideShorts: false, sites: [...sites], profiles: [], pending: [], open,
+          accessibility: { holdSeconds: 15, twoStepConfirmation: false } };
+      }
+      if (command === 'designate_site') {
+        const site = customSite(args.host);
+        sites.push(site);
+        return site.id;
+      }
+      if (command === 'scan_browsers') return { supported: false, targets: [] };
+      throw new Error('Unexpected review command ' + command);
+    } };
   ` });
   await command('Emulation.setDeviceMetricsOverride', {
     width: 480, height: 320, deviceScaleFactor: 1, mobile: false
@@ -129,9 +150,116 @@ try {
     width: 635, height: 640, deviceScaleFactor: 1, mobile: false
   });
   assert.equal(await evaluate(`${sitesArt}.getBoundingClientRect().width`), 0, 'The inset must leave room for narrow Sites');
+  assert((await evaluate(scrollbar('.workspace'))).fitsWidth, 'The compact workspace must not scroll horizontally');
   await command('Emulation.setDeviceMetricsOverride', {
     width: 960, height: 640, deviceScaleFactor: 1, mobile: false
   });
+  await until("Boolean(document.querySelector('.designate-trigger'))");
+  const railState = await evaluate(`(() => {
+    const rail = document.querySelector('.library > ul');
+    const row = rail.querySelector('button[aria-label="fixture-19.example"]');
+    const bottom = rail.getBoundingClientRect().top + rail.clientHeight;
+    return { scroll: rail.scrollTop, distance: row.getBoundingClientRect().bottom - bottom };
+  })()`);
+  assert.equal(railState.scroll, 0);
+  assert(railState.distance > 0, 'The extension target must start offscreen');
+  async function checkSelectedRow(host) {
+    await until(`document.activeElement?.matches('.site-heading h1') &&
+      document.activeElement.textContent === ${JSON.stringify(host)}`);
+    const result = await evaluate(`(() => {
+      const rail = document.querySelector('.library > ul');
+      const row = rail.querySelector('button[aria-pressed="true"]');
+      const range = rail.getBoundingClientRect();
+      const rect = row.getBoundingClientRect();
+      return { selected: row.getAttribute('aria-label'), top: rect.top - range.top,
+        bottomGap: range.top + rail.clientHeight - rect.bottom, railTop: rail.scrollTop,
+        workspaceTop: document.querySelector('.workspace').scrollTop,
+        detailTop: document.querySelector('main').scrollTop };
+    })()`);
+    assert.equal(result.selected, host);
+    assert(result.top >= 0 && result.bottomGap >= -0.5 && result.bottomGap <= 1,
+      `The selected row must be fully revealed at the nearest rail edge: ${JSON.stringify(result)}`);
+    assert(result.railTop > 0);
+    assert.equal(result.workspaceTop, 0);
+    assert.equal(result.detailTop, 0);
+  }
+  await evaluate("window.reviewOpenSite = 'custom:fixture-19.example'");
+  await checkSelectedRow('fixture-19.example');
+  await evaluate("document.querySelector('.library > ul').scrollTop = 0; document.querySelector('.designate-trigger').click()");
+  await until("document.activeElement?.id === 'custom-host'");
+  await command('Input.insertText', { text: 'added.example' });
+  await evaluate("document.querySelector('.designate').requestSubmit()");
+  await checkSelectedRow('added.example');
+  console.log('Extension navigation and Add site reveal the offscreen row in the rail and focus the heading.');
+  const markEvents = "window.reviewMarkEvents";
+  await evaluate(`window.reviewMarkEvents = [];
+    document.addEventListener('animationstart', event => {
+      if (event.animationName.includes('site-ink')) {
+        window.reviewMarkEvents.push(event.target.closest('button')?.getAttribute('aria-label') ?? 'detail');
+      }
+    }); document.querySelector('.library > ul').scrollTop = 0;`);
+  async function moveTo(selector) {
+    const point = await evaluate(`(() => {
+      const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()`);
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+    return point;
+  }
+  async function activateByKeyboard(selector) {
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
+    await command('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 });
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 });
+  }
+  const row = name => '.library button[aria-label=' + JSON.stringify(name) + ']';
+  const nav = name => 'nav button[aria-label=' + JSON.stringify(name) + ']';
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await activateByKeyboard(row('YouTube'));
+  await until("document.querySelector('.site-heading h1').textContent === 'YouTube'");
+  await delay(300);
+  assert.deepEqual(await evaluate(markEvents), [], 'Keyboard site changes must not print a mark');
+  const reddit = await moveTo(row('Reddit'));
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...reddit });
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...reddit });
+  await until("document.querySelector('.site-heading h1').textContent === 'Reddit'");
+  await delay(400);
+  assert.deepEqual(await evaluate(markEvents), ['Reddit'], 'Entering and immediately clicking a row must print it once');
+  await moveTo('.site-heading h1');
+  await until(markEvents + '.length >= 2');
+  await delay(400);
+  assert.deepEqual(await evaluate(markEvents), ['Reddit', 'detail'], 'Holding the heading hover must print once');
+  await activateByKeyboard(nav('Statistics'));
+  await activateByKeyboard(nav('Sites'));
+  await delay(300);
+  assert.deepEqual(await evaluate(markEvents), ['Reddit', 'detail'], 'Keyboard re-entry must not print under a stationary pointer');
+  await moveTo(row('Instagram'));
+  await delay(350);
+  const instagram = await moveTo(row('Instagram'));
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...instagram });
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...instagram });
+  await delay(300);
+  assert.deepEqual(await evaluate(markEvents), ['Reddit', 'detail', 'Instagram', 'detail'],
+    'A separate pointer activation must print the newly selected detail mark');
+  for (const feature of [{ name: 'prefers-reduced-motion', value: 'reduce' }, { name: 'forced-colors', value: 'active' }]) {
+    await command('Emulation.setEmulatedMedia', { features: [feature] });
+    await moveTo(row('YouTube'));
+    await moveTo('.site-heading h1');
+    await delay(300);
+    assert.equal(await evaluate(markEvents + '.length'), 4, `No mark playback in ${feature.name}`);
+  }
+  await command('Emulation.setEmulatedMedia', { features: [] });
+  await activateByKeyboard(nav('Settings'));
+  const pauseToner = "[...document.querySelectorAll('label')].find(e => e.textContent.includes('Pause toner particles')).click()";
+  await evaluate(pauseToner);
+  await activateByKeyboard(nav('Sites'));
+  await moveTo(row('YouTube'));
+  await moveTo('.site-heading h1');
+  await delay(300);
+  assert.equal(await evaluate(markEvents + '.length'), 4, 'No mark playback with toner paused');
+  await activateByKeyboard(nav('Settings'));
+  await evaluate(pauseToner);
+  await activateByKeyboard(nav('Sites'));
+  console.log('Site marks print once on pointer interactions, not on keyboard navigation or in static modes.');
   const drift = "document.getAnimations().filter(a => a.animationName?.includes('drift-toner'))";
   await until(drift + ".some(a => a.playState === 'running')");
   const poses = await evaluate(`['slow', 'mid', 'quick'].map(layer => {

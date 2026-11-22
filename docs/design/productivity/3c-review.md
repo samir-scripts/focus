@@ -27,6 +27,26 @@ See `artifacts/review/productivity-3c/scrollbar/` for the follow-up commit, chec
 
 `after/guest/` refreshes all six theme combinations, the focused Add site form at 635px and 200%, and both 960×640 Cobalt motion clips (9.8s each). On the disposable macOS 15.7.7 guest, the two OS Reduce Motion captures were identical eight seconds apart. At 200%, the workspace measured 466 CSS px for both client and scroll widths; the toolbar still spanned the 480 CSS px viewport.
 
+## Selection and site mark follow-up
+
+Base `da18893f2561420996c9eaa25347c4bcc1e5fce4`; the scrollbar correction is unchanged. The branch had no tracking branch and already contained fetched `origin/dev` and local productivity integration `bc85f5c`. Final artifacts are separate from the earlier captures in `artifacts/review/productivity-3c/selection-marks/`: use its `candidate.txt` and `SHA256SUMS` for the candidate, and keep prior logs intact.
+
+The rail reveal follows the selected row after Add site or a valid extension request; the detail heading takes focus. Wide Sites moves only its list by the smallest whole-pixel delta needed. At 635px and below the list still stacks and the workspace provides the scroll. The motion check starts with 20 custom sites and an offscreen target, exercises both programmatic paths, and checks `scrollWidth === clientWidth` on the compact workspace itself.
+
+The printed fringe is independent of the unchanged SVG paths. A pointer crossing into a row or heading starts one opacity impression; a click while that row impression is active shares it. A later pointer selection prints the detail mark. Keyboard and programmatic navigation stay static. Toner pause, window visibility and reduced motion stop playback; forced colors remove the fringe. The read-only popup shares the resting treatment and does not animate. Setup retains undecorated marks.
+
+| Candidate check | Evidence under `selection-marks/` |
+| --- | --- |
+| Native selection, macOS 15.7.7 WKWebView | `guest-final/designated.png` and `guest-final/extension-open.png` show the entire selected row above the fixed footer at 960×640. After real Add site and an authenticated `open_desktop` request through the native host, the detail heading had focus, only the list scrolled, and the selected row ended exactly at the footer edge (y=577). The request started with the rail at zero and its target below the scrollport. |
+| Compact and scrollbar | `guest-final/compact-{form,return}.png` show stacked Sites and Add/Cancel focus at 635px. The workspace itself measured 621px for both client and scroll widths. The Chromium check retains the themed scrollbar and forced-colors assertions. The earlier all-palette scrollbar and native 200% evidence remains applicable. |
+| Native Cobalt marks | `guest-final/{light,dark}-cobalt.mp4` are actual 960×640 ScreenCaptureKit recordings (10.88s and 11.23s). `guest-final/{light,dark}-cobalt-frames.png` show the fringe brighten and settle with the glyph fixed and legible. The native event log records individual 220ms passes for the row, heading and subsequent selection. |
+| Keyboard, pause and accessibility | Native Space navigation returned to the focused Instagram detail without a new mark pass. `guest-final/paused{,-relaunch}.png` and the native log cover saved pause; minimize/restore had no active pass while hidden or on return. The guest's OS Reduce Motion captures matched byte-for-byte after pointer entry. Forced colors were verified in Chromium, not WKWebView. |
+| Shipping popup | Chrome for Testing 159.0.8154.6 opened the actual packaged toolbar action, with a local packaged YouTube entry tab and no added host grants. Its 360px popup document retained a static mark in Light/Dark, no decoration in forced colors, and keyboard Setup. Firefox 160.0.1 temporarily installed its exact ZIP and rendered the 360px read-only YouTube mark and keyboard Setup. Both tested archives are retained and hashed; policy scenarios were not rerun because policy did not change. |
+
+`npm ci`, both Svelte checks, 76 unit tests, the desktop production build, 34 locked Rust tests, Tauri dev startup, the Chromium motion check against the final production build, and archive validation passed. `logs/red-selection.log` and `logs/red-marks-space.log` retain the failing regressions before the fixes; the other probe logs are historical, not final gates.
+
+Using Superpowers and Ask Matt oriented the read-only prewalk; Surgical Patch and TDD covered the clipping and playback regressions; Design Engineering guided the accent; Verification Before Completion covered the candidate. OMP used `openai-codex/gpt-6.2-sol` for prewalk and the first edit in Ghostty/tmux `%6`; the task list preceded the first test edit. The log is under `/private/tmp/focus-productivity-3c-marks-omp-logs`.
+
 ## Reproduce with disposable data
 
 1. Build the candidate and the base in separate worktrees with `npm ci` and `npm run build --workspace @focus/desktop`. Do not launch the default app identity or point the app at existing data.
