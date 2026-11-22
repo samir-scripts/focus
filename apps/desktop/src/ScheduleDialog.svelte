@@ -70,7 +70,12 @@
   }
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="schedule-title" aria-describedby="schedule-intro" onclose={close}
+<dialog class="schedule-dialog" bind:this={dialog} aria-labelledby="schedule-title" aria-describedby="schedule-intro" onclose={close}
+  onkeydown={(event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    if (!pending) dialog.close();
+  }}
   oncancel={(event) => { if (pending) event.preventDefault(); }}>
   <header>
     <h2 id="schedule-title">{initial.editing ? 'Edit schedule' : 'Schedule a session'}</h2>
