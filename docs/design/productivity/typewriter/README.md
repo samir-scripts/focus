@@ -40,6 +40,10 @@ cmp "$work/export/comparison.png" "$src/review/comparison.png"
 
 The three PNGs reproduced byte for byte in a second render with network access denied on the qualification host. Other platforms and dependency versions were not qualified for identical bytes. The checker decodes all three PNGs and checks dimensions, open stock, the opaque white sheet, and coverage of the clay silhouette. The Blender recipe checks the imported island count and physical cap gaps. The art remains unreferenced by the runtime. No desktop UI, policy, or 3C–3F gates are implied by this check.
 
+## Slice 3C — Sites inset
+
+[The inset recipe](render-sites.py) downsamples the same CC0-derived picture to 264 × 156 for a 132 × 78 CSS-pixel print. Cobalt retains the original inks. Sage uses forest/brick and Plum uses plum/rust; both preserve the original screen, facets, pale sheet and alpha. Run `python -B docs/design/productivity/typewriter/render-sites.py` with Pillow 11.3.0 from the project root. These three local thumbnails do not change the 3B hero export.
+
 ## Author handoff
 
 `feature/productivity-3b-typewriter-art` started clean with no tracking branch. Base `e75038b8e9fd98aab33de9d1eda28e72b9acb3c4` matched `integration/productivity-desktop` and contained fetched `origin/dev` at `3b047d1e08c67006db5563297429bdf0ce02dd6f`. No integration-base movement was needed.

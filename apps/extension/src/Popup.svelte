@@ -20,7 +20,8 @@
   $: detail = savedSite && 'hosts' in savedSite ? savedSite : undefined;
   $: site = detail ?? catalog.find((entry) => target && entry.hosts.includes(target.hostname));
   $: isShortsHost = site?.id === 'youtube' && target?.hostname !== 'youtu.be';
-  $: hideShorts = !!policy?.sites.find((entry) => entry.id === 'youtube')?.rules['youtube.hide-shorts'];
+  $: hideShorts = policy?.sites.find((entry) => entry.id === 'youtube')?.rules['youtube.hide-shorts'];
+  $: showsShorts = isShortsHost && hideShorts !== undefined;
   let error = '';
   $: hasAccess = !!site && grants.has(origin);
   $: openSite = hasAccess && status === 'Connected' ? site : undefined;
@@ -49,20 +50,52 @@
 </script>
 
 <main class="popup">
-  <header><TypewriterMark size={24} /><span class="wordmark">focus.</span></header>
-  <h1>{#if site}<SiteMark id={site.id} /> {site.label}{:else}Browser access{/if}</h1>
-  <p>{status}</p>
-  {#if !hasAccess}<p>Needs access on supported sites. Choose exact addresses in browser setup.</p>
+  <header><TypewriterMark size={22} /><span class="wordmark">focus.</span></header>
+  <h1>{#if site}<SiteMark id={site.id} /> <span>{site.label}</span>{:else}Browser access{/if}</h1>
+  <p class="connection" class:connected={status === 'Connected'}>{status}</p>
+  {#if !hasAccess}
+    <p class="muted">Needs access on supported sites. Choose exact addresses in browser setup.</p>
+  {:else if detail || showsShorts}
+    <dl aria-label="Applied policy">
+      {#if detail}
+        <div><dt>Site entry</dt><dd>{detail.entry.mode === 'block' ? 'Block' : detail.entry.mode === 'pause' ? 'Pause' : 'Allow'}</dd></div>
+        <div><dt>Grayscale</dt><dd>{detail.grayscale ? 'On' : 'Off'}</dd></div>
+      {/if}
+      {#if showsShorts}<div><dt>Hide Shorts</dt><dd>{hideShorts ? 'On' : 'Off'}</dd></div>{/if}
+    </dl>
+    {#if status === 'Disconnected' || status === 'Update required'}<p class="muted">Last applied policy.</p>{/if}
   {:else}
-    <p>Site entry: {detail?.entry.mode === 'block' ? 'Block' : detail?.entry.mode === 'pause' ? 'Pause' : 'Allow'}</p>
-    <p>Grayscale is {detail?.grayscale ? 'on' : 'off'}.</p>
-    {#if isShortsHost}<p>{hideShorts ? 'Hide Shorts is on' : 'Hide Shorts is off'}.</p>{/if}
-    {#if status === 'Disconnected' || status === 'Update required'}<p>Last applied policy.</p>{/if}
+    <p class="muted">No applied policy available.</p>
   {/if}
-  {#if openSite}
-    <button type="button" onclick={openDesktop}>Open in focus.</button>
-  {:else}
-    <p><button type="button" onclick={setup}>Browser setup</button></p>
-  {/if}
-  {#if error}<p role="status">{error}</p>{/if}
+  <footer>
+    {#if openSite}
+      <button type="button" onclick={openDesktop}>Open in focus.</button>
+    {:else}
+      <button type="button" onclick={setup}>Browser setup</button>
+    {/if}
+    {#if error}<p role="status">{error}</p>{/if}
+  </footer>
 </main>
+
+<style>
+  .popup { inline-size: 360px; max-inline-size: 100%; padding: 16px 20px 20px; }
+  header { margin: 0 0 16px; padding-bottom: 10px; }
+  h1 { display: flex; align-items: center; gap: 8px; margin: 0; font: 700 22px/1.2 var(--font-ui); overflow-wrap: anywhere; }
+  h1 :global(svg) { flex: none; }
+  p { margin: 8px 0 0; font-size: 15px; }
+  .connection { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+  .connection::before { content: ''; inline-size: 6px; block-size: 6px; flex: none; background: var(--secondary); }
+  .connection.connected::before { background: var(--accent); }
+  dl { margin: 12px 0 0; font-size: 15px; border-block-end: 1px solid var(--divider); }
+  dl div { display: flex; flex-wrap: wrap; gap: 0 12px; justify-content: space-between; padding: 6px 0; border-block-start: 1px solid var(--divider); }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-weight: 700; }
+  footer { margin-top: 16px; }
+  footer button { display: block; min-block-size: 36px; color: var(--accent); border-color: var(--accent); }
+  footer button:is(:hover, :active) { color: var(--on-accent); background: var(--accent); }
+  footer p { color: var(--error); }
+  @media (prefers-reduced-motion: no-preference) {
+    footer button { transition: color var(--motion-hover) ease-in-out, background-color var(--motion-hover) ease-in-out, transform var(--motion-press) var(--ease); }
+    footer button:active { transform: translateY(1px); }
+  }
+</style>

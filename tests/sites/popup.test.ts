@@ -44,3 +44,11 @@ it('opens the actual catalog site when the current address is granted', async ()
   await fireEvent.click(open);
   expect(sendMessage).toHaveBeenCalledExactlyOnceWith({ type: 'open-desktop', siteId: 'reddit' }, expect.any(Function));
 });
+
+it('does not report default rule values as applied without a cached policy', async () => {
+  mountPopup('https://old.reddit.com/r/example', ['*://old.reddit.com/*']);
+  await screen.findByRole('button', { name: 'Open in focus.' });
+  expect(screen.queryByText(/Site entry/)).toBeNull();
+  expect(screen.queryByText(/Grayscale/)).toBeNull();
+  expect(screen.getByText('No applied policy available.')).toBeTruthy();
+});

@@ -39,6 +39,8 @@
   let currentPolicy = $derived(browserState?.sites.find((entry) => entry.id === siteId));
   let adding = $state(false);
   let hostInput = $state('');
+  let hostField: HTMLInputElement | undefined = $state();
+  let addTrigger: HTMLButtonElement | undefined = $state();
   let customHost = $derived(normalizeHost(hostInput.trim().match(/^https?:\/\/([^/?#\\]+)/i)?.[1] ?? hostInput));
   let revealPage = $state(false);
   let revealSite = $state(false);
@@ -126,6 +128,19 @@
     }
   }
 
+  async function openDesignation() {
+    adding = true;
+    await tick();
+    hostField?.focus();
+  }
+
+  async function cancelDesignation() {
+    adding = false;
+    hostInput = '';
+    await tick();
+    addTrigger?.focus();
+  }
+
   async function addSite(event: SubmitEvent) {
     event.preventDefault();
     if (!browserBridge || !customHost || editingRule) return;
@@ -137,6 +152,7 @@
       await refresh();
       siteId = id;
       adding = false;
+      revealSite = false;
       hostInput = '';
       await tick();
       heading?.focus();
@@ -265,18 +281,22 @@
           {/each}
         </ul>
         {#if browserState}
-          {#if adding}
-            <form class="designate" onsubmit={addSite}>
-              <label for="custom-host">Hostname or URL</label>
-              <input id="custom-host" type="text" placeholder="example.org" bind:value={hostInput} maxlength="2048" />
-              {#if customHost}<p>Exact hostname: <strong>{customHost}</strong></p>
-              {:else if hostInput}<p>Enter an exact hostname, without credentials or a port.</p>{/if}
-              <div><button type="submit" class="outline" disabled={!customHost || editingRule}>Add</button>
-                <button type="button" class="outline" onclick={() => { adding = false; hostInput = ''; }}>Cancel</button></div>
-            </form>
-          {:else}
-            <button type="button" class="designate-trigger" onclick={() => { adding = true; }}>Add site</button>
-          {/if}
+          <div class="library-action">
+            {#if adding}
+              <form class="designate" onsubmit={addSite}>
+                <label for="custom-host">Hostname or URL</label>
+                <input id="custom-host" type="text" placeholder="example.org" bind:this={hostField} bind:value={hostInput} maxlength="2048" />
+                {#if customHost}<p>Exact hostname: <strong>{customHost}</strong></p>
+                {:else if hostInput}<p>Enter an exact hostname, without credentials or a port.</p>{/if}
+                <div><button type="submit" class="outline" disabled={!customHost || editingRule}>Add</button>
+                  <button type="button" class="outline" onclick={cancelDesignation}>Cancel</button></div>
+              </form>
+            {:else}
+              <button type="button" class="outline designate-trigger" bind:this={addTrigger} onclick={openDesignation}>
+                <span aria-hidden="true">+</span> Add site
+              </button>
+            {/if}
+          </div>
         {/if}
       </section>
     {/if}
@@ -472,7 +492,7 @@
     align-items: stretch;
     justify-content: space-between;
     min-height: 46px;
-    background: var(--canvas);
+    background: var(--rail);
     border-bottom: 1px solid var(--divider);
   }
 
@@ -482,6 +502,7 @@
   .toolbar.native-mac .brand { padding-inline: 3px 12px; }
 
   .workspace { flex: 1; display: flex; flex-direction: column; }
+  .brand, nav, .library h2, .library ul, .library-action { background: var(--rail); }
   /* Keep the scrollbar below the toolbar so AppKit and the navigation share the same right edge. */
   .toolbar.native-mac + .workspace { overflow: auto; }
   .with-library { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
@@ -562,24 +583,29 @@
     outline-color: var(--on-accent);
   }
 
-  .library { padding: 16px 0; border-inline-end: 1px solid var(--divider); background: var(--rail); --toner-origin: -117px -48px; }
-  .library h2 { margin: 0 14px 4px; font-size: 15px; color: var(--ink); }
+  .library { display: flex; flex-direction: column; padding-block: 16px; border-inline-end: 1px solid var(--divider); background: var(--rail); --toner-origin: -117px -48px; }
+  .library h2 { margin: 0; padding: 0 14px 4px; font-size: 15px; color: var(--ink); }
   .library-label { display: grid; min-width: 0; overflow-wrap: anywhere; }
   .library-label small { font-size: 12px; font-weight: 400; }
-  .designate, .designate-trigger { margin: 8px 14px; }
-  .designate-trigger { padding-inline: 0; }
-  .designate input { display: block; width: 100%; min-width: 0; margin-top: 6px; padding: 4px; border: 1px solid var(--edge); border-radius: var(--radius-control); color: var(--ink); background: var(--surface); font: inherit; }
-  .designate div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .library-action { margin-block-start: auto; border-block-start: 1px solid var(--divider); padding: 10px 14px 0; }
+  .designate-trigger { width: 100%; justify-content: center; font-weight: 700; }
+  .designate-trigger.outline:not(:hover, :active) { border-color: var(--accent); color: var(--accent); }
+  .designate input { display: block; box-sizing: border-box; width: 100%; min-width: 0; margin-top: 6px; padding: 4px; border: 1px solid var(--edge); border-radius: var(--radius-control); color: var(--ink); background: var(--surface); font: inherit; }
+  .designate input::placeholder { color: var(--muted); opacity: 1; }
+  .designate div { display: flex; flex-wrap: wrap; gap: 6px; }
 
-  main { flex: 1; padding: 24px; min-width: 0; background: var(--surface); }
+  main { flex: 1; padding: 24px; min-width: 0; background: var(--canvas); }
+  /* Print is visible on open stock, not through copy, browser data or controls. */
+  .page, .browser-error { background: var(--canvas); }
   .page { max-width: 760px; }
+  .page:not([hidden]) { display: flow-root; }
 
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
   @media (forced-colors: none) {
     .page-heading, .rule-row, .palette-picker, .effect-preference { position: relative; border-color: transparent; }
     .page-heading::after, .rule-row::before, .palette-picker::after, .effect-preference::after {
       content: ''; position: absolute; inset-inline: 0; height: 3px; pointer-events: none;
-      background: var(--ink);
+      background: var(--muted);
       -webkit-mask: url('./assets/ink-rule.svg') repeat-x left center / 223px 3px;
       mask: url('./assets/ink-rule.svg') repeat-x left center / 223px 3px;
     }
@@ -595,7 +621,7 @@
   .site-title-row { align-items: center; padding-bottom: 12px; }
   .site-heading { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; min-width: 0; }
   .impression { pointer-events: none; }
-  .margin { flex: none; }
+  .margin { flex: none; align-self: end; }
   .sheet { width: 192px; max-width: 100%; }
   h2, legend { font-size: 15px; font-weight: 700; }
   p { margin-top: 4px; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
@@ -606,7 +632,7 @@
   .origins { font-family: var(--font-code); font-size: 13px; }
   .browser-error { position: relative; color: var(--error); }
   .rule-row { border-block-start: 1px solid var(--divider); padding-block-start: 12px; }
-  .connection span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+  .connection span { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--secondary); }
   .outline { min-height: 36px; border: 1px solid var(--edge); border-radius: var(--radius-control); padding-inline: 10px; }
   .outline:not(:hover, :active) { background: var(--surface); }
   fieldset { border: 0; padding: 0; min-width: 0; }
@@ -692,12 +718,24 @@
     .preference:has(input:disabled) { cursor: default; }
   }
 
+  @media (min-width: 636px) {
+    .shell { height: 100dvh; }
+    .toolbar { flex: none; }
+    .workspace { min-height: 0; }
+    .with-library { grid-template-rows: minmax(0, 1fr); }
+    .library > ul, .with-library > main { overflow: auto; }
+    .library-action { flex-shrink: 0; }
+  }
+
   @media (max-width: 635px) {
     .toolbar { display: flex; flex-wrap: wrap; }
     .brand { min-height: 44px; }
     nav { min-height: 44px; }
     .with-library { display: flex; flex-direction: column; }
     .library { padding: 8px 12px; border-inline-end: 0; border-bottom: 1px solid var(--divider); }
+    .library h2 { padding-inline: 8px; }
+    .library-action { margin-block-start: 8px; padding-inline: 8px; }
+    .designate-trigger { width: fit-content; }
     ul { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 4px; }
     main { padding: 16px; }
     .site-heading h1 { font-size: 42px; }
@@ -713,6 +751,7 @@
 
   @media (forced-colors: active) {
     .impression { display: none; }
+    li button[aria-pressed='true'] { border-inline-start: 2px solid Highlight; box-shadow: none; }
   }
 
   @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {

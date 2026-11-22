@@ -16,4 +16,4 @@ label.field { display: block; margin: 12px 0; max-width: 360px; } .field span { 
 .site label { display: flex; align-items: center; gap: 8px; } .site small { color: var(--muted); }
 .site .hosts { margin: 4px 0 0 27px; padding: 0; list-style: none; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .notice { border-left: 2px solid var(--edge); padding: 8px 12px; }
-a { color: inherit; } .popup { width: 360px; padding: 18px; } .popup h1 { font-size: 18px; }
+a { color: inherit; }

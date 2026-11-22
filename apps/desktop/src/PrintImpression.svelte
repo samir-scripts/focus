@@ -4,31 +4,7 @@
 </script>
 
 {#if variant === 'margin'}
-  <!-- The approved wide crop: a solid ink edge tapering into a staggered screen. -->
-  <svg data-print={variant} width="96" height="40" viewBox="0 0 96 40" fill="currentColor" aria-hidden="true" focusable="false">
-    <defs>
-      <clipPath id={`${id}-curl`}>
-        <path d="M0 40V7C0 2 3 0 8 0h14c16 1 23 12 74 1C86 16 75 27 96 27 72 44 49 40 0 40Z" />
-      </clipPath>
-      {#each [2.7, 2.15, 1.6, .9] as diameter (diameter)}
-        <pattern id={`${id}-curl-${diameter}`} width="5.5" height="5.5" patternUnits="userSpaceOnUse">
-          <circle cx="1.375" cy="1.375" r={diameter / 2} />
-          <circle cx="4.125" cy="1.375" r={diameter / 2} />
-          <circle cx="0" cy="4.125" r={diameter / 2} />
-          <circle cx="2.75" cy="4.125" r={diameter / 2} />
-          <circle cx="5.5" cy="4.125" r={diameter / 2} />
-        </pattern>
-      {/each}
-    </defs>
-    <g clip-path={`url(#${id}-curl)`}>
-      <path d="M0 0h16c1 15 5 25 11 40H0Z" />
-      <path fill={`url(#${id}-curl-2.7)`} d="M16 0h14c0 15 6 29 14 40H27C21 25 17 15 16 0Z" />
-      <path fill={`url(#${id}-curl-2.15)`} d="M30 0h18c-2 17 5 30 13 40H44C36 29 30 15 30 0Z" />
-      <path fill={`url(#${id}-curl-1.6)`} d="M48 0h19c-1 17 5 30 12 40H61C53 30 46 17 48 0Z" />
-      <path fill={`url(#${id}-curl-0.9)`} d="M67 0h29v40H79c-7-10-13-23-12-40Z" />
-      <path d="M16 0h6C39 9 61 13 96 1 74 12 47 18 22 4ZM37 40c20-2 39-3 59-13-17 13-31 15-59 13Z" />
-    </g>
-  </svg>
+  <div class="sites-print" data-print={variant} aria-hidden="true"></div>
 {:else}
 <svg data-print={variant} width="192" height="96" viewBox="0 0 192 96"
   fill="currentColor" aria-hidden="true" focusable="false">
@@ -56,5 +32,20 @@
 {/if}
 
 <style>
+  .sites-print {
+    --light-print: url('./assets/sites-sage.png');
+    --dark-print: url('./assets/sites-sage.png');
+    inline-size: 132px;
+    aspect-ratio: 22 / 13;
+    background: var(--light-print) center / contain no-repeat;
+  }
+  :global(html[data-palette-light='cobalt']) .sites-print { --light-print: url('./assets/sites-cobalt.png'); }
+  :global(html[data-palette-dark='cobalt']) .sites-print { --dark-print: url('./assets/sites-cobalt.png'); }
+  :global(html[data-palette-light='plum']) .sites-print { --light-print: url('./assets/sites-plum.png'); }
+  :global(html[data-palette-dark='plum']) .sites-print { --dark-print: url('./assets/sites-plum.png'); }
+  :global(html[data-theme='dark']) .sites-print { background-image: var(--dark-print); }
+  @media (prefers-color-scheme: dark) {
+    :global(html[data-theme='system']) .sites-print { background-image: var(--dark-print); }
+  }
   svg { display: block; max-inline-size: 100%; block-size: auto; color: var(--accent); pointer-events: none; }
 </style>

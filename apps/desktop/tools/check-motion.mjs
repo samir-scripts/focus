@@ -80,6 +80,20 @@ try {
   assert.equal(scroll.rootHeight, scroll.viewportHeight, 'The window must not have a root scrollbar');
   assert.equal(scroll.toolbarWidth, scroll.viewportWidth, 'The native toolbar must span the viewport');
   console.log('The native toolbar spans the viewport while the workspace scrolls.');
+  assert.equal(await evaluate('document.scrollingElement.scrollWidth'), 480, 'Sites must not scroll horizontally at narrow widths');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 960, height: 640, deviceScaleFactor: 1, mobile: false
+  });
+  const sitesArt = "document.querySelector('[data-print=\"margin\"]')";
+  assert.match(await evaluate(`getComputedStyle(${sitesArt}).backgroundImage`), /^url\(/,
+    'Wide Sites must render a local poster inset');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 635, height: 640, deviceScaleFactor: 1, mobile: false
+  });
+  assert.equal(await evaluate(`${sitesArt}.getBoundingClientRect().width`), 0, 'The inset must leave room for narrow Sites');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 960, height: 640, deviceScaleFactor: 1, mobile: false
+  });
   const drift = "document.getAnimations().filter(a => a.animationName?.includes('drift-toner'))";
   await until(drift + ".some(a => a.playState === 'running')");
   const poses = await evaluate(`['slow', 'mid', 'quick'].map(layer => {
@@ -127,15 +141,19 @@ try {
     const stock = document.querySelector('main .stock');
     const animation = stock.getAnimations({ subtree: true }).find(a => a.animationName?.includes('grain-static'));
     animation.pause();
-    animation.currentTime = 0;
-    const first = [getComputedStyle(stock, '::before').maskImage, getComputedStyle(stock, '::before').transform];
-    animation.currentTime = 300;
-    const next = [getComputedStyle(stock, '::before').maskImage, getComputedStyle(stock, '::before').transform];
+    const frame = ms => {
+      animation.currentTime = ms;
+      const style = getComputedStyle(stock, '::before');
+      return [style.maskImage, style.transform, style.maskPosition];
+    };
+    const poses = [1, 301, 3601, 3901].map(frame);
     animation.play();
-    return [first, next];
+    return poses;
   })()`);
   assert.notEqual(grainPoses[0][0], grainPoses[1][0], 'Paper grain must change its static pattern');
   assert.equal(grainPoses[0][1], grainPoses[1][1], 'Paper grain must not shake');
+  assert.equal(grainPoses[0][2], grainPoses[1][2], 'Paper grain must not move its mask');
+  assert.deepEqual(grainPoses.slice(2), grainPoses.slice(0, 2), 'Paper grain must repeat its 3.6s cycle independently of flakes');
   // Seeking animations through WAAPI overrides CSS play-state; reload before checking the control.
   const reloaded = new Promise(resolve => {
     function receive({ data }) {
@@ -165,8 +183,10 @@ try {
   await until(ink + '.length === 0');
   await command('Emulation.setEmulatedMedia', { features: [] });
   await until(drift + ".some(a => a.playState === 'running')");
+  await evaluate("document.querySelector('nav button[aria-label=\"Sites\"]').click()");
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
   await until("getComputedStyle(document.querySelector('main .stock')).display === 'none'");
+  assert.equal(await evaluate(`${sitesArt}.getBoundingClientRect().width`), 0, 'Forced colors suppress the poster inset');
   await until(grain + '.length === 0');
   await until(ink + '.length === 0');
   await until(drift + '.length === 0');

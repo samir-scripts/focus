@@ -50,16 +50,17 @@
   --font-wordmark: 'Focus Bitmap Wordmark', var(--font-code);
   --canvas: var(--light-paper);
   --surface: var(--light-surface);
-  --rail: var(--canvas);
+  --rail: var(--light-rail);
   --ink: var(--light-ink);
   --muted: var(--light-muted);
   --divider: var(--light-divider);
   --edge: var(--light-edge);
   --accent: var(--light-accent);
   --on-accent: var(--light-on-accent);
+  --secondary: var(--light-secondary);
   --selected: var(--light-selected);
-  --grain-paper: .15;
-  --grain-rail: .094;
+  --grain-paper: .113;
+  --grain-rail: .071;
   --toner-opacity: 1;
   --warning: #66430f;
   --error: #8a302c;
@@ -79,15 +80,17 @@ html[data-theme='dark'] {
   color-scheme: dark;
   --canvas: var(--dark-paper);
   --surface: var(--dark-surface);
+  --rail: var(--dark-rail);
   --ink: var(--dark-ink);
   --muted: var(--dark-muted);
   --divider: var(--dark-divider);
   --edge: var(--dark-edge);
   --accent: var(--dark-accent);
   --on-accent: var(--dark-on-accent);
+  --secondary: var(--dark-secondary);
   --selected: var(--dark-selected);
-  --grain-paper: .075;
-  --grain-rail: .055;
+  --grain-paper: .056;
+  --grain-rail: .041;
   --toner-opacity: .54;
   --warning: #f2cd92;
   --error: #f1a5a5;
@@ -98,15 +101,17 @@ html[data-theme='dark'] {
     color-scheme: dark;
     --canvas: var(--dark-paper);
     --surface: var(--dark-surface);
+    --rail: var(--dark-rail);
     --ink: var(--dark-ink);
     --muted: var(--dark-muted);
     --divider: var(--dark-divider);
     --edge: var(--dark-edge);
     --accent: var(--dark-accent);
     --on-accent: var(--dark-on-accent);
+    --secondary: var(--dark-secondary);
     --selected: var(--dark-selected);
-    --grain-paper: .075;
-    --grain-rail: .055;
+    --grain-paper: .056;
+    --grain-rail: .041;
     --toner-opacity: .54;
     --warning: #f2cd92;
     --error: #f1a5a5;
@@ -115,75 +120,87 @@ html[data-theme='dark'] {
 
 /* Palette slots also supply the Settings swatches, independently of active mode. */
 :root, [data-swatch='sage-light'] {
-  --light-paper: #c8cfc4;
-  --light-surface: #d9ded3;
-  --light-ink: #282d26;
-  --light-muted: #454e42;
-  --light-divider: #8b9688;
-  --light-edge: #5b6558;
-  --light-accent: #3c5038;
-  --light-on-accent: #f1f4ea;
-  --light-selected: #b4c1ad;
+  --light-paper: #f2f4f1;
+  --light-surface: #fafbf9;
+  --light-rail: #e5ebe4;
+  --light-ink: #202c24;
+  --light-muted: #46574a;
+  --light-divider: #a2aea4;
+  --light-edge: #5f7163;
+  --light-accent: #28513a;
+  --light-on-accent: #f7fbf7;
+  --light-secondary: #a33d34;
+  --light-selected: #d5ded6;
 }
 
 :root, [data-swatch='sage-dark'] {
-  --dark-paper: #242c27;
-  --dark-surface: #2c352e;
-  --dark-ink: #edf1e7;
-  --dark-muted: #becabb;
-  --dark-divider: #566358;
-  --dark-edge: #899987;
-  --dark-accent: #ccd9ac;
-  --dark-on-accent: #272f22;
-  --dark-selected: #3d4b3e;
+  --dark-paper: #202624;
+  --dark-surface: #2a322e;
+  --dark-rail: #2a342e;
+  --dark-ink: #ebf2ed;
+  --dark-muted: #bccbc2;
+  --dark-divider: #5b6b62;
+  --dark-edge: #899e91;
+  --dark-accent: #b9ddc4;
+  --dark-on-accent: #1c3025;
+  --dark-secondary: #ff9a8b;
+  --dark-selected: #3b4943;
 }
 
 html[data-palette-light='cobalt'], [data-swatch='cobalt-light'] {
-  --light-paper: #dfdfd5;
-  --light-surface: #f1f0e6;
-  --light-ink: #20264c;
-  --light-muted: #40486a;
-  --light-divider: #a0a2aa;
-  --light-edge: #64697e;
-  --light-accent: #2737a0;
-  --light-on-accent: #f9f8ee;
-  --light-selected: #cdd0e3;
+  --light-paper: #f3f5f8;
+  --light-surface: #fafbfe;
+  --light-rail: #e6ebf2;
+  --light-ink: #101a43;
+  --light-muted: #404e70;
+  --light-divider: #a0adbf;
+  --light-edge: #576786;
+  --light-accent: #203fd1;
+  --light-on-accent: #fff;
+  --light-secondary: #ba2064;
+  --light-selected: #d6dfed;
 }
 
 html[data-palette-dark='cobalt'], [data-swatch='cobalt-dark'] {
-  --dark-paper: #202338;
-  --dark-surface: #292d44;
-  --dark-ink: #f1f0e7;
-  --dark-muted: #c4c8dd;
-  --dark-divider: #575d76;
-  --dark-edge: #979bb5;
-  --dark-accent: #b3bbff;
-  --dark-on-accent: #202443;
-  --dark-selected: #383f5d;
+  --dark-paper: #1e2332;
+  --dark-surface: #292f42;
+  --dark-rail: #2a3248;
+  --dark-ink: #eff2fc;
+  --dark-muted: #c2cce3;
+  --dark-divider: #596781;
+  --dark-edge: #97a6c2;
+  --dark-accent: #b1c0ff;
+  --dark-on-accent: #182650;
+  --dark-secondary: #ff81bf;
+  --dark-selected: #3c4760;
 }
 
 html[data-palette-light='plum'], [data-swatch='plum-light'] {
-  --light-paper: #e4dcd6;
-  --light-surface: #f2ece6;
-  --light-ink: #382333;
-  --light-muted: #614559;
-  --light-divider: #aba0a5;
-  --light-edge: #786275;
-  --light-accent: #632b5e;
-  --light-on-accent: #fbf1ee;
-  --light-selected: #dac7d5;
+  --light-paper: #f5f2f6;
+  --light-surface: #fcf9fd;
+  --light-rail: #ece7ef;
+  --light-ink: #332039;
+  --light-muted: #614d65;
+  --light-divider: #aea2b3;
+  --light-edge: #786381;
+  --light-accent: #703c77;
+  --light-on-accent: #fff8ff;
+  --light-secondary: #9e4333;
+  --light-selected: #dfd6e3;
 }
 
 html[data-palette-dark='plum'], [data-swatch='plum-dark'] {
-  --dark-paper: #30232e;
-  --dark-surface: #392b37;
-  --dark-ink: #f7eaf0;
-  --dark-muted: #d5c1cf;
-  --dark-divider: #655461;
-  --dark-edge: #aa93a4;
-  --dark-accent: #e1b6db;
-  --dark-on-accent: #352431;
-  --dark-selected: #4c3948;
+  --dark-paper: #29232f;
+  --dark-surface: #352c3b;
+  --dark-rail: #38303f;
+  --dark-ink: #f7eef8;
+  --dark-muted: #d4c3d9;
+  --dark-divider: #6e5f76;
+  --dark-edge: #ad98b5;
+  --dark-accent: #e5b9ec;
+  --dark-on-accent: #352039;
+  --dark-secondary: #f4a773;
+  --dark-selected: #4d4254;
 }
 
 [data-swatch$='-light'] { --swatch-paper: var(--light-paper); --swatch-ink: var(--light-accent); }

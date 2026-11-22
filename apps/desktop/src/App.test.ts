@@ -118,6 +118,22 @@ describe('desktop shell', () => {
     expect(entry).toEqual({ mode: 'block' });
   });
 
+  it('moves focus into Add site and returns it to the trigger on cancel', async () => {
+    render(App, { browserBridge: {
+      state: async () => ({ revision: 0, hideShorts: false, accessibility: { holdSeconds: 15, twoStepConfirmation: false },
+        sites: [], pending: [], profiles: [], open: null }),
+      scan: async () => ({ supported: true, targets: [] }),
+      install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
+      setHideShorts: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
+      setEntry: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
+    } });
+    const library = within(screen.getByRole('region', { name: 'Site Library' }));
+    await fireEvent.click(await library.findByRole('button', { name: 'Add site' }), { detail: 0 });
+    expect(document.activeElement).toBe(library.getByRole('textbox', { name: 'Hostname or URL' }));
+    await fireEvent.click(library.getByRole('button', { name: 'Cancel' }), { detail: 0 });
+    expect(document.activeElement).toBe(library.getByRole('button', { name: 'Add site' }));
+  });
+
   it('saves global accessibility settings with the revision displayed when editing began', async () => {
     let revision = 2;
     let accessibility = { holdSeconds: 15, twoStepConfirmation: false };

@@ -72,6 +72,25 @@
   .modes label:has(:checked) { background: var(--selected); }
   .modes label:is(:hover, :active) { background: var(--accent); color: var(--on-accent); }
   .modes input { margin: 0; }
+  @media (forced-colors: none) {
+    .modes input {
+      appearance: none;
+      box-sizing: border-box;
+      color: inherit;
+      flex: none;
+      inline-size: 16px;
+      block-size: 16px;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      background: var(--radio-paper, var(--canvas));
+    }
+    .modes input:checked {
+      background: currentColor;
+      box-shadow: inset 0 0 0 3px var(--radio-paper, var(--canvas));
+    }
+    .modes label:is(:hover, :active) { --radio-paper: var(--accent); }
+    .modes label:is(:hover, :active) input:focus-visible { outline-color: currentColor; }
+  }
   .options { margin-top: 10px; }
   .options label { display: grid; gap: 4px; min-width: 0; max-width: 100%; }
   .options input, .options select { min-height: 32px; padding: 4px 6px; border: 1px solid var(--edge); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; max-width: 100%; }

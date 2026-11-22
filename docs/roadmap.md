@@ -38,6 +38,8 @@ The [3B artwork and review evidence](design/productivity/typewriter/README.md) i
 
 Run the shell gate, capture native renders at 960×640, around the 635px breakpoint and at 200%, and compare all six theme combinations. Capture measured motion and the matched grain trials required by [DESIGN.md](../DESIGN.md#elevation--depth). Check the rendered unchecked radio boundary, accessibility and native controls. Exercise native reduced motion and forced colors in supporting surfaces; name the engine and separate native results from Chromium emulation. Record any unsupported or untested mode.
 
+See the [3C review procedure and evidence](design/productivity/3c-review.md) for candidate limits and reproduction steps.
+
 ### 3D — Dashboard and sessions
 
 `feature/productivity-3d-dashboard-sessions` adds Home, named presets, Start now, one-off schedules and selected-weekday schedules. Scheduled starts run while focus. is open or minimized. Keep one active session. Skip overlapping and missed starts, and process a repeated local time once. Test sleep, restart, DST and disconnected profiles, including expiry without desktop contact.
