@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { verifyFlick } from './verify-flick.mjs';
+import { verifyTumble } from './verify-tumble.mjs';
 
 const [artifact, evidence, origin] = process.argv.slice(2);
 if (!artifact || !evidence || !origin) throw new Error('Usage: node verify.mjs HTML EVIDENCE_DIR VITE_ORIGIN');
@@ -70,7 +71,7 @@ try {
   await page.mouse.move(x, y);
   await page.mouse.down();
   assert.deepEqual(await canvas.screenshot(), before, 'pointerdown alone must not press a cap');
-  await page.mouse.move(x + 72, y, { steps: 8 });
+  await page.mouse.move(x + 96, y, { steps: 8 });
   const rotated = await canvas.screenshot();
   assert.notDeepEqual(rotated, before, 'drag must orbit');
   await page.mouse.up();
@@ -134,19 +135,21 @@ try {
   assert.equal(await touchPage.getByRole('status').getAttribute('data-key'), 'KeyS', 'cancelled drag does not press');
   await touchPage.getByRole('button', { name: 'Reset view' }).click();
   assert.deepEqual(await touchCanvas.screenshot(), touchRest);
-  const finger = { x: touchBox.x + 28, y: touchBox.y + 95 };
-  for (let pass = 0; pass < 4; pass++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [finger] });
-    await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchMove', touchPoints: [{ x: finger.x + 180, y: finger.y }],
-    });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    const frame = await touchCanvas.screenshot();
-    if (pass === 1) assert.notDeepEqual(frame, touchRest, '360px of touch drag reaches the opposite view');
-    if (pass === 3) assert.deepEqual(frame, touchRest, 'four 180px touch drags complete a full turn');
+  for (const [dx, dy] of [[240, 0], [0, -240]]) {
+    const finger = { x: touchBox.x + 28, y: touchBox.y + 280 };
+    for (let pass = 0; pass < 4; pass++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [finger] });
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove', touchPoints: [{ x: finger.x + dx, y: finger.y + dy }],
+      });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      const frame = await touchCanvas.screenshot();
+      if (pass === 1) assert.notDeepEqual(frame, touchRest, 'two touch drags reach the opposite view');
+      if (pass === 3) assert.deepEqual(frame, touchRest, 'four 240px touch drags complete a full turn');
+    }
   }
   assert.equal(await touchPage.getByRole('status').getAttribute('data-key'), 'KeyS', 'touch drags do not actuate');
-  console.log('PASS 390px, toner pause, touch tap, cancelled drag and full turn across four drags');
+  console.log('PASS 390px, toner pause, touch tap, cancelled drag and exact touch wrap on both axes');
 
   const live = await browser.newContext({ viewport });
   await live.route('**/*', route => new URL(route.request().url()).origin === new URL(origin).origin
@@ -217,8 +220,9 @@ try {
   const opening = await orbitCanvas.screenshot();
   const views = [opening];
   for (const pass of [
-    [['front', 69], ['side', 249], [null, 360]],
-    [['rear', 69], [null, 360]],
+    [['front', 92], [null, 320]],
+    [['side', 12], ['rear', 252], [null, 320]],
+    [[null, 320]],
   ]) {
     await orbitPage.mouse.move(startX, startY);
     await orbitPage.mouse.down();
@@ -231,7 +235,7 @@ try {
     }
     await orbitPage.mouse.up();
   }
-  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'two 360px drags make a full turn and wrap exactly');
+  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'three 320px drags make a full turn and wrap exactly');
   assert.equal(await orbitPage.getByRole('status').getAttribute('data-key'), null, 'full turn is not a click');
   await orbitCanvas.focus();
   for (let i = 0; i < 8; i++) await orbitPage.keyboard.press('ArrowLeft');
@@ -240,8 +244,16 @@ try {
   assert.notDeepEqual(await orbitCanvas.screenshot(), pastStop, 'keyboard keeps turning beyond the old yaw stop');
   await orbitPage.keyboard.press('Escape');
   assert.deepEqual(await orbitCanvas.screenshot(), opening, 'reset after a full orbit restores the approved camera');
+  for (let i = 0; i < 3; i++) {
+    await orbitPage.mouse.move(startX + 320, startY);
+    await orbitPage.mouse.down();
+    await orbitPage.mouse.move(startX, startY, { steps: 6 });
+    await orbitPage.mouse.up();
+  }
+  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'horizontal turn wraps in the opposite direction too');
+  console.log('PASS exact horizontal wrap in both directions; front/side/rear, reset and keyboard orbit');
+  await verifyTumble(orbitPage, evidence);
   await orbitPage.close();
-  console.log('PASS captured 360° orbit over two drags, distinct front/side/rear, exact wrap and reset, keyboard past old stop');
 
   const flickContext = await browser.newContext({ viewport, offline: true });
   const flickPage = await flickContext.newPage();

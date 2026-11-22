@@ -1,5 +1,5 @@
 import {
-  Group, MathUtils, Mesh, NearestFilter, PerspectiveCamera, PlaneGeometry, Raycaster, Scene,
+  Euler, Group, MathUtils, Mesh, NearestFilter, PerspectiveCamera, PlaneGeometry, Raycaster, Scene,
   SRGBColorSpace, TextureLoader, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import type { Intersection, Material, Texture } from 'three';
@@ -17,18 +17,20 @@ const ASPECT = WIDTH / HEIGHT;
 const pivot = new Vector3(0, .101, .016);
 const restYaw = .60;
 const restElevation = .057;
+const orientation = new Euler(0, 0, 0, 'YXZ');
 
 export function setView(camera: PerspectiveCamera, yaw = 0, lift = 0) {
   const angle = restYaw + yaw;
   const elevation = restElevation + lift;
-  // Back off as the diagonal silhouette grows, with no change at rest.
-  // Both the fit and roll are periodic at the yaw wrap.
-  const distance = DISTANCE + .20 * Math.max(0, lift) + .11 * (1 - Math.cos(yaw)) / 2;
+  const pitchAway = 1 - Math.cos(lift);
+  // Back away through top and underside views without changing the rest pose.
+  const distance = DISTANCE + .055 * (1 - Math.cos(yaw)) + .10 * pitchAway - .15 * Math.expm1(-10 * pitchAway);
   const radial = Math.cos(elevation);
   camera.position.set(Math.sin(angle) * radial, Math.sin(elevation), Math.cos(angle) * radial)
     .multiplyScalar(distance).add(pivot);
-  camera.lookAt(pivot);
-  camera.rotateZ(-.20 * MathUtils.clamp(Math.sin(angle) / Math.sin(restYaw), -1, 1));
+  // Yaw, then local pitch, then the existing roll. No world-up pole to flip.
+  const roll = -.20 * MathUtils.clamp(Math.sin(angle) / Math.sin(restYaw), -1, 1);
+  camera.quaternion.setFromEuler(orientation.set(-elevation, angle, roll));
   camera.updateMatrixWorld();
 }
 

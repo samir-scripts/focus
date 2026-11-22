@@ -74,8 +74,8 @@ it('keeps the complete machine inside the art field through allowed orbit and fl
   const modelViewProjection = new Matrix4();
   const bounds = { x: 0, y: 0 };
   for (let u = 0; u < 36; u++) {
-    for (let v = 0; v <= 8; v++) {
-      setView(machine.camera, 2 * Math.PI * u / 36, -.17 + .71 * v / 8);
+    for (let v = 0; v < 36; v++) {
+      setView(machine.camera, 2 * Math.PI * u / 36, 2 * Math.PI * v / 36);
       viewProjection.multiplyMatrices(machine.camera.projectionMatrix, machine.camera.matrixWorldInverse);
       machine.root.traverse(object => {
         if (!(object instanceof Mesh)) return;
@@ -92,16 +92,27 @@ it('keeps the complete machine inside the art field through allowed orbit and fl
   expect(bounds.x).toBeLessThan(.99);
   // Even at a narrow 280px art field, retain room for the 6 CSS px float.
   expect(bounds.y + 12 / (280 * 192 / 208)).toBeLessThan(.99);
-}, 12000);
+}, 25000);
 
 it('returns the same projected view after full turns in either direction', () => {
   const point = new Vector3(.11, .14, -.07);
   for (const yaw of [0, -.9, Math.PI]) {
     setView(machine.camera, yaw, .2);
     const expected = point.clone().project(machine.camera);
-    for (const turns of [-2, -1, 1, 2]) {
-      setView(machine.camera, yaw + turns * 2 * Math.PI, .2);
-      expect(point.clone().project(machine.camera).distanceTo(expected)).toBeLessThan(1e-12);
+    for (const direction of [-1, 1]) {
+      for (const [turnYaw, turnPitch] of [[1, 0], [0, 1], [1, 1]]) {
+        setView(machine.camera, yaw + direction * turnYaw * 2 * Math.PI, .2 + direction * turnPitch * 2 * Math.PI);
+        expect(point.clone().project(machine.camera).distanceTo(expected)).toBeLessThan(1e-12);
+      }
     }
+  }
+});
+
+it('crosses both vertical poles without a change of camera roll branch', () => {
+  for (const pole of [Math.PI / 2 - .057, -Math.PI / 2 - .057]) {
+    setView(machine.camera, .3, pole - 1e-5);
+    const before = machine.camera.quaternion.clone();
+    setView(machine.camera, .3, pole + 1e-5);
+    expect(before.angleTo(machine.camera.quaternion)).toBeLessThan(.0001);
   }
 });

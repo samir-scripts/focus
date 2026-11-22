@@ -11,13 +11,14 @@ export async function verifyFlick(page, evidence) {
   await page.getByRole('button', { name: 'Pause toner' }).click();
   await page.emulateMedia({ reducedMotion: 'no-preference' });
 
-  async function drag(distance, stepDelay, hold = 0) {
+  async function drag(distance, stepDelay, hold = 0, vertical = false) {
     await reset.click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     for (let i = 1; i <= 6; i++) {
       if (stepDelay) await page.waitForTimeout(stepDelay);
-      await page.mouse.move(x + distance * i / 6, y);
+      const offset = distance * i / 6;
+      await page.mouse.move(x + (vertical ? 0 : offset), y + (vertical ? offset : 0));
     }
     if (hold) await page.waitForTimeout(hold);
   }
@@ -27,16 +28,20 @@ export async function verifyFlick(page, evidence) {
     return canvas.screenshot(name && evidence ? { path: `${evidence}/flick-${name}.png` } : {});
   }
 
-  await drag(72, 170);
-  const atRelease = await canvas.screenshot();
+  await drag(96, 180);
   await page.mouse.up();
-  assert.deepEqual(await settled('gentle'), atRelease, 'gentle drag stops at release');
+  const atRelease = await settled('gentle');
 
-  await drag(72, 0, 150);
+  await drag(96, 0);
+  const early = await canvas.screenshot({ path: `${evidence}/held-early.png` });
+  const caughtUp = await settled();
+  await canvas.screenshot({ path: `${evidence}/held-caught-up.png` });
+  assert.notDeepEqual(early, caughtUp, 'weighted drag keeps catching up while held still');
+  assert.deepEqual(caughtUp, atRelease, 'held fast drag reaches the same target as a gentle drag');
   await page.mouse.up();
-  assert.deepEqual(await settled(), atRelease, 'fast drag held still before release does not coast');
+  assert.deepEqual(await settled(), caughtUp, 'held release adds no momentum');
 
-  await drag(72, 0);
+  await drag(96, 0);
   await page.mouse.up();
   const fast = await settled('quick');
   assert.ok(!fast.equals(atRelease), 'same-distance flick must coast farther than gentle drag');
@@ -45,8 +50,8 @@ export async function verifyFlick(page, evidence) {
 
   // Compare actual pixels against deliberate drags in and against release direction.
   const references = [];
-  for (const distance of [24, 72, 108, 144, 162, 192]) {
-    await drag(distance, 0, 115);
+  for (const distance of [32, 96, 128, 152, 172, 208]) {
+    await drag(distance, 0, 290);
     references.push((await canvas.screenshot()).toString('base64'));
     await page.mouse.up();
   }
@@ -70,34 +75,41 @@ export async function verifyFlick(page, evidence) {
   }, { actual: fast.toString('base64'), references });
   assert.ok(nearest >= 2 && nearest <= 4, `flick continues in drag direction without exceeding its cap (reference ${nearest})`);
 
-  await drag(72, 0);
+  await drag(96, 180, 0, true);
+  await page.mouse.up();
+  const verticalGentle = await settled();
+  await drag(96, 0, 0, true);
+  await page.mouse.up();
+  assert.notDeepEqual(await settled('vertical'), verticalGentle, 'vertical flick also coasts');
+
+  await drag(96, 0);
   await page.mouse.up();
   await page.mouse.down();
   const regrabbed = await canvas.screenshot();
   assert.deepEqual(await settled(), regrabbed, 'new grab interrupts coast');
   await page.mouse.up();
 
-  await drag(72, 0);
+  await drag(96, 0);
   await page.mouse.up();
   await canvas.focus();
   await page.keyboard.press('ArrowRight');
   const keyed = await canvas.screenshot();
   assert.deepEqual(await settled(), keyed, 'keyboard orbit interrupts coast');
 
-  await drag(72, 0);
+  await drag(96, 0);
   await page.mouse.up();
   await reset.click();
   const opening = await canvas.screenshot();
   assert.deepEqual(await settled(), opening, 'reset interrupts coast');
 
-  await drag(72, 0);
+  await drag(96, 0);
   await page.mouse.up();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const interrupted = await canvas.screenshot();
   assert.deepEqual(await settled(), interrupted, 'reduced motion interrupts coast');
-  await drag(72, 0);
+  await drag(96, 0);
   await page.mouse.up();
   assert.deepEqual(await settled(), atRelease, 'reduced motion allows direct drag but no coast');
   assert.equal(await page.getByRole('status').getAttribute('data-key'), null, 'drags never actuate caps');
-  console.log('PASS same-distance slow/fast drags, release direction and cap, held stop, settle, grab/keyboard/reset/reduced-motion cancellation');
+  console.log('PASS held chase and catch-up, same-distance slow/fast release, vertical coast, direction/cap, settling and interruption');
 }

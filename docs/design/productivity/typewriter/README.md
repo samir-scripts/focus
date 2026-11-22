@@ -56,9 +56,9 @@ The [standalone entry](../../../../apps/desktop/typewriter-preview/index.html) l
 
 The ink is drawn at 208 × 192 with no antialiasing and displayed with nearest-neighbor scaling. The plate uses a stationary polygonal screen-space pass. The machine uses an independent perspective camera; its projection moves through the 6-second float while the same projection feeds cap picking. Housing and knob ink use ordered dot screening with sparse fixed dry marks; the opaque, chamfered caps use the Focus Bitmap Regular atlas without grain. The standalone uses the existing Light Cobalt stock color. Shell paper hiss, existing settings and Home layout are not part of this preview.
 
-Bob continues during hover, keyboard focus, presses and drags. Hidden/offscreen viewing and **Pause toner** hold the last bob position; reduced motion centers the machine. A click or tap actuates the cap latched under the pointer on the displayed frame, even if it has since moved. Pointer and touch yaw track directly at 0.5° per horizontal CSS pixel (two 360px drags make a full turn); pitch stays direct and bounded. Arrow steps, resting camera and periodic framing are unchanged.
+Bob continues during hover, keyboard focus, presses and drags. Hidden/offscreen viewing and **Pause toner** hold the last bob position; reduced motion centers the machine. A click or tap actuates the cap latched under the pointer on the displayed frame, even if it has since moved. Pointer and touch drag targets advance by 0.375° per CSS pixel on either axis (three 320px drags make a full turn). The rendered pose follows with a 55 ms time constant for small gaps and responds faster to larger movements, with at most 18° of lag in a rendered frame. Reduced motion follows directly and disables coast. Both axes wrap, including with the arrow keys; the orbital camera basis crosses the poles without a flip. Framing is periodic on both axes and reset restores the approved rest camera.
 
-The motion borrows the separation of input sensitivity and damping from [Three.js OrbitControls](https://threejs.org/docs/pages/OrbitControls.html) and [Babylon ArcRotateCamera](https://doc.babylonjs.com/lite/typedoc/interfaces/ArcRotateCamera/) and its [pointer input](https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/Cameras/Inputs/arcRotateCameraPointersInput.ts), not their code or controls. Release uses the recent horizontal direction and event times (80 ms window); slow, stale and one-sample spikes do not start a coast. A flick over the speed threshold decays by elapsed time (150 ms time constant), capped at 300°/s and stopped by 600 ms (at most 44.2° of extra yaw). A grab, keyboard control, reset, cancellation, reduced motion, hidden/offscreen or forced colors, or teardown stops coast. Toner pause alone does not.
+The motion borrows the separation of input sensitivity and damping from [Three.js OrbitControls](https://threejs.org/docs/pages/OrbitControls.html) and [Babylon ArcRotateCamera](https://doc.babylonjs.com/lite/typedoc/interfaces/ArcRotateCamera/) and its [pointer input](https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/Cameras/Inputs/arcRotateCameraPointersInput.ts), not their code or controls. Release uses recent two-axis displacement and event times (80 ms window); slow, stale and one-sample spikes do not start a coast. A flick over the speed threshold decays by elapsed time (120 ms time constant), capped at 240°/s combined and stopped by 600 ms (at most 28.7° of momentum). A grab, keyboard control, reset, cancellation, reduced motion, hidden/offscreen, forced colors, context loss or teardown stops coast. Toner pause alone does not.
 
 ### Keyboard and sources
 
@@ -76,11 +76,12 @@ npm exec playwright install chromium
 preview=apps/desktop/typewriter-preview
 evidence="$(mktemp -d)"
 "$py" -B docs/design/productivity/typewriter/export-viewer.py
-npm run dev --workspace @focus/desktop   # keep running in a separate terminal
+# Pick an unused port; keep this running in a separate terminal.
+npm run dev --workspace @focus/desktop -- --host 127.0.0.1 --port 14537 --strictPort
 ```
 
 ```sh
-origin=http://localhost:1420
+origin=http://127.0.0.1:14537
 node "$preview/render.mjs" "$origin" "$evidence"
 shasum -a 256 -c docs/design/productivity/typewriter/VIEWER-SHA256SUMS
 node "$preview/build.mjs" "$evidence/viewer.html"
@@ -91,4 +92,4 @@ node "$preview/verify.mjs" "$evidence/viewer.html" "$evidence" "$origin"
 node "$preview/record.mjs" "$evidence/viewer.html" "$evidence"
 ```
 
-Open `viewer.html` directly, without a server. It contains the renderer, model, atlas, still, fonts and license notices. The Playwright verification opens both the offline file and the loopback preview with external traffic blocked. It exercises all 46 physical keys, touch cancellation, continuous and paused bob, cap latching, exact wrap across multiple real drags under reduced motion, keyboard orbit, reset, WebGL failure and cleanup. It compares gentle and fast 72px releases and checks coast direction, bounds, settling and interruption. It captures 960 × 640 and 390px screenshots plus front, side and rear orbit frames. `render.mjs` renders the transparent rest still and enlarged keyboard proof; `record.mjs` records the equal-distance gesture comparison. PNG byte identity is qualified on the recorded Chrome/SwiftShader version, not across drivers. Both the live preview and the keyboard proof need review before Home integration.
+Open `viewer.html` directly, without a server. It contains the renderer, model, atlas, still, fonts and license notices. The Playwright verification opens both the offline file and the loopback preview with external traffic blocked. It exercises all 46 physical keys, touch cancellation, bob, cap latching, exact wrap on both axes across real mouse and touch drags under reduced motion, keyboard orbit, reset, WebGL failure and cleanup. It captures 960 × 640 and 390px screenshots, top, underside, front, side and rear orbit frames, and the held pose before and after it catches up. It compares gentle and fast 96px releases and checks coast direction, bounds, settling and interruption. `render.mjs` renders the transparent rest still and enlarged keyboard proof; `record.mjs` captures the vertical turn and equal-distance gestures. PNG byte identity is qualified on the recorded Chrome/SwiftShader version, not across drivers. Both the live preview and the keyboard proof need review before Home integration.

@@ -25,16 +25,29 @@ try {
   const pause = page.getByRole('button', { name: 'Pause toner' });
   await page.mouse.move(x, y);
   await page.waitForTimeout(2200);
-  await pause.click(); // Isolate yaw in the two equal-distance gestures.
-  for (const delay of [170, 0]) {
+  const top = box.y + 28;
+  for (let stroke = 0; stroke < 3; stroke++) {
+    await page.mouse.move(x, top);
+    await page.mouse.down();
+    for (let dy = 16; dy <= 320; dy += 16) {
+      await page.mouse.move(x, top + dy);
+      const total = 320 * stroke + dy;
+      await page.waitForTimeout(total === 240 || total === 720 ? 320 : 22);
+    }
+    await page.waitForTimeout(260);
+    await page.mouse.up();
+  }
+  await pause.click(); // Isolate rotation in the two equal-distance gestures.
+  for (const [delay, hold] of [[180, 0], [0, 460], [0, 0]]) {
     await reset.click();
     await page.waitForTimeout(540);
     await page.mouse.move(x, y);
     await page.mouse.down();
-    for (let dx = 12; dx <= 72; dx += 12) {
+    for (let dx = 16; dx <= 96; dx += 16) {
       if (delay) await page.waitForTimeout(delay);
       await page.mouse.move(x + dx, y);
     }
+    if (hold) await page.waitForTimeout(hold);
     await page.mouse.up();
     await page.waitForTimeout(950);
   }
@@ -44,7 +57,7 @@ try {
   const video = page.video();
   await context.close();
   const input = await video.path();
-  const output = resolve(evidence, 'gentle-drag-and-flick.mp4');
+  const output = resolve(evidence, 'tumble-drag-and-flick.mp4');
   const ffmpeg = spawnSync('ffmpeg', ['-nostdin', '-y', '-i', input, '-c:v', 'libx264', '-crf', '18',
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output], { stdio: 'inherit' });
   if (ffmpeg.status !== 0) throw new Error('ffmpeg encoding failed', { cause: ffmpeg.error });
