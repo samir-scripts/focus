@@ -4,7 +4,7 @@
 
 focus. lets people remove specific distractions while keeping useful parts of a site. The desktop app owns rule edits and local statistics; browser extensions apply those rules only in profiles that grant the relevant origins. User opt-ins, content rules and time tracking default off; site entry defaults to Allow. Browsing history and telemetry never leave the device. Never present an unimplemented capability as functional, add placeholder toggles or invent statistics.
 
-Follow the [roadmap](docs/roadmap.md) in order and stop at every review gate. The productivity extension to Slice 3 runs from 3A through 3F. Slices 4, 5 and 6 retain their original scope and numbering. The sibling `grace/` checkout stays read-only. Slice 3E companion changes require a separately reviewed Grace branch and checkout. Use Tauri 2, Svelte 5, TypeScript, Vite, Rust/SQLite and MV3 extensions.
+Follow the [roadmap](docs/roadmap.md) in order and stop at every review gate. The productivity extension to Slice 3 runs from 3A through 3F. Slices 4, 5 and 6 retain their original scope and numbering. The sibling `grace/` checkout stays read-only. Grace owns work sessions. Companion changes in 3D and 3E require a separately reviewed Grace branch and checkout. Use Tauri 2, Svelte 5, TypeScript, Vite, Rust/SQLite and MV3 extensions.
 
 ## Design contract
 

@@ -40,17 +40,17 @@ Run the shell gate, capture native renders at 960×640, around the 635px breakpo
 
 See the [3C review procedure and evidence](design/productivity/3c-review.md) for candidate limits and reproduction steps.
 
-### 3D — Dashboard and sessions
+### 3D — Start a Grace session from focus.
 
-`feature/productivity-3d-dashboard-sessions` adds Home, named presets, Start now, one-off schedules and selected-weekday schedules. Scheduled starts run while focus. is open or minimized. Keep one active session. Skip overlapping and missed starts, and process a repeated local time once. Test sleep, restart, DST and disconnected profiles, including expiry without desktop contact.
+Grace owns the session profile, timer, phase changes and session controls. A request from focus. opens or brings the installed Grace application forward, then starts the requested session through Grace's own controller. Grace confirms the outcome. Launching its window alone is insufficient to qualify the start. The standalone focus. session candidate was stopped and is outside the revised delivery path.
 
-The expiring overlay can only tighten site rules. Apply it separately from saved policy and restore the latest baseline, including edits made during a session. Extensions enforce expiry without waiting for the desktop. Grade enforcement only from profiles with the required grants that acknowledged the active policy. Preserve all Slice 3 Pause/Block guards and disclose qualified behavior accurately, including the Chromium worker limitation. Verify normal guarded behavior as well as fixture paths.
+Build the start interface on a separate, reviewed Grace branch and checkout. The existing optional Grace WebSocket can report timer state. The installed version inspected on November 22, 2026 does not expose a supported external start command. Use an explicit local, opt-in interface with idempotent requests. A repeated request or an already-running unrelated Grace session must not toggle, restart, or replace the timer. Exercise cold launch, a running window, a missing or incompatible build, and rejected and duplicate requests against both exact candidate commits with disposable data.
 
-Review Home’s visible work actions and keyboard focus, the centered Home button, labeled Sites and right-hand Stats and Settings, and the corresponding macOS native drag exclusions. Reading appears when the 3F integration is configured. Do not expose a placeholder in 3D.
+The focus. entry point uses the approved shell and existing visual language. Present any new visual treatment for approval before implementing it. Keep the existing site-mark correction.
 
-### 3E — Grace timer
+### 3E — Grace session coordination
 
-`feature/productivity-3e-grace-timer` adds optional paired local timer start with a versioned, idempotent, timer-only contract. Implement the Grace side on its own reviewed companion branch and dedicated checkout. Keep the sibling reference checkout untouched. focus. owns schedules and policy; Grace owns the timer and phase. Release the session overlay during breaks. Verify duplicates, busy timer, missing app, offline and reconnect. Review and test both exact candidate SHAs together.
+Keep one-off and selected-weekday schedules in focus. While focus. is running or minimized, a due schedule sends the same start request as a manual launch. Skip elapsed or overlapping starts and deduplicate repeated local times. Grace owns session timing and phase transitions. Use Grace's authoritative state for any browser coordination. Apply any separately authorized session rules as an expiring layer over focus. site settings, only in profiles with exact-origin grants. Preserve Pause/Block availability guards. Verify missing and disconnected Grace, duplicate and overlapping requests, phase changes, and local data and policy recovery at the end of work.
 
 ### 3F — Glance Reading
 

@@ -2,7 +2,7 @@
 
 # Productivity desktop implementation plan and OMP handoff
 
-The image is the approved visual target. It depicts a future work session. The [design contract](../../../DESIGN.md) defines the visual rules, the [roadmap](../../roadmap.md) owns slice scope and acceptance, and the [reference index](references/README.md) records source artwork and digests.
+The image is the approved visual target. It depicts the visual direction for a future work session. Start the session from focus. and run it in the Grace application. See the roadmap for the revised 3D and 3E acceptance gates, and obtain approval before introducing new visual treatments. The [design contract](../../../DESIGN.md) defines the visual rules, the [roadmap](../../roadmap.md) owns slice scope and acceptance, and the [reference index](references/README.md) records source artwork and digests.
 
 ## Slice 3A candidate
 
