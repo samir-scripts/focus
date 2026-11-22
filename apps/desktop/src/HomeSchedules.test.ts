@@ -2,11 +2,12 @@
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import HomeSchedules from './HomeSchedules.svelte';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => {} }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
 
 beforeEach(() => {
   // JSDOM has no native dialog lifecycle or Escape default action.
@@ -25,6 +26,7 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
   vi.unstubAllGlobals();
+  vi.mocked(listen).mockReset();
 });
 
 async function openSchedule(save = Promise.resolve()) {
@@ -67,4 +69,48 @@ it('keeps the calendar open on Escape while a save is pending', async () => {
   expect(screen.getByRole('dialog')).toBe(dialog);
   resolve();
   await waitFor(() => expect(document.activeElement).toBe(opener));
+});
+
+it('refreshes completed schedules on becoming visible and stops listening after leaving Home', async () => {
+  let completed = false;
+  const unlisten = vi.fn();
+  vi.mocked(listen).mockResolvedValueOnce(unlisten);
+  vi.mocked(invoke).mockImplementation(async command => {
+    if (command === 'scheduling_available') return true;
+    if (command !== 'list_schedules') throw new Error(command);
+    return completed ? [] : [{
+      schedule: { id: 'ffcdaf8e-9025-4e0b-a01a-a98e3c1a8375', date: '2033-05-18', time: '03:33', zone: 'UTC', weekdays: null },
+      nextAt: 2_000_000_000, outcome: null,
+    }];
+  });
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  try {
+    const { unmount } = render(HomeSchedules);
+    const upcoming = await screen.findByRole('button', { name: /^Edit / });
+    completed = true;
+    await fireEvent(document, new Event('visibilitychange'));
+    expect(screen.getByRole('button', { name: /^Edit / })).toBe(upcoming);
+    visibility.mockReturnValue('visible');
+    await fireEvent(document, new Event('visibilitychange'));
+    expect(await screen.findByText('No scheduled starts yet.')).toBeTruthy();
+    unmount();
+    expect(unlisten).toHaveBeenCalledOnce();
+    vi.mocked(invoke).mockClear();
+    await fireEvent(document, new Event('visibilitychange'));
+    expect(invoke).not.toHaveBeenCalled();
+  } finally {
+    visibility.mockRestore();
+  }
+});
+
+it('unsubscribes even if native registration finishes after leaving Home', async () => {
+  const { promise, resolve } = Promise.withResolvers<() => void>();
+  vi.mocked(listen).mockReturnValueOnce(promise);
+  vi.mocked(invoke).mockResolvedValue(false);
+  const { unmount } = render(HomeSchedules);
+  await screen.findByText('Grace scheduling is available only on macOS.');
+  unmount();
+  const unlisten = vi.fn();
+  resolve(unlisten);
+  await waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
 });

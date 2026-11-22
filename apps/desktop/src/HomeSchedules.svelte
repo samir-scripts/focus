@@ -38,8 +38,18 @@
       if (current) stop = unlisten;
       else unlisten();
     }, () => {});
+    const refreshOnRestore = () => {
+      if (available && document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', refreshOnRestore);
     const timer = setInterval(() => { if (available) void refresh(); }, 30_000);
-    return () => { current = false; ++request; stop?.(); clearInterval(timer); };
+    return () => {
+      current = false;
+      ++request;
+      stop?.();
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshOnRestore);
+    };
   });
 
   function create(event: MouseEvent & { currentTarget: HTMLButtonElement }) {
