@@ -1,0 +1,6 @@
+canvas.typewriter {
+  touch-action: none;
+  cursor: grab;
+}
+canvas.typewriter[data-over-key='true'] { cursor: pointer; }
+canvas.typewriter[data-dragging='true'] { cursor: grabbing; }

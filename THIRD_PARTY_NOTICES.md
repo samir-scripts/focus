@@ -46,6 +46,8 @@ The vector paper grain and seeded particle shapes are original artwork from the 
 
 The Cobalt typewriter illustration adapts the [Grab3D Typewriter](https://grab3d.com/models/electronics/typewriter/) by Grab3D, published in Germany under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/). focus. reworked the casing, keycaps, platen knobs and paper geometry and replaced the original textures with new flat ink shading, screening and grain. See the [source notice, pinned GLB and render recipe](docs/design/productivity/typewriter/README.md).
 
+The standalone 3D.2 typewriter preview uses [Three.js 0.184.0](https://github.com/mrdoob/three.js/tree/r184), copyright © 2010–2026 three.js authors, under the [MIT license](https://github.com/mrdoob/three.js/blob/r184/LICENSE). Its offline HTML includes the full license. The keyboard's printed legends are rasterized from the project's Focus Bitmap Regular face. [Viewer provenance and recipes](docs/design/productivity/typewriter/README.md#slice-3d2--standalone-interactive-preview).
+
 ## Mona Sans and Mona Sans Mono
 
 The bundled variable WOFF2 fonts were copied from the sibling Grace project, whose font provenance identifies the GitHub Mona Sans project: https://github.com/github/mona-sans. The fonts are distributed under the following license.

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-palette-light="cobalt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>focus. | Typewriter preview</title>
+  <link rel="stylesheet" href="./preview.css">
+</head>
+<body>
+  <main>
+    <h1>Cobalt typewriter</h1>
+    <div id="art">
+      <img alt="Blue typewriter floating over a pink disc" width="208" height="192" src="../src/typewriter/assets/rest.png">
+      <canvas class="typewriter" role="application" aria-label="Cobalt typewriter" aria-describedby="instructions" tabindex="0" hidden></canvas>
+    </div>
+    <div id="controls" hidden>
+      <p id="instructions">Drag to orbit. Tap a key to press it. With the viewer focused, use the arrows and physical keys. Esc resets the view.</p>
+      <button id="reset" type="button">Reset view</button>
+      <button id="pause" type="button" aria-pressed="false">Pause toner</button>
+    </div>
+    <p id="unavailable" hidden>Interactive 3D is unavailable. Showing a still.</p>
+    <output class="visually-hidden" aria-live="polite"></output>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
