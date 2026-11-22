@@ -47,10 +47,6 @@
   let revealSite = $state(false);
   let appearance = $state(readAppearance());
   let windowHidden = $state(document.hidden);
-  const staticSiteInk = window.matchMedia?.('(prefers-reduced-motion: reduce), (forced-colors: active)');
-  let siteInk = $state.raw<{ row: string | null; pass: number }>();
-  let inkPass = 0;
-  let hoveredInk: EventTarget | null = null;
   let openPalette = $state<PaletteMode | null>(null);
   let heading: HTMLHeadingElement | undefined = $state();
   let browserError = $state('');
@@ -81,7 +77,6 @@
         if (target && next.open.siteId) siteId = next.open.siteId;
         revealPage = false;
         revealSite = false;
-        siteInk = undefined;
         page = target ? 'Sites' : 'Settings';
         if (target) await focusSiteSelection();
         else {
@@ -102,43 +97,6 @@
     const timer = window.setInterval(refresh, 1000);
     return () => window.clearInterval(timer);
   });
-
-  onMount(() => {
-    const stop = () => { if (staticSiteInk?.matches) siteInk = undefined; };
-    staticSiteInk?.addEventListener('change', stop);
-    return () => staticSiteInk?.removeEventListener('change', stop);
-  });
-
-  function printSiteInk(row: string | null) {
-    if (appearance.tonerPaused || windowHidden || staticSiteInk?.matches) return;
-    siteInk = { row, pass: ++inkPass };
-  }
-
-  function finishSiteInk(event: AnimationEvent) {
-    if (siteInk && event.target instanceof HTMLElement && event.target.dataset.siteInkPass === String(siteInk.pass)) {
-      siteInk = undefined;
-    }
-  }
-
-  function hoverSiteInk(event: PointerEvent, row: string | null) {
-    // Layout can dispatch pointerenter without a pointer move (e.g. keyboard navigation).
-    if (hoveredInk === event.currentTarget || event.pointerType === 'touch') return;
-    hoveredInk = event.currentTarget;
-    printSiteInk(row);
-  }
-
-  function leaveSiteInk(event: PointerEvent) {
-    if (hoveredInk === event.currentTarget) hoveredInk = null;
-  }
-
-  function selectSite(id: string, event: MouseEvent) {
-    if (siteId === id) return;
-    revealSite = event.detail > 0;
-    siteId = id;
-    // A quick enter/click is one gesture; keep its row impression rather than starting a second one.
-    if (!revealSite) siteInk = undefined;
-    else if (siteInk?.row !== id) printSiteInk(null);
-  }
 
   async function focusSiteSelection() {
     await tick();
@@ -218,7 +176,6 @@
       siteId = id;
       adding = false;
       revealSite = false;
-      siteInk = undefined;
       hostInput = '';
       await focusSiteSelection();
     } catch {
@@ -279,7 +236,6 @@
 
   function setTonerPaused(paused: boolean) {
     appearance.tonerPaused = paused;
-    if (paused) siteInk = undefined;
     saveAppearance('tonerPaused', paused);
   }
 
@@ -287,7 +243,6 @@
     if (next === page) return;
     revealPage = event.detail > 0;
     revealSite = false;
-    siteInk = undefined;
     openPalette = null;
     page = next;
     await tick();
@@ -295,10 +250,7 @@
   }
 </script>
 
-<svelte:document onvisibilitychange={() => {
-  windowHidden = document.hidden;
-  if (windowHidden) siteInk = undefined;
-}} />
+<svelte:document onvisibilitychange={() => windowHidden = document.hidden} />
 
 {#if pendingPair}
   {#key pendingPair.id}
@@ -306,8 +258,7 @@
   {/key}
 {/if}
 
-<div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}
-  onanimationend={finishSiteInk}>
+<div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
     <PaperStock />
     <div class="brand"><TypewriterMark size={22} /> <span class="toner-type">focus.</span></div>
@@ -340,11 +291,12 @@
         <ul bind:this={libraryList}>
           {#each sites as entry (entry.id)}
             <li>
-              <button type="button" aria-label={entry.label} aria-pressed={siteId === entry.id}
-                onpointermove={(event) => hoverSiteInk(event, entry.id)} onpointerleave={leaveSiteInk}
-                onclick={(event) => selectSite(entry.id, event)}>
-                <span class="site-mark"><SiteMark id={entry.id} size={20} printed
-                  inkPass={siteInk?.row === entry.id ? siteInk.pass : undefined} /></span>
+              <button type="button" aria-label={entry.label} aria-pressed={siteId === entry.id} onclick={(event) => {
+                if (siteId === entry.id) return;
+                revealSite = event.detail > 0;
+                siteId = entry.id;
+              }}>
+                <span class="site-mark"><SiteMark id={entry.id} size={20} /></span>
                 <span class="library-label">{entry.label}<small>{entry.hostname}</small></span>
               </button>
             </li>
@@ -381,9 +333,8 @@
           {#if page === 'Sites'}
             <header class="page-heading site-title-row">
               {#key site.id}
-                <div class="site-heading" role="presentation" onpointermove={(event) => hoverSiteInk(event, null)} onpointerleave={leaveSiteInk}>
-                  <span class="site-mark"><SiteMark id={site.id} size={27} printed
-                    inkPass={siteInk?.row === null ? siteInk.pass : undefined} /></span>
+                <div class="site-heading">
+                  <span class="site-mark"><SiteMark id={site.id} size={27} /></span>
                   <h1 class="toner-type" tabindex="-1" bind:this={heading}><span class:reveal={revealPage || revealSite}>{site.label}</span></h1>
                   <p class="host" class:reveal={revealPage || revealSite}>{site.hostname}</p>
                 </div>

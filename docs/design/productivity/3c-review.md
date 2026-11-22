@@ -49,6 +49,10 @@ Using Superpowers and Ask Matt oriented the read-only prewalk; Surgical Patch an
 
 The independent review also opened a site with the previous detail pane scrolled. The selected rail row and the focused heading are both visible after navigation. The motion check covers this case.
 
+## Site-mark correction
+
+The desktop and popup now show the monochrome site SVG with the established theme colors. The footage above records the earlier treatment. The site-mark speck and its separate animation were removed after visual feedback.
+
 ## Reproduce with disposable data
 
 1. Build the candidate and the base in separate worktrees with `npm ci` and `npm run build --workspace @focus/desktop`. Do not launch the default app identity or point the app at existing data.

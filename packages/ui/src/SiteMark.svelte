@@ -1,7 +1,5 @@
 <script lang="ts">
-  let { id, size = 17, printed = false, inkPass }: {
-    id: string; size?: number; printed?: boolean; inkPass?: number;
-  } = $props();
+  let { id, size = 17 }: { id: string; size?: number } = $props();
 
   // Font Awesome Free 6.7.2 brand icons; see THIRD_PARTY_NOTICES.md.
   const marks: Record<string, { viewBox: string; path: string }> = {
@@ -18,47 +16,18 @@
   let mark = $derived(marks[id]);
 </script>
 
-<span class="mark" aria-hidden="true">
-  {#if printed}
-    {#key inkPass}
-      <span class="ink" data-site-ink-pass={inkPass}></span>
-    {/key}
-  {/if}
-  {#if mark}
-    <svg width={size} height={size} viewBox={mark.viewBox} fill="currentColor" aria-hidden="true" focusable="false"><path d={mark.path} /></svg>
-  {:else if id === 'linkedin'}
-    <!-- A neutral domain monogram, not the LinkedIn logo. -->
-    <svg class="original-mark" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-      <path d="M2 5h3v11h6v3H2zm12 0h8v2.5h-2.5v9H22V19h-8v-2.5h2.5v-9H14z" />
-    </svg>
-  {:else}
-    <svg class="original-mark" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z" /></svg>
-  {/if}
-</span>
+{#if mark}
+  <svg width={size} height={size} viewBox={mark.viewBox} fill="currentColor" aria-hidden="true" focusable="false"><path d={mark.path} /></svg>
+{:else if id === 'linkedin'}
+  <!-- A neutral domain monogram, not the LinkedIn logo. -->
+  <svg class="original-mark" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+    <path d="M2 5h3v11h6v3H2zm12 0h8v2.5h-2.5v9H22V19h-8v-2.5h2.5v-9H14z" />
+  </svg>
+{:else}
+  <svg class="original-mark" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z" /></svg>
+{/if}
 
 <style>
-  .mark { position: relative; isolation: isolate; display: inline-grid; flex: none; }
-
-  /* Screen the separate fringe, not the licensed path or the readable mark. */
-  .ink {
-    position: absolute; z-index: -1; pointer-events: none;
-    inset-block-end: -1px; inset-inline-end: -2px; inline-size: 11px; block-size: 5px;
-    background: color-mix(in srgb, var(--secondary) 84%, currentColor);
-    clip-path: polygon(25% 0, 100% 0, 100% 40%, 65% 100%, 0 100%);
-    mask: radial-gradient(circle at 1px 1px, #000 .65px, transparent .9px) 0 0 / 2px 2px;
-    opacity: .36;
-  }
-
-  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
-    .ink[data-site-ink-pass] { animation: site-ink var(--motion-view) var(--ease); }
-    @keyframes site-ink {
-      22% { opacity: .94; }
-    }
-  }
-  @media (forced-colors: active) {
-    .ink { display: none; }
-  }
-
   /* Only the original monograms and symbols take the printed screen. */
   @media (forced-colors: none) {
     .original-mark {
