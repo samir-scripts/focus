@@ -469,14 +469,33 @@
   }
 
   @media (forced-colors: none) {
-    :global(html) { scrollbar-color: var(--ink) var(--canvas); }
-    .toolbar.native-mac + .workspace { scrollbar-color: var(--ink) var(--canvas); }
-  }
-  @supports not (scrollbar-color: auto) {
-    @media (forced-colors: none) {
-      :global(html::-webkit-scrollbar), .toolbar.native-mac + .workspace::-webkit-scrollbar { background: var(--canvas); }
-      :global(html::-webkit-scrollbar-thumb), .toolbar.native-mac + .workspace::-webkit-scrollbar-thumb { background: var(--ink); }
-      :global(html::-webkit-scrollbar-track), .toolbar.native-mac + .workspace::-webkit-scrollbar-track { background: var(--canvas); }
+    :global(html) { --scrollbar-track: var(--canvas); }
+    .library > ul { --scrollbar-track: var(--rail); }
+
+    /* Prefer the WebKit parts where available so the thumb can be inset
+       without shrinking its hit area. A non-auto scrollbar-color overrides them. */
+    @supports selector(::-webkit-scrollbar) {
+      :global(html::-webkit-scrollbar),
+      :is(.workspace, .library > ul, .with-library > main)::-webkit-scrollbar {
+        width: 14px;
+        height: 14px;
+        background: var(--scrollbar-track);
+      }
+      :global(html::-webkit-scrollbar-track),
+      :is(.workspace, .library > ul, .with-library > main)::-webkit-scrollbar-track {
+        background: var(--scrollbar-track);
+      }
+      :global(html::-webkit-scrollbar-thumb),
+      :is(.workspace, .library > ul, .with-library > main)::-webkit-scrollbar-thumb {
+        border: 3px solid transparent;
+        border-radius: var(--radius-dialog);
+        background: var(--edge) padding-box;
+      }
+    }
+    @supports not selector(::-webkit-scrollbar) {
+      :global(html), :is(.workspace, .library > ul, .with-library > main) {
+        scrollbar-color: var(--edge) var(--scrollbar-track);
+      }
     }
   }
 

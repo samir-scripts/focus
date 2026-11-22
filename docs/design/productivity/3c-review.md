@@ -19,6 +19,14 @@ Local, untracked directory: `artifacts/review/productivity-3c/`. `SHA256SUMS` co
 
 The shell gate passed: `npm ci`, `npm run check`, `npm run test:unit` (76), `npm run build --workspace @focus/desktop`, `cargo test --locked --workspace` (34), `npm run tauri -- dev` startup with a disposable identifier and `node apps/desktop/tools/check-motion.mjs`. Both archives passed `unzip -t`. The Linux shared-rule and entry gates were not run: enforcement and native policy are unchanged. See retained logs for failed probes and successful reruns, including headless Chromium's failure to background its tab (native minimization supplied visibility evidence).
 
+## Scrollbar follow-up
+
+The Sites list uses a rail-colored track; the detail, workspace and document use canvas-colored tracks. All use the shared `--edge` thumb. WebKit-style parts give an 8px painted thumb in a 14px track; engines that only support `scrollbar-color` keep native sizing. Forced colors keep native styling.
+
+See `artifacts/review/productivity-3c/scrollbar/` for the follow-up commit, checks and hashed native evidence. `before/` and `after/` compare Light and Dark Cobalt at 960×390 (both Sites columns scroll, with 27 entries) and 635×640 (the workspace scrolls). On macOS 15.8.2, sRGB samples measured 4.75–6.37:1 thumb-to-track contrast. Dragging from the unpainted inset moved each scrollport independently; the toolbar and wide Add site action stayed fixed, and the scrollports did not overflow horizontally. The Chromium motion check exercises these scrollbar styles and the forced-colors reset; macOS WKWebView did not expose forced colors.
+
+`after/guest/` refreshes all six theme combinations, the focused Add site form at 635px and 200%, and both 960×640 Cobalt motion clips (9.8s each). On the disposable macOS 15.7.7 guest, the two OS Reduce Motion captures were identical eight seconds apart. At 200%, the workspace measured 466 CSS px for both client and scroll widths; the toolbar still spanned the 480 CSS px viewport.
+
 ## Reproduce with disposable data
 
 1. Build the candidate and the base in separate worktrees with `npm ci` and `npm run build --workspace @focus/desktop`. Do not launch the default app identity or point the app at existing data.

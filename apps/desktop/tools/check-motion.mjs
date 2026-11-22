@@ -81,6 +81,44 @@ try {
   assert.equal(scroll.toolbarWidth, scroll.viewportWidth, 'The native toolbar must span the viewport');
   console.log('The native toolbar spans the viewport while the workspace scrolls.');
   assert.equal(await evaluate('document.scrollingElement.scrollWidth'), 480, 'Sites must not scroll horizontally at narrow widths');
+  const scrollbar = selector => `(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    const track = getComputedStyle(element, '::-webkit-scrollbar-track');
+    const thumb = getComputedStyle(element, '::-webkit-scrollbar-thumb');
+    const width = getComputedStyle(element, '::-webkit-scrollbar').width;
+    return {
+      width, track: track.backgroundColor, thumb: thumb.backgroundColor,
+      inset: parseFloat(thumb.borderLeftWidth) + parseFloat(thumb.borderRightWidth),
+      clip: thumb.backgroundClip, nativeColor: getComputedStyle(element).scrollbarColor,
+      surface: getComputedStyle(element === document.documentElement ? document.body
+        : element.matches('.workspace') ? element.querySelector('main') : element).backgroundColor,
+      overflows: element.scrollHeight > element.clientHeight,
+      fitsWidth: element.scrollWidth === element.clientWidth,
+    };
+  })()`;
+  const luminance = color => color.match(/\d+/g).slice(0, 3).map(channel => {
+    const value = Number(channel) / 255;
+    return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+  }).reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0);
+  async function checkScrollbar(selector, expectOverflow = true) {
+    const { width, track, thumb, inset, clip, surface, overflows, fitsWidth } = await evaluate(scrollbar(selector));
+    if (expectOverflow) assert(overflows, `${selector} must exercise vertical overflow`);
+    assert(fitsWidth, `${selector} must not overflow horizontally`);
+    assert.equal(track, surface, `${selector} scrollbar track must match its surface`);
+    const [dark, light] = [luminance(track), luminance(thumb)].sort((a, b) => a - b);
+    assert((light + .05) / (dark + .05) >= 3, `${selector} scrollbar thumb must contrast with its track`);
+    const pixels = parseFloat(width);
+    assert(clip === 'padding-box' && pixels >= 14 && pixels - inset >= 7 && pixels - inset <= 9,
+      `${selector} must have an inset thumb on a grab-friendly track`);
+  }
+  await checkScrollbar('.workspace');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 960, height: 200, deviceScaleFactor: 1, mobile: false
+  });
+  await checkScrollbar('.library > ul');
+  await checkScrollbar('.with-library > main');
+  await checkScrollbar('html', false);
+  console.log('Desktop scrollbars contrast against their own surfaces without horizontal overflow.');
   await command('Emulation.setDeviceMetricsOverride', {
     width: 960, height: 640, deviceScaleFactor: 1, mobile: false
   });
@@ -187,6 +225,11 @@ try {
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
   await until("getComputedStyle(document.querySelector('main .stock')).display === 'none'");
   assert.equal(await evaluate(`${sitesArt}.getBoundingClientRect().width`), 0, 'Forced colors suppress the poster inset');
+  for (const selector of ['html', '.workspace', '.library > ul', '.with-library > main']) {
+    const { width, nativeColor } = await evaluate(scrollbar(selector));
+    assert.equal(width, 'auto', `${selector} must use native scrollbar sizing in forced colors`);
+    assert.equal(nativeColor, 'auto', `${selector} must leave scrollbar colors to the browser in forced colors`);
+  }
   await until(grain + '.length === 0');
   await until(ink + '.length === 0');
   await until(drift + '.length === 0');
