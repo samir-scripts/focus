@@ -39,3 +39,9 @@ Track the complete handoff plan at docs/design/productivity/3e-scheduling-plan.m
 - Commit focused changes. Report starting SHA, candidate SHA and tree, red/green logs, builds, native evidence and blockers, then exit to the tmux shell. Codex independently reviews the full diff and repeats the native minimized launch from the exact reviewed candidate. Codex alone fast-forwards the local integration branch after gates pass and verifies its tree. No push, promotion or next-slice branch.
 
 3E covers local scheduling and Grace start. Preserve browser-policy guards and leave phase-aware policy coordination for separate qualification. 3F retains opt-in Glance Reading, user-added RSS, bundled or self-hosted support and upstream update/rollback. A future Glance calendar can display focus. schedules from the same records. Streaks require separate opt-in approval and verified Grace completion; an acknowledgement only confirms a start.
+
+## Local scheduling behavior
+
+Create, edit or remove schedules under **Schedules** on Home. The date and time are interpreted in the time zone shown in the dialog, even after the system changes zones. A weekly schedule may start later than its selected date if that weekday is not checked. Keep focus. open or minimized. Missed starts do not run the next time the app opens.
+
+Only a Grace acknowledgement confirms a launch. If a scheduled start was not approved, use **Start in Grace** once to complete native confirmation. An unconfirmed start is not retried automatically; check Grace first, then edit the schedule if you want another attempt.

@@ -5,6 +5,7 @@ mod titlebar;
 mod commands;
 mod browser_setup;
 mod grace_launch;
+mod scheduling;
 #[cfg(target_os = "macos")]
 mod focus_launch_identity;
 
@@ -22,6 +23,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::browser_state,
             grace_launch::start_grace,
+            scheduling::scheduling_available,
+            scheduling::list_schedules,
+            scheduling::preview_schedule,
+            scheduling::save_schedule,
+            scheduling::delete_schedule,
             commands::scan_browsers,
             commands::start_browser_installation,
             commands::remove_browser_installation,
@@ -36,8 +42,7 @@ fn main() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             titlebar::install(app)?;
-            #[cfg(not(target_os = "macos"))]
-            let _ = app;
+            scheduling::run(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

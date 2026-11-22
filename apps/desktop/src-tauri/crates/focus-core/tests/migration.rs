@@ -43,7 +43,8 @@ fn v1_upgrade_preserves_rule_and_pairing_without_granting_hosts() {
     assert!(!original.sites[0].grayscale);
     let schema = Connection::open(&path).unwrap();
     let version: u32 = schema.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
-    assert_eq!(version, 4);
+    assert_eq!(version, 5);
+    assert!(db.schedules().unwrap().is_empty());
     let saved: (String, bool) = schema.query_row("SELECT entry, grayscale FROM site_policy WHERE site_id='youtube'", [], |row| {
         Ok((row.get(0)?, row.get(1)?))
     }).unwrap();
@@ -52,4 +53,42 @@ fn v1_upgrade_preserves_rule_and_pairing_without_granting_hosts() {
     let state = db.state().unwrap();
     assert_eq!(state.profiles[0].label, "Local");
     assert!(state.profiles[0].origins.is_empty());
+}
+
+#[test]
+fn upgrading_a_copy_of_v4_preserves_preferences_policy_and_pairing() {
+    use sha2::{Digest, Sha256};
+    let dir = tempfile::tempdir().unwrap();
+    let original = dir.path().join("3d3.sqlite3");
+    let old = Connection::open(&original).unwrap();
+    for sql in [
+        include_str!("../migrations/001.sql"), include_str!("../migrations/002.sql"),
+        include_str!("../migrations/003.sql"), include_str!("../migrations/004.sql"),
+    ] {
+        old.execute_batch(sql).unwrap();
+    }
+    old.execute_batch("
+        INSERT INTO site VALUES ('youtube','YouTube');
+        INSERT INTO site_policy(site_id, revision, grayscale) VALUES ('youtube',7,1);
+        INSERT INTO site_rule VALUES ('youtube','youtube.hide-shorts',1);
+        UPDATE meta SET revision=7, hold_seconds=60, two_step_confirmation=1;
+        PRAGMA user_version=4;
+    ").unwrap();
+    let id = "9dde51fb-a37a-4e76-9d7f-4dfcb02ddb90";
+    old.execute("INSERT INTO profile(id,label,browser,token_hash) VALUES(?1,'Local','firefox',?2)",
+        rusqlite::params![id, Sha256::digest(b"token").as_slice()]).unwrap();
+    drop(old);
+    let copy = dir.path().join("copy.sqlite3");
+    std::fs::copy(original, &copy).unwrap();
+    let mut db = Db::open(&copy).unwrap();
+    assert!(db.schedules().unwrap().is_empty());
+    let state = db.state().unwrap();
+    assert_eq!(state.revision, 7);
+    assert!(state.hide_shorts);
+    assert!(state.sites.iter().any(|site| site.grayscale));
+    assert_eq!(db.hello(id, true, "token", "test-session", 4).unwrap(), 7);
+    let sql = Connection::open(copy).unwrap();
+    let prefs: (u32, bool) = sql.query_row("SELECT hold_seconds, two_step_confirmation FROM meta", [],
+        |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    assert_eq!(prefs, (60, true));
 }

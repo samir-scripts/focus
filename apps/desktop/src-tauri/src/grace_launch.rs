@@ -16,6 +16,21 @@ pub(crate) enum Outcome {
     Unsupported,
 }
 
+impl Outcome {
+    pub(crate) fn code(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::Busy => "busy",
+            Self::Rejected => "rejected",
+            Self::Unconfirmed => "unconfirmed",
+            Self::NotApproved => "notApproved",
+            Self::Missing => "missing",
+            Self::Incompatible => "incompatible",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
 #[tauri::command]
 pub(crate) async fn start_grace(app: AppHandle) -> Outcome {
     tauri::async_runtime::spawn_blocking(move || launch(&app, Uuid::new_v4(), true))

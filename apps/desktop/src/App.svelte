@@ -15,6 +15,7 @@
   import { graceMessage, startGraceSession, type GraceOutcome } from './grace';
   import graceMark from './assets/grace-mark.svg';
   import HomeTypewriter from './typewriter/HomeTypewriter.svelte';
+  import HomeSchedules from './HomeSchedules.svelte';
 
   let {
     browserBridge = isTauri() ? nativeBrowserBridge : null,
@@ -374,6 +375,7 @@
                 <HomeTypewriter paused={appearance.tonerPaused} />
               {/if}
             </div>
+            {#if isTauri()}<HomeSchedules />{/if}
           {:else if page === 'Sites'}
             <header class="page-heading site-title-row">
               {#key site.id}

@@ -1,4 +1,5 @@
 use crate::model::{self, Accessibility, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
+use crate::schedule::Schedule;
 use rusqlite::{params, types::ValueRef, Connection, ErrorCode, OptionalExtension, TransactionBehavior::Immediate};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, thread, time::{Duration, Instant}};
@@ -129,8 +130,70 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 4 { return Err(Error::Database); }
+        if version(&db)? == 4 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 4 {
+                tx.execute_batch(include_str!("../migrations/005.sql"))?;
+                tx.pragma_update(None, "user_version", 5)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 5 { return Err(Error::Database); }
         Ok(Self(db, false))
+    }
+
+    pub fn schedules(&self) -> Result<Vec<Schedule>> {
+        let mut stmt = self.0.prepare("SELECT id, first_date, wall_time, zone, weekdays FROM grace_schedule")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Schedule {
+                id: Uuid::from_bytes(row.get(0)?),
+                date: row.get(1)?,
+                time: row.get(2)?,
+                zone: row.get(3)?,
+                weekdays: row.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn save_schedule(&mut self, schedule: &Schedule) -> Result<()> {
+        self.0.execute(
+            "INSERT INTO grace_schedule VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET first_date=excluded.first_date,
+             wall_time=excluded.wall_time, zone=excluded.zone, weekdays=excluded.weekdays",
+            params![schedule.id.as_bytes(), schedule.date, schedule.time, schedule.zone, schedule.weekdays],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_schedule(&mut self, id: Uuid) -> Result<()> {
+        self.0.execute("DELETE FROM grace_schedule WHERE id=?1", [id.as_bytes()])?;
+        Ok(())
+    }
+
+    pub fn claim_schedule(&mut self, schedule: &Schedule, due: i64) -> Result<Option<Uuid>> {
+        let id = Uuid::new_v4();
+        let inserted = self.0.execute(
+            "INSERT INTO grace_occurrence(schedule_id,due,request_id)
+             SELECT id,?6,?7 FROM grace_schedule WHERE id=?1 AND first_date=?2
+             AND wall_time=?3 AND zone=?4 AND weekdays IS ?5
+             ON CONFLICT(schedule_id,due) DO NOTHING",
+            params![schedule.id.as_bytes(), schedule.date, schedule.time, schedule.zone,
+                schedule.weekdays, due, id.as_bytes()],
+        )?;
+        Ok((inserted != 0).then_some(id))
+    }
+
+    pub fn finish_schedule_occurrence(&mut self, id: Uuid, outcome: &str) -> Result<()> {
+        self.0.execute("UPDATE grace_occurrence SET outcome=?2 WHERE request_id=?1", params![id.as_bytes(), outcome])?;
+        Ok(())
+    }
+
+    pub fn latest_schedule_outcome(&self, id: Uuid) -> Result<Option<String>> {
+        Ok(self.0.query_row(
+            "SELECT outcome FROM grace_occurrence WHERE schedule_id=?1 ORDER BY due DESC LIMIT 1",
+            [id.as_bytes()], |row| row.get(0),
+        ).optional()?)
     }
 
     pub fn policy(&self) -> Result<(u64, bool)> { policy(&self.0) }
