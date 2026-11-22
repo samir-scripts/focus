@@ -2,7 +2,7 @@
 
 ## Overview
 
-The desktop is a quiet workspace on printed stock. Give the poster composition room on Home, and keep editing, settings and data easy to scan. The [approved Cobalt Grace-launch dashboard](docs/design/productivity/references/approved-cobalt-grace-launch.png) is the 3D visual target. It supersedes the [historical timer comp](docs/design/productivity/references/approved-cobalt-dashboard.png). The [Dither UI native captures](docs/design/dither-ui/README.md#native-review) record the earlier shell. The [roadmap](docs/roadmap.md) owns slice boundaries.
+The desktop is a quiet workspace on printed stock. Give the poster composition room on Home, and keep editing, settings and data easy to scan. The [approved floating typewriter composition](docs/design/productivity/references/approved-cobalt-floating-typewriter.png) governs the artwork in the [3D.1–3D.3 plan](docs/design/productivity/3d-typewriter-plan.md). Keep the [original Grace-launch dashboard](docs/design/productivity/references/approved-cobalt-grace-launch.png) for the launch action and controls; the [earlier timer comp](docs/design/productivity/references/approved-cobalt-dashboard.png) is historical. The [Dither UI native captures](docs/design/dither-ui/README.md#native-review) record the earlier shell. The [roadmap](docs/roadmap.md) owns slice boundaries.
 
 ## Colors
 
@@ -16,7 +16,7 @@ Use the licensed Focus Bitmap family and local fallback for app-owned text, incl
 
 ## Layout
 
-- Use one canvas, flat sections, thin rules and compact headings. On Home, put the Grace launch action on open paper and the typewriter in a bounded art field. Grace provides the session timer, start and end controls. The dashboard reference depicts the visual direction. It does not define a timer or session editor in focus. Keep Reading collapsed during work when configured. Surface a problem only when the user needs to act. Never depict unavailable controls or fake session data in the app.
+- Use one canvas, flat sections, thin rules and compact headings. On Home, keep the Grace launch action on open paper and the typewriter in a bounded art field, clear of text, controls and feed rows. Grace provides the session timer, start and end controls; focus. does not duplicate them. Keep Reading collapsed during work when configured. Surface a problem only when the user needs to act. Never depict unavailable controls or fake session data in the app.
 - Keep the Sites library flat at 196px with a bold heading, 15px labels, rows at least 42px high, a 2px selection edge and neutral selected fill. Align marks with site names and put hostnames below them. Anchor **+ Add site** in the library using the existing designation flow. On wide Sites, Add site and a valid extension open request scroll only the rail, just enough to reveal the selected row, and focus the detail heading. Use smaller art in the wide Sites heading margin. Keep Browser access, Site entry and Content rules in flat rows with Pause options only for Pause where qualified. Track time belongs to Slice 5.
 - Keep actions visible and reachable at 960×640. At 635px and below, stack the library above the detail and reflow without horizontal scrolling. Verify the toolbar and actions at 200% zoom. Keep the popup a read-only one-column summary at 360px with a link to the desktop.
 
@@ -45,7 +45,9 @@ Capture matched stills and at least 7.2s of video per comparison at 100%. Inspec
 
 ## Shapes
 
-Keep the established 3px controls, 4px notices and 6px dialogs. Reserve the ring motif for Site entry. Keep the original offset-carriage typewriter mark as the small brand symbol. The future hero is original static art with a low front-right camera, distinct near keycaps, a separate spacebar and a sheet entering the platen.
+Keep the established 3px controls, 4px notices and 6px dialogs. Reserve the ring motif for Site entry. The offset-carriage toolbar mark is a separate brand symbol; leave it unchanged.
+
+Frame the whole small Cobalt typewriter from a low front-right angle, with a visible right sidewall, paper entering the roller and a separate spacebar. Its front slightly overlaps a stationary, near-circular, slightly flattened polygonal hot pink plate. The machine floats ±6 CSS px over 6 s. Both silhouettes have stepped raster edges; use hard facets, ordered dithering, heavier sidewall halftone and sparse dry toner. Keep ink vivid and bounded, and leave the light 3.6 s paper hiss quiet. Use the approved composition for framing, not its generated key symbols: use the four-row US QWERTY layout and attached bitmap legends defined in the plan.
 
 ## Components
 
@@ -59,5 +61,5 @@ Keep the established 3px controls, 4px notices and 6px dialogs. Reserve the ring
 ## Do's and Don'ts
 
 - Keep visible 2px focus rings with a 3px offset where geometry permits and protect the full target from clipping. Require 4.5:1 normal text contrast and 3:1 interactive boundary contrast, including the rendered unchecked native radios.
-- Use the supplied studies for art direction only. Keep their characters, watermarks and lettering out of the app. Ship local static art without a runtime 3D dependency.
+- Use the supplied studies for art direction only. Keep their characters, watermarks and lettering out of the app. Keep existing illustrations static until the standalone offline viewer is explicitly approved for Home. Then use the reviewed viewer and its matching local still on Home only; retain illustrations-off and motion settings. Ask the user before adding a new accent, mark or visual treatment.
 - Preserve the desktop as the rule editor and apply changes only in browser profiles with the required access. Pause and Block remain guarded in normal builds pending qualification.

@@ -38,7 +38,7 @@ cmp "$work/export/clay.png" "$src/review/clay.png"
 cmp "$work/export/comparison.png" "$src/review/comparison.png"
 ```
 
-The three PNGs reproduced byte for byte in a second render with network access denied on the qualification host. Other platforms and dependency versions were not qualified for identical bytes. The checker decodes all three PNGs and checks dimensions, open stock, the opaque white sheet, and coverage of the clay silhouette. The Blender recipe checks the imported island count and physical cap gaps. The art remains unreferenced by the runtime. No desktop UI, policy, or 3C–3F gates are implied by this check.
+The three PNGs reproduced byte for byte in a second render with network access denied on the qualification host. Other platforms and dependency versions were not qualified for identical bytes. The checker decodes all three PNGs and checks dimensions, open stock, the opaque white sheet, and coverage of the clay silhouette. The Blender recipe checks the imported island count and physical cap gaps. At the 3B gate the art was not referenced by the runtime; 3D later used the static hero on Home. This check does not qualify desktop UI or policy. See the [3D.1–3D.3 plan](../3d-typewriter-plan.md) for the later standalone viewer and Home review.
 
 ## Slice 3C — Sites inset
 

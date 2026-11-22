@@ -1,6 +1,6 @@
 # focus. roadmap
 
-Review in order. Each productivity slice starts from the newest reviewed local integration head and stops at its own gate. See the [OMP plan and handoff](design/productivity/omp-handoff.md) for branch and review procedure and [DESIGN.md](../DESIGN.md) for the visual target.
+Review in order. Each productivity slice starts from the newest reviewed local integration head and stops at its own gate. See the [OMP handoff](design/productivity/omp-handoff.md) for branch and review procedure, [DESIGN.md](../DESIGN.md) for the visual contract and the [3D.1–3D.3 implementation plan](design/productivity/3d-typewriter-plan.md) for the typewriter gates.
 
 ## Baseline through Slice 3
 
@@ -26,9 +26,9 @@ The same retained Chromium and Firefox ZIPs passed Linux shared-rule and two fre
 
 ### 3B — Typewriter art
 
-`feature/productivity-3b-typewriter-art` adapts the editable [Grab3D CC0 typewriter](https://grab3d.com/models/electronics/typewriter/) using its [manifest](https://grab3d.com/dl/typewriter/manifest.json). The inspected GLB SHA-256 is `7d03b0e4dfc7b04bde992eedd6be3d680062b49b59258a30096d33a6ca8189a1`. Inspection found 95 disconnected islands after weld. Verify separate keycap geometry in Blender before committing to the source. The fallback is [Jerd’s rigged CC0 FBX](https://opengameart.org/content/low-poly-typewriter), ZIP SHA-256 `8127d7447661c71f1bd87f334efe9cd2c38dcbf2ea528a967ee19d7125540cf3`, with bones `Key_1` through `Key_22` and `Space`.
+**Complete — static art.** `feature/productivity-3b-typewriter-art` adapted the [Grab3D CC0 typewriter](https://grab3d.com/models/electronics/typewriter/) ([source manifest](https://grab3d.com/dl/typewriter/manifest.json)). The vendored GLB SHA-256 is `7d03b0e4dfc7b04bde992eedd6be3d680062b49b59258a30096d33a6ca8189a1`. The Blender recipe recovered 95 islands after welding, including separate keycaps and spacebar. The [CC0 Jerd fallback](https://opengameart.org/content/low-poly-typewriter) was not needed.
 
-Track source, license, hash and an editable scene or reproducible import and render recipe. Review camera-matched clay and Cobalt exports side by side with the approved reference at actual size. Verify the low front-right camera, separate near spacebar and keycaps, paper meeting the platen, hard facets and bounded print treatment. Deliver local static art for later surfaces. No runtime 3D.
+3B delivered a local static print and no runtime 3D. The cropped export is the source for the existing Home illustration and Sites insets, not the target for the fully visible 3D.2 viewer.
 
 The [3B artwork and review evidence](design/productivity/typewriter/README.md) include the static export, offline Blender recipe, same-camera clay and hero-size comparison.
 
@@ -42,13 +42,21 @@ See the [3C review procedure and evidence](design/productivity/3c-review.md) for
 
 ### 3D — Start a Grace session from focus.
 
-Grace owns the session profile, timer, phase changes and session controls. A request from focus. opens or brings the installed Grace application forward, then starts the requested session through Grace's own controller. Grace confirms the outcome. Launching its window alone is insufficient to qualify the start. The standalone focus. session candidate was stopped and is outside the revised delivery path.
+**Complete — Grace launch.** Grace owns the session profile, timer, phase changes and session controls. A request from focus. opens or brings the installed Grace application forward, then starts the requested session through Grace's own controller. Grace confirms the outcome. Launching its window alone is insufficient to qualify the start. The standalone focus. session candidate was stopped and is outside the revised delivery path.
 
-Build the start interface on a separate, reviewed Grace branch and checkout. The existing optional Grace WebSocket can report timer state. The installed version inspected on November 22, 2026 does not expose a supported external start command. Use an explicit local, opt-in interface with idempotent requests. A repeated request or an already-running unrelated Grace session must not toggle, restart, or replace the timer. Exercise cold launch, a running window, a missing or incompatible build, and rejected and duplicate requests against both exact candidate commits with disposable data.
+The supported macOS start interface was built and reviewed on a separate Grace branch and checkout. Starts use an explicit local, opt-in interface with idempotent requests; the optional Grace WebSocket reports state but does not start a session. A repeated request or an unrelated running Grace session must not toggle, restart or replace the timer. The [3D launch record](design/productivity/3d-grace-launch-plan.md#candidate-verification) distinguishes exercised paths from qualification limits.
 
-The focus. entry point uses the approved shell and existing visual language. Present any new visual treatment for approval before implementing it. Keep the existing site-mark correction.
+The focus. entry point preserves the approved shell, [Grace-launch reference](design/productivity/references/approved-cobalt-grace-launch.png) and site-mark correction. 3D delivered the launch path, not interactive artwork or scheduling.
 
-The 3D candidate uses one standard native Grace confirmation on first manual use, with no setup files or custom settings. The shared desktop entry point is [`grace_launch::launch`](../apps/desktop/src-tauri/src/grace_launch.rs); 3E must pass its stable occurrence UUID and cannot request consent. See the [3D candidate plan](design/productivity/3d-grace-launch-plan.md) for the launch and review boundaries.
+The launch uses one standard native Grace confirmation on first manual use, with no setup files or custom settings. The shared desktop entry point is [`grace_launch::launch`](../apps/desktop/src-tauri/src/grace_launch.rs); 3E must pass its stable occurrence UUID and cannot request consent. See the [3D launch plan](design/productivity/3d-grace-launch-plan.md) for the contract and evidence.
+
+### 3D.1–3D.3 — Interactive Home typewriter
+
+Follow the [illustrated implementation plan](design/productivity/3d-typewriter-plan.md), with one branch and review per slice:
+
+1. **3D.1 — Art and delivery contract.** `feature/productivity-3d1-typewriter-contract` records the approved small Cobalt typewriter, four source images, real US QWERTY requirement and staged review gates. Docs and reference art only.
+2. **3D.2 — Standalone viewer.** `feature/productivity-3d2-interactive-typewriter` delivers the local interactive scene and matching still without changing Home. Review the offline live preview, front-on letter proof, all physical keys, both viewport sizes and motion video. Get explicit user approval before a Home change.
+3. **3D.3 — Home integration.** `feature/productivity-3d3-dashboard-typewriter` mounts only the approved viewer on Home. Preserve the Grace action, toolbar, themes and stock, and test the actual native shell and real Grace start before independent review.
 
 ### 3E — Grace session coordination
 
@@ -68,7 +76,7 @@ Verify sidecar stop, empty and error states, offline behavior, pinned updates an
 
 ## Verification
 
-Use the [project shell gate](../AGENTS.md#development-and-verification) for affected desktop code and the native visual gates for changed surfaces. Use failing feature tests before implementing runtime behavior. For policy changes, build the locked native fixture binaries, package Chromium and Firefox once, then run both Linux scenarios (`shared-rule` and `entry`) with that same archive pair. Retain both ZIPs, SHA-256 values, browser versions and reports. Follow the [Linux prerequisites and commands](browser-setup.md#reference-verification). Repeat affected gates after base movement. For 3A, verify docs and source integrity in a fresh checkout; application gates apply when runtime code changes.
+Use the [project shell gate](../AGENTS.md#development-and-verification) for affected desktop code and the native visual gates for changed surfaces. Use failing feature tests before implementing runtime behavior. For policy changes, build the locked native fixture binaries, package Chromium and Firefox once, then run both Linux scenarios (`shared-rule` and `entry`) with that same archive pair. Retain both ZIPs, SHA-256 values, browser versions and reports. Follow the [Linux prerequisites and commands](browser-setup.md#reference-verification). Repeat affected gates after base movement. For 3A and 3D.1, verify docs and source integrity in a fresh checkout; application gates apply when runtime code changes.
 
 ## Cumulative review
 

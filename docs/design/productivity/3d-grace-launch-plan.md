@@ -1,6 +1,6 @@
 # Slice 3D Grace launch implementation plan
 
-> Execute in the approved OMP candidate worktrees. Review the two candidates together; stop before integration or Slice 3E.
+> Completed Slice 3D launch record. Preserve these controls and qualification limits; the [3D.1–3D.3 plan](3d-typewriter-plan.md) governs later artwork only.
 
 **Goal:** Start the selected Grace session from focus. on macOS, and report success only after Grace confirms the corresponding native start. [Roadmap and acceptance](../../roadmap.md#3d--start-a-grace-session-from-focus).
 

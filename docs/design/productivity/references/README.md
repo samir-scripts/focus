@@ -1,12 +1,44 @@
 # Productivity art references
 
-These user-supplied PNGs are unresized, byte-for-byte copies. Use them for art direction only. Keep their artwork, characters, watermarks and lettering out of the app. Read the [design contract](../../../../DESIGN.md) for how to apply these studies.
+These PNGs are unresized, byte-for-byte copies supplied or approved by the user. Use them for art direction only. Keep their artwork, characters, watermarks and lettering out of the app. Read the [design contract](../../../../DESIGN.md) and the [illustrated 3D.1–3D.3 implementation plan](../3d-typewriter-plan.md) for where to apply these studies.
+
+## Approved Light Cobalt floating typewriter
+
+![Small fully visible cobalt typewriter with white paper, overlapping a near-circular hot pink plate](approved-cobalt-floating-typewriter.png)
+
+User-approved Codex-generated composition still (`exec-c940df98-0b93-45a3-89b2-122b35a632c0.png`). Use the small silhouette, front-right camera, visible sidewall, bounded plate and open stock. The generated key symbols are illustrative only; use the plan's real US QWERTY legends. The still does not replace the launch-controls reference below.
+
+SHA-256 `3ee409ac05435523faceefd3e7babb1c3824bd498bd799b8c4e5660d6a133e45`
+
+## PS2 study — pixel stairs and halftone
+
+![Stepped diagonal silhouette with a blue edge beside an ordered dot screen](ps2-pixel-stairs-halftone.png)
+
+User-supplied clipboard crop (`2c1f073b-b86b-4d60-9c2a-41155290afb5`); original creator and publisher unconfirmed. Study the diagonal pixel stairs and dot pitch, not the depicted subject.
+
+SHA-256 `a45bb98d5abd7d0f9f7a9b8d995bd2f70ca21baeec8e31e0b3e53e1965d0fac7`
+
+## PS2 study — polygon facets
+
+![Close crop showing abrupt edges between purple polygon faces](ps2-polygon-facets.png)
+
+User-supplied clipboard crop (`6813d0a5-2085-4bc0-86bf-c0d825eb8173`); original creator and publisher unconfirmed. Study the broad angular planes and hard transitions between facets.
+
+SHA-256 `37be4ab8b390221f4b9cd20fdae44e72fb3946e7555c74f2d9f8b1aa398a83a5`
+
+## PS2 study — coarse raster silhouette and lighting
+
+![Low-resolution portrait crop with a visibly stepped silhouette and hard lighting bands](ps2-coarse-raster-lighting.png)
+
+User-supplied clipboard crop (`a8794f8f-4515-4472-a8e8-e18fe0a2ec56`); original creator and publisher unconfirmed. Study coarse raster edges and separated lights and shadows. Do not reproduce the character or visible overlay marks.
+
+SHA-256 `8cb0031d3d82ce70cfa7ff1f872fdcde6887104de0a00d12d13550d54cd63811`
 
 ## Approved Light Cobalt Grace-launch dashboard
 
 ![Light Cobalt dashboard with the Start in Grace action and a blue typewriter](approved-cobalt-grace-launch.png)
 
-Newer user-approved generated PNG (`exec-989997c4-bff0-4e41-841e-8d694dcf5b75.png`). The user also approved the canonical Grace mark inside the launch action. The Schedules row is a 3E reference, not part of 3D.
+Original user-approved 3D generated PNG (`exec-989997c4-bff0-4e41-841e-8d694dcf5b75.png`). Retain it for the launch controls and history, including the canonical Grace mark inside the action. The Schedules row is a 3E reference, not part of 3D. The floating typewriter still above supersedes only the cropped hero direction.
 
 SHA-256 `7705da529e13321a9b189f1ee5a8e11d941680826c79ac614ffa3eea8c3cba44`
 
