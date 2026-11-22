@@ -10,9 +10,10 @@
 
 ## Contract and implementation order
 
-- [x] **Grace controller.** The idle-only engine command uses Grace’s real selected profile and existing enforcement transition. Running, paused and suspended engines reject it without changing their session.
+- [x] **Grace controller.** The idle-only engine command drains earlier round or reset events before authorization, then starts the selected profile at its first work round, even if the idle timer was showing a break after Skip. Running, paused and suspended engines reject it without changing their session. Local Reset and external launch cannot overlap.
 - [x] **Authenticated local protocol.** A versioned per-process Unix socket verifies both peers’ audit tokens and signing requirements. A one-use proof binds the request UUID and intent to the connection before Grace shows its native sheet or claims the timer. Approval is local; no setup files or WebSocket changes. Grace persists each decision, including interrupted claims that must not run again.
 - [x] **focus. launch.** Launch Services enumerates `com.splode.pomotroid` copies, and focus. verifies the Grace product, supported protocol, signature, exact bundle path and peer PID. AppKit substitution is disabled. [`grace_launch::launch`](../../../apps/desktop/src-tauri/src/grace_launch.rs) is the shared Rust entry point; `start_grace` is the manual Tauri command. It does not retry sent requests or infer acceptance from app launch.
+  A running Grace without the supported launch protocol blocks launching another copy that would share its data. An unrelated Pomotroid with the legacy identifier does not block discovery.
 - [x] **Approved dashboard.** Tracked [exact reference](references/approved-cobalt-grace-launch.png) and [canonical mark](../../../apps/desktop/src/assets/grace-mark.svg), with digests and provenance. Centered Home, labeled Sites and named icon-only Statistics/Settings. No timer or schedule UI in focus.
 
 ## Candidate verification

@@ -165,19 +165,33 @@ mod macos {
         let identifier = NSString::from_str(GRACE_ID);
         let required = requirement(GRACE_ID, option_env!("FOCUS_LAUNCH_GRACE_TEAM_ID"));
         let mut grace_found = false;
-        let mut consider = |url: objc2::rc::Retained<NSURL>, cold| {
-            let compatible = protocol(&url)?;
-            grace_found = true;
-            (compatible && required.as_ref().is_some_and(|text| verify_bundle(&url, text)))
-                .then_some((url, cold))
+        let authenticated = |url: &NSURL| {
+            required.as_ref().is_some_and(|text| verify_bundle(url, text))
         };
 
         let running = NSRunningApplication::runningApplicationsWithBundleIdentifier(&identifier);
-        let mut chosen = running.iter().filter_map(|application| application.bundleURL())
-            .find_map(|url| consider(url, false));
-        if chosen.is_none() {
-            chosen = registered_urls(&workspace, &identifier).and_then(|urls| urls.iter().find_map(|url| consider(url, true)));
+        let mut warm = None;
+        for url in running.iter().filter_map(|application| application.bundleURL()) {
+            match protocol(&url) {
+                None => continue,
+                Some(true) if authenticated(&url) => { warm.get_or_insert(url); }
+                Some(_) => {
+                    // Grace copies share app data. Never start another copy
+                    // while an incompatible Grace is running.
+                    let _ = reply.send(Err(Outcome::Incompatible));
+                    return;
+                }
+            }
         }
+        let chosen = warm.map(|url| (url, false)).or_else(|| {
+            registered_urls(&workspace, &identifier).and_then(|urls| {
+                urls.iter().find_map(|url| {
+                    let compatible = protocol(&url)?;
+                    grace_found = true;
+                    (compatible && authenticated(&url)).then_some((url, true))
+                })
+            })
+        });
         let Some((url, cold)) = chosen else {
             let _ = reply.send(Err(if grace_found { Outcome::Incompatible } else { Outcome::Missing }));
             return;
