@@ -1,11 +1,11 @@
 import type { WebGLRenderer } from 'three';
+import { COAST_DURATION, FlickSamples, YAW_PER_PIXEL, coastTravel } from './flick';
 import { FloatClock } from './float';
 import { keys } from './keyboard.json';
 import { createRenderer, loadMachine, setView } from './scene';
 import type { MachineScene } from './scene';
 
 const byCode = new Map(keys.map(key => [key.code, key]));
-const TURN = Math.PI / 180;
 const PITCH_SPEED = .007;
 const DRAG = 6;
 const arrows: Record<string, [number, number]> = {
@@ -36,6 +36,7 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const contrast = matchMedia('(forced-colors: active)');
   const clock = new FloatClock();
+  const flick = new FlickSamples();
   const held = new Set<string>();
   const pulses = new Map<string, number>();
   const blocked = () => !visible || document.hidden || contrast.matches;
@@ -49,6 +50,7 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   let yaw = 0;
   let pitch = 0;
   let gesture: Gesture | undefined;
+  let coast: { yaw: number; speed: number; started: number } | undefined;
 
   function announceMode(next: Mode) {
     if (mode === next) return;
@@ -64,12 +66,17 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
 
   function tick(now: number) {
     raf = 0;
+    if (coast) {
+      const elapsed = now - coast.started;
+      aim(coast.yaw + coastTravel(coast.speed, elapsed), pitch);
+      if (elapsed >= COAST_DURATION) coast = undefined;
+    }
     paint(now);
     schedule();
   }
 
   function schedule() {
-    if (machine && renderer && !blocked() && width > 0 && clock.running) {
+    if (machine && renderer && !blocked() && width > 0 && (clock.running || coast)) {
       if (!raf) raf = requestAnimationFrame(tick);
     } else if (raf) {
       cancelAnimationFrame(raf);
@@ -87,10 +94,14 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     schedule();
   }
 
-  function rotate(nextYaw: number, nextPitch: number) {
+  function aim(nextYaw: number, nextPitch: number) {
     yaw = nextYaw % (2 * Math.PI);
     pitch = Math.max(-.17, Math.min(.54, nextPitch));
     if (machine) setView(machine.camera, yaw, pitch);
+  }
+
+  function rotate(nextYaw: number, nextPitch: number) {
+    aim(nextYaw, nextPitch);
     sync();
   }
 
@@ -138,6 +149,7 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   }
 
   function clearInteraction() {
+    coast = undefined;
     releaseGesture();
     releaseKeys();
     delete canvas.dataset.overKey;
@@ -193,7 +205,18 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     if (gesture?.pointer !== event.pointerId) return;
     const { cap, dragged, x, y } = gesture;
     releaseGesture();
-    if (!cancelled && !dragged && cap && Math.hypot(event.clientX - x, event.clientY - y) < DRAG) {
+    if (cancelled) return;
+    if (dragged) {
+      if (!motion.matches && !blocked()) {
+        const speed = flick.release(event.timeStamp);
+        if (speed) {
+          coast = { yaw, speed, started: performance.now() };
+          schedule();
+        }
+      }
+      return;
+    }
+    if (cap && Math.hypot(event.clientX - x, event.clientY - y) < DRAG) {
       pulse(cap);
       say(cap);
     }
@@ -205,6 +228,8 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   canvas.addEventListener('pointerdown', event => {
     if (!machine || gesture || !event.isPrimary || event.button !== 0) return;
     event.preventDefault();
+    coast = undefined;
+    flick.start(event.clientX, event.timeStamp);
     // Raycast against the projection and cap poses already on screen.
     const cap = pick(event.clientX, event.clientY);
     releasePulses();
@@ -218,12 +243,13 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
       return;
     }
     if (gesture.pointer !== event.pointerId) return;
+    flick.move(event.clientX, event.timeStamp);
     const dx = event.clientX - gesture.x;
     const dy = event.clientY - gesture.y;
     if (!gesture.dragged && Math.hypot(dx, dy) < DRAG) return;
     gesture.dragged = true;
     canvas.dataset.dragging = 'true';
-    rotate(gesture.yaw - dx * TURN, gesture.pitch + dy * PITCH_SPEED);
+    rotate(gesture.yaw - dx * YAW_PER_PIXEL, gesture.pitch + dy * PITCH_SPEED);
   }, eventOptions);
   canvas.addEventListener('pointerup', event => endPointer(event, false), eventOptions);
   canvas.addEventListener('pointercancel', event => endPointer(event, true), eventOptions);
@@ -239,6 +265,8 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     const key = byCode.get(event.code);
     if (!delta && !key && event.code !== 'Escape') return;
     event.preventDefault();
+    coast = undefined;
+    schedule();
     if (event.code === 'Escape') reset();
     else if (delta) rotate(yaw + delta[0], pitch + delta[1]);
     else if (key && !held.has(key.id)) {
@@ -262,6 +290,7 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
     updateMode();
   }, eventOptions);
   motion.addEventListener('change', () => {
+    if (motion.matches) coast = undefined;
     pause('reduced', motion.matches);
     sync();
   }, eventOptions);
@@ -289,6 +318,7 @@ export function mountTypewriter(canvas: HTMLCanvasElement, options: ViewerOption
   updateMode();
 
   function reset() {
+    coast = undefined;
     releaseGesture();
     releaseKeys();
     rotate(0, 0);

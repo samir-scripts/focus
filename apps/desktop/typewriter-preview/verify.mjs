@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
+import { verifyFlick } from './verify-flick.mjs';
 
 const [artifact, evidence, origin] = process.argv.slice(2);
 if (!artifact || !evidence || !origin) throw new Error('Usage: node verify.mjs HTML EVIDENCE_DIR VITE_ORIGIN');
@@ -69,7 +70,7 @@ try {
   await page.mouse.move(x, y);
   await page.mouse.down();
   assert.deepEqual(await canvas.screenshot(), before, 'pointerdown alone must not press a cap');
-  await page.mouse.move(x + 36, y, { steps: 8 });
+  await page.mouse.move(x + 72, y, { steps: 8 });
   const rotated = await canvas.screenshot();
   assert.notDeepEqual(rotated, before, 'drag must orbit');
   await page.mouse.up();
@@ -134,18 +135,18 @@ try {
   await touchPage.getByRole('button', { name: 'Reset view' }).click();
   assert.deepEqual(await touchCanvas.screenshot(), touchRest);
   const finger = { x: touchBox.x + 28, y: touchBox.y + 95 };
-  for (let half = 0; half < 2; half++) {
+  for (let pass = 0; pass < 4; pass++) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [finger] });
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchMove', touchPoints: [{ x: finger.x + 180, y: finger.y }],
     });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     const frame = await touchCanvas.screenshot();
-    if (half === 0) assert.notDeepEqual(frame, touchRest, '180px touch drag reaches the opposite view');
-    else assert.deepEqual(frame, touchRest, 'two 180px touch drags complete a full turn');
+    if (pass === 1) assert.notDeepEqual(frame, touchRest, '360px of touch drag reaches the opposite view');
+    if (pass === 3) assert.deepEqual(frame, touchRest, 'four 180px touch drags complete a full turn');
   }
   assert.equal(await touchPage.getByRole('status').getAttribute('data-key'), 'KeyS', 'touch drags do not actuate');
-  console.log('PASS 390px, toner pause, touch tap, cancelled drag and two captured half turns');
+  console.log('PASS 390px, toner pause, touch tap, cancelled drag and full turn across four drags');
 
   const live = await browser.newContext({ viewport });
   await live.route('**/*', route => new URL(route.request().url()).origin === new URL(origin).origin
@@ -214,18 +215,23 @@ try {
   const startX = orbitBox.x + 28;
   const startY = orbitBox.y + 95;
   const opening = await orbitCanvas.screenshot();
-  await orbitPage.mouse.move(startX, startY);
-  await orbitPage.mouse.down();
   const views = [opening];
-  for (const [view, dx] of [['front', 34], ['side', 124], ['rear', 214]]) {
-    await orbitPage.mouse.move(startX + dx, startY, { steps: 8 });
-    const image = await orbitCanvas.screenshot({ path: `${evidence}/orbit-${view}.png` });
-    assert.ok(views.every(prior => !image.equals(prior)), `${view} must be a distinct rendered view`);
-    views.push(image);
+  for (const pass of [
+    [['front', 69], ['side', 249], [null, 360]],
+    [['rear', 69], [null, 360]],
+  ]) {
+    await orbitPage.mouse.move(startX, startY);
+    await orbitPage.mouse.down();
+    for (const [view, dx] of pass) {
+      await orbitPage.mouse.move(startX + dx, startY, { steps: 8 });
+      if (!view) continue;
+      const image = await orbitCanvas.screenshot({ path: `${evidence}/orbit-${view}.png` });
+      assert.ok(views.every(prior => !image.equals(prior)), `${view} must be a distinct rendered view`);
+      views.push(image);
+    }
+    await orbitPage.mouse.up();
   }
-  await orbitPage.mouse.move(startX + 360, startY, { steps: 12 });
-  await orbitPage.mouse.up();
-  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'one 360px drag makes a full turn and wraps exactly');
+  assert.deepEqual(await orbitCanvas.screenshot(), opening, 'two 360px drags make a full turn and wrap exactly');
   assert.equal(await orbitPage.getByRole('status').getAttribute('data-key'), null, 'full turn is not a click');
   await orbitCanvas.focus();
   for (let i = 0; i < 8; i++) await orbitPage.keyboard.press('ArrowLeft');
@@ -235,7 +241,13 @@ try {
   await orbitPage.keyboard.press('Escape');
   assert.deepEqual(await orbitCanvas.screenshot(), opening, 'reset after a full orbit restores the approved camera');
   await orbitPage.close();
-  console.log('PASS captured 360° drag, distinct front/side/rear, exact wrap and reset, keyboard past old stop');
+  console.log('PASS captured 360° orbit over two drags, distinct front/side/rear, exact wrap and reset, keyboard past old stop');
+
+  const flickContext = await browser.newContext({ viewport, offline: true });
+  const flickPage = await flickContext.newPage();
+  await flickPage.goto(url);
+  await verifyFlick(flickPage, evidence);
+  await flickContext.close();
 
   const teardown = `${origin}/__typewriter_teardown__`;
   await live.route(teardown, route => route.fulfill({ contentType: 'text/html', body:

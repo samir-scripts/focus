@@ -40,7 +40,7 @@ try {
     }
     const still = render();
     const rest = points();
-    setView(machine.camera, -Math.PI / 5, 0); // 36 CSS px horizontal drag, one degree per pixel.
+    setView(machine.camera, -Math.PI / 5, 0); // 72 CSS px horizontal drag at half a degree per pixel.
     const orbited = points();
     // Front-on and enlarged only for proof; use the same cap meshes, UVs and ink.
     setView(machine.camera, -.60, .69);
