@@ -10,7 +10,9 @@ Follow the [roadmap](docs/roadmap.md) in order and stop at every review gate. Th
 
 Read [DESIGN.md](DESIGN.md) for visual and accessibility requirements. Use the shared UI package and [CSS tokens](packages/ui/src/tokens.css) for the executable theme, spacing, type and motion. Apply the approved productivity target only in the owning slice. Until then, preserve the baseline toolbar geometry and drag regions, Sites layout, read-only popup and Statistics empty state. Keep Pause and Block guarded in normal builds.
 
-For 3D.1–3D.3 typewriter work, read the [illustrated implementation plan](docs/design/productivity/3d-typewriter-plan.md) and stop at each slice gate. 3D.1 records the contract only; 3D.2 is standalone. Get explicit user approval of the live 3D.2 viewer before changing Home in 3D.3. The toolbar logo and Grace launch are not part of the artwork. Ask before adding a new accent, mark or visual treatment.
+Give the Home typewriter hard PS2-style facets, stepped pixel edges, real bitmap key legends, ordered dither and bounded fields of vivid ink. Keep moving texture off text, controls and feed rows. Keep the light animated paper hiss quiet. Ask before adding an accent, decorative mark or visual treatment.
+
+Follow the [illustrated 3D.1–3D.3 implementation plan](docs/design/productivity/3d-typewriter-plan.md). Get explicit user approval of the live standalone 3D.2 viewer before mounting it on Home in 3D.3.
 
 For historical captures and the toner check, read the [Dither UI review](docs/design/dither-ui/README.md). For flake geometry changes, run `python3 -B apps/desktop/tools/test_paper_stock.py` and keep the masks in sync with `apps/desktop/tools/build-paper-stock.py`.
 
