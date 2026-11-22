@@ -156,7 +156,7 @@
       if (top < viewportTop) rail.scrollTop += Math.floor(top - viewportTop);
       else if (bottom > viewportBottom) rail.scrollTop += Math.ceil(bottom - viewportBottom);
     }
-    heading?.focus({ preventScroll: true });
+    heading?.focus();
   }
 
   async function savePolicy(change: (bridge: BrowserBridge, revision: number) => Promise<void>) {

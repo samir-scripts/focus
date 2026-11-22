@@ -47,6 +47,8 @@ The printed fringe is independent of the unchanged SVG paths. A pointer crossing
 
 Using Superpowers and Ask Matt oriented the read-only prewalk; Surgical Patch and TDD covered the clipping and playback regressions; Design Engineering guided the accent; Verification Before Completion covered the candidate. OMP used `openai-codex/gpt-6.2-sol` for prewalk and the first edit in Ghostty/tmux `%6`; the task list preceded the first test edit. The log is under `/private/tmp/focus-productivity-3c-marks-omp-logs`.
 
+The independent review also opened a site with the previous detail pane scrolled. The selected rail row and the focused heading are both visible after navigation. The motion check covers this case.
+
 ## Reproduce with disposable data
 
 1. Build the candidate and the base in separate worktrees with `npm ci` and `npm run build --workspace @focus/desktop`. Do not launch the default app identity or point the app at existing data.

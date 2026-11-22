@@ -190,6 +190,21 @@ try {
   await command('Input.insertText', { text: 'added.example' });
   await evaluate("document.querySelector('.designate').requestSubmit()");
   await checkSelectedRow('added.example');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 960, height: 260, deviceScaleFactor: 1, mobile: false
+  });
+  await evaluate("document.querySelector('main').scrollTop = 1000");
+  assert(await evaluate(`document.querySelector('.site-heading h1').getBoundingClientRect().bottom <
+    document.querySelector('main').getBoundingClientRect().top`),
+    'The previous heading must start above the detail scrollport');
+  await evaluate("window.reviewOpenSite = 'custom:fixture-19.example'");
+  await until("document.activeElement?.textContent === 'fixture-19.example'");
+  assert(await evaluate(`document.activeElement.getBoundingClientRect().top >=
+    document.querySelector('main').getBoundingClientRect().top - .5`),
+    'Open in focus must make the focused heading visible in a previously scrolled detail pane');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 960, height: 640, deviceScaleFactor: 1, mobile: false
+  });
   console.log('Extension navigation and Add site reveal the offscreen row in the rail and focus the heading.');
   const markEvents = "window.reviewMarkEvents";
   await evaluate(`window.reviewMarkEvents = [];
