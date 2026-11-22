@@ -60,6 +60,8 @@ Follow the [illustrated implementation plan](design/productivity/3d-typewriter-p
 
 ### 3E — Grace session coordination
 
+The [approved 3E implementation plan](design/productivity/3e-scheduling-plan.md) covers local scheduling and Grace start. Phase-aware browser policy coordination remains separately qualified.
+
 Keep one-off and selected-weekday schedules in focus. While focus. is running or minimized, a due schedule sends the same start request as a manual launch. Skip elapsed or overlapping starts and deduplicate repeated local times. Grace owns session timing and phase transitions. Use Grace's authoritative state for any browser coordination. Apply any separately authorized session rules as an expiring layer over focus. site settings, only in profiles with exact-origin grants. Preserve Pause/Block availability guards. Verify missing and disconnected Grace, duplicate and overlapping requests, phase changes, and local data and policy recovery at the end of work.
 
 ### 3F — Glance Reading

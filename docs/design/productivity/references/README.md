@@ -42,6 +42,18 @@ Original user-approved 3D generated PNG (`exec-989997c4-bff0-4e41-841e-8d694dcf5
 
 SHA-256 `7705da529e13321a9b189f1ee5a8e11d941680826c79ac614ffa3eea8c3cba44`
 
+## Approved Light Cobalt scheduling dialogs
+
+Both originals were rendered with the native Light Cobalt Home capture and the bundled Focus Bitmap font, then approved by the user for the [3E dialog](../3e-scheduling-plan.md). The preceding Grace-launch reference still governs the Home Schedules row.
+
+![One-off scheduling dialog](focus-3e-calendar-once-cobalt.png)
+
+SHA-256 `0997c2abf03deeac16118cf560496c8efa6c0472810d71d3e4faeb7d83bb4cfb`
+
+![Selective weekdays scheduling dialog](focus-3e-calendar-weekdays-cobalt.png)
+
+SHA-256 `8ca07d5045e79ebbc2a97066342c1c43ca3914cd9edf6045b2d72bef8b65e5f3`
+
 ## Historical Light Cobalt timer comp
 
 ![Light Cobalt dashboard with a low front-right view of a blue typewriter beside a work timer](approved-cobalt-dashboard.png)
