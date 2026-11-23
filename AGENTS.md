@@ -14,6 +14,8 @@ Give the Home typewriter hard PS2-style facets, stepped pixel edges, real bitmap
 
 Follow the [illustrated 3D.1–3D.3 implementation plan](docs/design/productivity/3d-typewriter-plan.md). Get explicit user approval of the live standalone 3D.2 viewer before mounting it on Home in 3D.3.
 
+For 3F, follow the [approved dashboard and Glance Reading plan](docs/design/productivity/3f-glance-reading-plan.md).
+
 For historical captures and the toner check, read the [Dither UI review](docs/design/dither-ui/README.md). For flake geometry changes, run `python3 -B apps/desktop/tools/test_paper_stock.py` and keep the masks in sync with `apps/desktop/tools/build-paper-stock.py`.
 
 ## Development and verification

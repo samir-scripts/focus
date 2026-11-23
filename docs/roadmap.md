@@ -66,6 +66,8 @@ Keep one-off and selected-weekday schedules in focus. While focus. is running or
 
 ### 3F — Glance Reading
 
+See the [approved 3F implementation plan and references](design/productivity/3f-glance-reading-plan.md).
+
 `feature/productivity-3f-glance-reading` adds real opt-in RSS through a pinned Glance release. Run the bundled sidecar on loopback only and theme it through [Glance configuration and CSS](https://github.com/glanceapp/glance/blob/main/docs/configuration.md). Support an existing self-hosted instance with authentication and a system-browser fallback. Isolate native commands, browsing history and telemetry from the Reading webview. Keep sessions usable offline and Reading collapsed during work.
 
 Verify sidecar stop, empty and error states, offline behavior, pinned updates and rollback. Retain exact shipped artifacts with their digests and corresponding source under the [Glance AGPL license](https://github.com/glanceapp/glance/blob/main/LICENSE).

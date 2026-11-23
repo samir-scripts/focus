@@ -6,6 +6,8 @@ The original 3D Grace-launch reference above remains the source for the approved
 
 For 3E, use the [approved scheduling plan and calendar references](3e-scheduling-plan.md).
 
+For 3F, use the [approved dashboard and Glance Reading implementation plan](3f-glance-reading-plan.md).
+
 ## Slice 3A candidate
 
 Branch `feature/productivity-3a-design-contract` starts at `3b047d1e08c67006db5563297429bdf0ce02dd6f`, the initial `integration/productivity-desktop` head from `dev`. This slice records decisions and preserves the eight supplied PNGs byte for byte. Runtime code, tokens, historical captures and browser policy stay unchanged.
