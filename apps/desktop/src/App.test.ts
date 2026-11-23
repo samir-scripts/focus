@@ -76,6 +76,20 @@ describe('desktop shell', () => {
     expect(startGrace).toHaveBeenCalledTimes(2);
   });
 
+  it('opens the quick switch by keyboard and returns focus on Escape', async () => {
+    render(App);
+    const mark = screen.getByRole('button', { name: 'Home' });
+    mark.focus();
+    await fireEvent.keyDown(mark, { key: 'ArrowDown' });
+    const menu = screen.getByRole('menu');
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Home' }));
+    await fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Sites' }));
+    await fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(mark);
+  });
+
   it('opens Home and keeps Sites labeled alongside the named icon controls', async () => {
     render(App);
     const navigation = within(screen.getByRole('navigation', { name: 'Main' }));

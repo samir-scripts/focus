@@ -327,10 +327,57 @@
     if (next === null && previous) document.getElementById(`settings-row-${previous}`)?.focus();
     else heading?.focus();
   }
+  let mark = $state<HTMLButtonElement>();
+  let quickMenu = $state<HTMLDivElement>();
+  let quickOpen = $state(false);
+  let index = $state(0);
+  let heldClick = false;
+  let hold: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | undefined;
+  const quickPages: Page[] = ['Home', ...pages];
+  function cancelHold() {
+    if (hold) clearTimeout(hold.timer);
+    hold = undefined;
+  }
+  function pressMark(event: PointerEvent) {
+    if (event.button !== 0 || !event.isPrimary) return;
+    heldClick = false;
+    cancelHold();
+    hold = { id: event.pointerId, x: event.clientX, y: event.clientY, timer: setTimeout(() => {
+      cancelHold();
+      heldClick = true;
+      void focusQuick(0);
+    }, 500) };
+  }
+  function moveMark(event: PointerEvent) {
+    if (hold?.id === event.pointerId && Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 8) cancelHold();
+  }
+  async function focusQuick(next: number) {
+    quickOpen = true;
+    index = (next + quickPages.length) % quickPages.length;
+    await tick();
+    quickMenu?.querySelectorAll('button')[index]?.focus();
+  }
+  function quickKey(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      quickOpen = false;
+      mark?.focus();
+    } else if (event.key === 'Tab') {
+      mark?.focus();
+      quickOpen = false;
+      return;
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      void focusQuick(index + (event.key === 'ArrowDown' ? 1 : -1));
+    } else return;
+    event.preventDefault();
+  }
+  function outsideQuick(event: PointerEvent) {
+    if (!mark?.contains(event.target as Node) && !quickMenu?.contains(event.target as Node)) quickOpen = false;
+  }
 </script>
 
 <svelte:document onvisibilitychange={() => windowHidden = document.hidden} />
-<svelte:window onhashchange={followSettingsHash} />
+<svelte:window onhashchange={followSettingsHash} onpointerdown={outsideQuick} onpointerup={cancelHold}
+  onpointermove={moveMark} onpointercancel={cancelHold} onblur={() => { cancelHold(); quickOpen = false; }} />
 
 {#if pendingPair}
   {#key pendingPair.id}
@@ -343,10 +390,27 @@
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
     <PaperStock />
     <nav aria-label="Main" class:move-indicator={revealPage} data-page={page}>
-      <button type="button" class="brand" aria-label="Home" title="Home"
-        aria-current={page === 'Home' ? 'page' : undefined} onclick={(event) => openPage('Home', event)}>
+      <button type="button" class="brand" aria-label="Home" title="Home" bind:this={mark}
+        aria-haspopup="menu" aria-expanded={quickOpen} onpointerdown={pressMark} ondragstart={cancelHold}
+        onkeydown={(event) => { if (event.key === 'ArrowDown') { event.preventDefault(); void focusQuick(0); } }}
+        aria-current={page === 'Home' ? 'page' : undefined} onclick={(event) => {
+          if (heldClick && event.detail > 0) { heldClick = false; return; }
+          quickOpen = false;
+          void openPage('Home', event);
+        }}>
         <TypewriterMark size={32} /> <span class="toner-type">focus<span class="brand-stop">.</span></span>
       </button>
+      {#if quickOpen}
+        <div class="quick-menu" role="menu" aria-label="Quick switch" tabindex="-1" bind:this={quickMenu} onkeydown={quickKey}>
+          {#each quickPages as entry, i}
+            <button type="button" role="menuitem" tabindex={index === i ? 0 : -1} onclick={(event) => {
+              quickOpen = false;
+              mark?.focus();
+              void openPage(entry, event);
+            }}>{entry}</button>
+          {/each}
+        </div>
+      {/if}
       <div class="nav-items">
         {#each pages as entry}
           <button type="button" aria-label={entry} title={entry} aria-current={page === entry ? 'page' : undefined}
@@ -675,6 +739,7 @@
     min-height: 46px;
     background: var(--rail);
     border-bottom: 1px solid var(--divider);
+    z-index: 1;
   }
 
   /* These CSS-pixel hit regions match titlebar.rs before WebKit page zoom. */
@@ -697,6 +762,16 @@
     padding: 0;
     font: 700 24px/1 var(--font-wordmark);
   }
+  .quick-menu {
+    position: absolute;
+    z-index: 2;
+    inset-block-start: 100%;
+    inset-inline-start: max(var(--traffic-inset), min(calc((100% - var(--home-target)) / 2), calc(100% - var(--navigation-width) - var(--home-target))));
+    min-width: var(--home-target);
+    border: 1px solid var(--ink);
+    background: var(--surface);
+  }
+  nav .quick-menu button { width: 100%; justify-content: start; padding-inline: 10px; }
   .brand-stop { color: var(--secondary); }
   .brand[aria-current]::after {
     content: '';
