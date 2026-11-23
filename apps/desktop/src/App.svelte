@@ -566,7 +566,7 @@
                 <h1 class="dashboard-title" tabindex="-1" bind:this={heading}>Home</h1>
                 <div class="dashboard-side">
                 {#if isTauri()}<div class="dashboard-calendar"><HomeSchedules calendar /></div>{/if}
-                <section class="sessions-summary" aria-labelledby="sessions-summary-heading">
+                <section class="sessions-summary dashboard-rule" aria-labelledby="sessions-summary-heading">
                   <h2 id="sessions-summary-heading">Sessions</h2>
                   {#if appearance.printIllustrations}
                     <img class="typewriter-still" data-print="launch" src={typewriterStill} alt="Blue typewriter floating over a pink disc" width="104" height="96" />
@@ -954,7 +954,38 @@
   .dashboard { display: grid; grid-template-columns: minmax(210px, 30%) minmax(0, 1fr); gap: 20px; padding: 24px; }
   .dashboard-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .dashboard-side { display: grid; min-width: 0; align-content: start; gap: 16px; border-inline-end: 1px solid var(--divider); padding-inline-end: 18px; background: var(--canvas); }
-  .sessions-summary { display: grid; justify-items: start; gap: 8px; border-block-start: 1px solid var(--divider); padding-top: 12px; }
+  .sessions-summary { display: grid; justify-items: start; gap: 8px; padding-top: 12px; }
+  .dashboard :global(.dashboard-rule) {
+    position: relative;
+    border-block-start: 2px solid color-mix(in srgb, var(--divider), var(--ink) 22%);
+  }
+  @media (forced-colors: none) {
+    .dashboard :global(.dashboard-rule)::before {
+      content: '';
+      position: absolute;
+      inset: -2px 0 auto;
+      height: 2px;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 5px, currentColor 5px 10px, transparent 10px 23px) 0 0 / auto 1px repeat-x,
+        repeating-linear-gradient(90deg, transparent 0 14px, currentColor 14px 17px, transparent 17px 29px) 0 1px / auto 1px repeat-x;
+      opacity: .33;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    .dashboard :global(.dashboard-rule)::before {
+      animation: dashboard-ink 3.6s steps(1, end) infinite;
+      animation-play-state: var(--toner-play-state, running);
+    }
+    @keyframes dashboard-ink {
+      25% { background-position: 3px 0, -2px 1px; }
+      50% { background-position: -2px 0, 2px 1px; }
+      75% { background-position: 1px 0, -3px 1px; }
+    }
+  }
+  @media (forced-colors: active) {
+    .dashboard :global(.dashboard-rule) { border-block-start-color: CanvasText; }
+  }
   .typewriter-still { image-rendering: pixelated; }
   @media (max-width: 635px) {
     .dashboard { grid-template-columns: minmax(0, 1fr); }

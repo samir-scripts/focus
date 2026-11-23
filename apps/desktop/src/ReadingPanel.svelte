@@ -31,7 +31,7 @@
   }
 </script>
 
-<section aria-labelledby="reading-title">
+<section class="dashboard-rule" aria-labelledby="reading-title">
   <h2 id="reading-title">Reading</h2>
   {#if error === 'recovery'}
     <p role="status">Reading is off because its settings file could not be read.</p>
@@ -71,7 +71,7 @@
 </section>
 
 <style>
-  section { background: var(--canvas); border-block-start: 1px solid var(--divider); padding: 10px 0; min-width: 0; }
+  section { background: var(--canvas); padding: 10px 0; min-width: 0; }
   h2 { margin: 0; }
   p { margin: 6px 0; }
   .destination { overflow-wrap: anywhere; }

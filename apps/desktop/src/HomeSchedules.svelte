@@ -111,7 +111,7 @@
   }
 </script>
 
-<section class:calendar aria-labelledby="schedules-heading">
+<section class:calendar class:dashboard-rule={calendar} aria-labelledby="schedules-heading">
   <header>
     <h2 id="schedules-heading" tabindex="-1">{calendar ? 'Calendar' : 'Schedules'}</h2>
     {#if available && !calendar}<button type="button" bind:this={add} onclick={(event) => create(undefined, event.currentTarget)}>New schedule</button>{/if}
