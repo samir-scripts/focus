@@ -32,7 +32,7 @@ Three distinct effects guide the art and stock.
 
 Keep the 3.6s paper-grain hiss changing in place. Flake drift is separate, with poses held at 12 fps without slowing travel or stepping the density fade. Persist toner pause across launches, and pause grain, ink static and flakes when paused or hidden. Reduced motion stops the animated stock and sweeps. Forced colors, where supported, suppress decorative art, grain, flakes, wear, sweeps and SVG halftoning while retaining legible text, controls and marks.
 
-**3F solid-paper exception.** Home (including Calendar and Reading), Sessions, and every Settings page use solid paper, including the shared toolbar when present. Preserve the Settings title's 3.6s toner steps and held solid hover. Sites and Statistics retain their existing stock. The approved [PS1-inspired direction](docs/design/productivity/ps1-visual-direction.md) records the requested future changes to Home rules, buttons and typewriter; it has not yet been implemented.
+**3F solid-paper exception.** Home (including Calendar and Reading), Sessions, and every Settings page use solid paper, including the shared toolbar when present. Preserve the Settings title's 3.6s toner steps and held solid hover. Sites and Statistics retain their existing stock. The [PS1-inspired refinement](docs/design/productivity/ps1-visual-direction.md) applies four held ink frames to straight 2px Home section rules and stepped corners to Home outline actions.
 
 The historical [light-wear comparison](docs/design/dither-ui/printed-ink-light-wear-comparison.png) and [printed-ink Light Cobalt target](docs/design/dither-ui/printed-ink-light-cobalt-target.png) document the baseline treatment.
 
@@ -49,7 +49,7 @@ Capture matched stills and at least 7.2s of video per comparison at 100%. Inspec
 
 Keep the established 3px controls, 4px notices and 6px dialogs. Reserve the ring motif for Site entry. The offset-carriage toolbar mark is a separate brand symbol; leave it unchanged.
 
-Frame the whole small Cobalt typewriter from a low front-right angle, with a visible right sidewall, paper entering the roller and a separate spacebar. Its front slightly overlaps a stationary, near-circular, slightly flattened polygonal hot pink plate. The machine floats ±6 CSS px over 6 s. The approved future PS1 direction uses stepped raster edges, hard facets and a flat pink plate without a shadow. Keep ink vivid and bounded. Use the four-row US QWERTY layout and attached bitmap legends defined in the plan.
+Frame the whole small Cobalt typewriter from a low front-right angle, with a visible right sidewall, paper entering the roller and a separate spacebar. Its front slightly overlaps a stationary, near-circular, slightly flattened polygonal hot pink plate. The machine floats ±6 CSS px over 6 s. Use stepped raster edges, hard cobalt facets and a flat pink plate without a shadow. Keep ink vivid and bounded. Use the four-row US QWERTY layout and attached bitmap legends defined in the plan.
 
 ## Components
 
