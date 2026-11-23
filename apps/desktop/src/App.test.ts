@@ -29,45 +29,38 @@ afterEach(() => {
 });
 
 describe('desktop shell', () => {
-  it('owns a fresh viewer on every Home visit, and none when illustrations are disabled', async () => {
-    const first = prepareViewer();
-    render(App);
-    const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+  it('keeps the live viewer in Sessions and disposes it when that window closes', async () => {
+    const viewer = prepareViewer();
+    const shell = render(App, { sessionsWindow: true });
     expect(screen.getByRole('img', { name: artName })).toBeTruthy();
-    await waitFor(() => expect(mountViewer).toHaveBeenCalledTimes(1));
-    const [oldCanvas, oldOptions] = mountViewer.mock.calls[0];
-    await open('Sites');
-    expect(first.destroy).toHaveBeenCalledOnce();
-    expect(oldCanvas.isConnected).toBe(false);
-
-    const second = prepareViewer();
-    await open('Home');
-    await waitFor(() => expect(mountViewer).toHaveBeenCalledTimes(2));
-    const [canvas, options] = mountViewer.mock.calls[1];
-    expect(canvas).not.toBe(oldCanvas);
-    oldOptions.onMode('live');
-    expect(screen.queryByRole('application', { name: canvasName })).toBeNull();
+    await waitFor(() => expect(mountViewer).toHaveBeenCalledOnce());
+    const [canvas, options] = mountViewer.mock.calls[0];
     options.onMode('live');
     expect(await screen.findByRole('application', { name: canvasName })).toBe(canvas);
     expect(canvas.tabIndex).toBe(0);
     expect(document.getElementById(canvas.getAttribute('aria-describedby') ?? '')?.textContent).toMatch(/Esc resets/);
     expect(screen.queryByRole('img', { name: artName })).toBeNull();
+    shell.unmount();
+    expect(viewer.destroy).toHaveBeenCalledOnce();
+    expect(canvas.isConnected).toBe(false);
+  });
 
-    await open('Settings');
-    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
-    expect(second.destroy).toHaveBeenCalledOnce();
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
-    await open('Home');
-    expect(screen.queryByRole('img', { name: artName })).toBeNull();
-    expect(screen.queryByRole('application', { name: canvasName })).toBeNull();
-    expect(mountViewer).toHaveBeenCalledTimes(2);
+  it('opens Sessions from Home without sending a Grace start or mounting the live viewer', async () => {
+    const openSessions = vi.fn(async () => {});
+    const startGrace = vi.fn(async () => 'started' as const);
+    render(App, { openSessions, startGrace });
+    await fireEvent.click(screen.getByRole('button', { name: 'Open sessions' }));
+    expect(openSessions).toHaveBeenCalledOnce();
+    expect(startGrace).not.toHaveBeenCalled();
+    expect(mountViewer).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Start in Grace' })).toBeNull();
   });
 
   it('retains saved toner pause and launches Grace during loading and after renderer failure', async () => {
     window.localStorage.setItem('focus.tonerPaused', 'true');
     prepareViewer();
     const startGrace = vi.fn(async () => 'unconfirmed' as const);
-    render(App, { startGrace });
+    render(App, { startGrace, sessionsWindow: true });
     const start = screen.getByRole('button', { name: 'Start in Grace' });
     expect(screen.getByRole('img', { name: artName })).toBeTruthy();
     expect(screen.queryByRole('application', { name: canvasName })).toBeNull();
@@ -88,7 +81,7 @@ describe('desktop shell', () => {
     const navigation = within(screen.getByRole('navigation', { name: 'Main' }));
     const home = navigation.getByRole('button', { name: 'Home' });
     expect(home.getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('heading', { name: 'Start a session' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'New schedule' })).toBeNull();
     const sites = navigation.getByRole('button', { name: 'Sites' });
     expect(sites.textContent?.trim()).toBe('Sites');
@@ -101,13 +94,13 @@ describe('desktop shell', () => {
     expect(sites.getAttribute('aria-current')).toBe('page');
     expect(home.getAttribute('aria-current')).toBeNull();
     await fireEvent.click(home, { detail: 0 });
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Start a session' }));
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Home' }));
   });
 
   it('does not dispatch a second Grace start while waiting or claim success without acceptance', async () => {
     const { promise, resolve } = Promise.withResolvers<'unconfirmed'>();
     let calls = 0;
-    render(App, { startGrace: () => {
+    render(App, { sessionsWindow: true, startGrace: () => {
       calls++;
       return promise;
     } });

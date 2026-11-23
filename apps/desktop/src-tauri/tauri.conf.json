@@ -13,7 +13,7 @@
     "security": {
       "capabilities": [{
         "identifier": "main-page-zoom",
-        "windows": ["main"],
+        "windows": ["main", "sessions"],
         "permissions": [
           "core:webview:allow-set-webview-zoom",
           "core:event:allow-listen",

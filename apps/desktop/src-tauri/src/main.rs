@@ -11,6 +11,30 @@ mod focus_launch_identity;
 
 use tauri::Manager;
 
+#[tauri::command]
+async fn open_sessions(app: tauri::AppHandle, caller: tauri::WebviewWindow) -> Result<(), String> {
+    if caller.label() != "main" {
+        return Err("Sessions can only be opened from Home".into());
+    }
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let result = (|| -> tauri::Result<()> {
+            let window = match handle.get_webview_window("sessions") {
+                Some(window) => window,
+                None => tauri::WebviewWindowBuilder::new(
+                    &handle, "sessions", tauri::WebviewUrl::App("index.html".into()),
+                ).title("focus. — Sessions").inner_size(960.0, 640.0).build()?,
+            };
+            window.show()?;
+            window.unminimize()?;
+            window.set_focus()
+        })();
+        let _ = tx.send(result);
+    }).map_err(|err| err.to_string())?;
+    rx.recv().map_err(|err| err.to_string())?.map_err(|err| err.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -21,6 +45,7 @@ fn main() {
             }
         }))
         .invoke_handler(tauri::generate_handler![
+            open_sessions,
             commands::browser_state,
             grace_launch::start_grace,
             scheduling::scheduling_available,

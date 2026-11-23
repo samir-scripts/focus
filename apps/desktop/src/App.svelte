@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import SiteMark from '@focus/ui/SiteMark.svelte';
   import TypewriterMark from '@focus/ui/TypewriterMark.svelte';
-  import { isTauri } from '@tauri-apps/api/core';
+  import { invoke, isTauri } from '@tauri-apps/api/core';
   import { palettes, readAppearance, saveAppearance, type Mode, type Palette, type PaletteMode } from './appearance';
   import PaperStock from './PaperStock.svelte';
   import PrintImpression from './PrintImpression.svelte';
@@ -17,13 +17,18 @@
   import graceMark from './assets/grace-mark.svg';
   import HomeTypewriter from './typewriter/HomeTypewriter.svelte';
   import HomeSchedules from './HomeSchedules.svelte';
+  import typewriterStill from './typewriter/assets/rest.png';
 
   let {
     browserBridge = isTauri() ? nativeBrowserBridge : null,
     startGrace = isTauri() ? startGraceSession : null,
+    sessionsWindow = false,
+    openSessions = isTauri() ? () => invoke<void>('open_sessions') : undefined,
   }: {
     browserBridge?: BrowserBridge | null;
     startGrace?: (() => Promise<GraceOutcome>) | null;
+    sessionsWindow?: boolean;
+    openSessions?: () => Promise<void>;
   } = $props();
 
   const pages = ['Sites', 'Statistics', 'Settings'] as const;
@@ -56,6 +61,7 @@
   let page = $state<Page>(settingsRoute() === undefined ? 'Home' : 'Settings');
   let launchPending = $state(false);
   let launchOutcome = $state<GraceOutcome>();
+  let sessionsError = $state(false);
   let browserState = $state.raw<BrowserState>();
   let siteId = $state(curatedSites[0].id);
   let libraryList: HTMLUListElement | undefined = $state();
@@ -282,6 +288,13 @@
     }
   }
 
+  async function showSessions() {
+    if (!openSessions) return;
+    sessionsError = false;
+    try { await openSessions(); }
+    catch { sessionsError = true; }
+  }
+
   async function openPage(next: Page, event: MouseEvent, nextCategory: Category | null = null) {
     if (next === page && (next !== 'Settings' || category === nextCategory)) return;
     revealPage = event.detail > 0;
@@ -326,6 +339,7 @@
 {/if}
 
 <div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
+  {#if !sessionsWindow}
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
     <PaperStock />
     <nav aria-label="Main" class:move-indicator={revealPage} data-page={page}>
@@ -355,6 +369,7 @@
       </div>
     </nav>
   </header>
+  {/if}
 
   <div class="workspace" class:with-library={page === 'Sites'}>
     {#if page === 'Sites'}
@@ -404,6 +419,7 @@
       {#key page}
         <div class="page" class:home-page={page === 'Home'} class:reveal={revealPage && page === 'Settings'}>
           {#if page === 'Home'}
+            {#if sessionsWindow}
             <div class="launch-hero">
               <div class="hero-copy">
                 <h1 tabindex="-1" bind:this={heading}>Start a<br />session</h1>
@@ -418,6 +434,20 @@
               {/if}
             </div>
             {#if isTauri()}<HomeSchedules />{/if}
+            {:else}
+              <div class="dashboard">
+                <h1 tabindex="-1" bind:this={heading}>Home</h1>
+                <section class="sessions-summary" aria-labelledby="sessions-summary-heading">
+                  <h2 id="sessions-summary-heading">Sessions</h2>
+                  {#if appearance.printIllustrations}
+                    <img class="typewriter-still" data-print="launch" src={typewriterStill} alt="Blue typewriter floating over a pink disc" width="104" height="96" />
+                  {/if}
+                  <p>Grace opens and runs your session.</p>
+                  {#if openSessions}<button type="button" class="outline" onclick={showSessions}>Open sessions</button>{/if}
+                  {#if sessionsError}<p role="alert">Could not open Sessions.</p>{/if}
+                </section>
+              </div>
+            {/if}
           {:else if page === 'Sites'}
             <header class="page-heading site-title-row">
               {#key site.id}
@@ -768,6 +798,12 @@
 
   main.home { padding: 0; }
   .home-page { max-width: none; background: transparent; }
+  .dashboard { display: grid; grid-template-columns: minmax(210px, 32%) minmax(0, 1fr); gap: 20px; padding: 24px; }
+  .dashboard h1 { grid-column: 1 / -1; }
+  .sessions-summary { display: grid; justify-items: start; gap: 8px; }
+  .typewriter-still { image-rendering: pixelated; }
+  @media (max-width: 635px) { .dashboard { grid-template-columns: minmax(0, 1fr); } }
+  @media (forced-colors: active) { .typewriter-still { display: none; } }
   .launch-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; min-height: max(345px, 47vw); }
   .hero-copy { position: relative; width: fit-content; max-width: min(88%, 410px); margin: 32px 0 32px 7.6%; }
   .hero-copy h1 { font: 800 clamp(42px, 6.85vw, 72px)/.99 var(--font-display); }
