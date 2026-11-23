@@ -3,7 +3,10 @@ import { afterEach, expect, it } from 'vitest';
 import App from './App.svelte';
 import type { BrowserBridge, BrowserScan, Profile } from './browser';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  history.replaceState(null, '', location.pathname);
+});
 
 function bridge(overrides: Partial<BrowserBridge>): BrowserBridge {
   return {
@@ -32,6 +35,7 @@ it('scans on entering Settings and on Rescan without dropping absent paired prof
   });
   render(App, { browserBridge });
   await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  await fireEvent.click(screen.getByRole('link', { name: 'Browser setup' }));
   const family = await screen.findByRole('group', { name: 'Firefox' });
   expect(within(family).getByText('Firefox ESR')).toBeTruthy();
   expect(within(family).getByText('User Flatpak')).toBeTruthy();
@@ -56,6 +60,7 @@ it('passes only the chosen install ID and does not use install success as a conn
     return 'storeOpened';
   } }) });
   await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  await fireEvent.click(screen.getByRole('link', { name: 'Browser setup' }));
   await fireEvent.click(await screen.findByRole('button', { name: 'Install extension in Chrome, Other installation' }));
   expect(await screen.findByText(/Approve installation in Chrome/)).toBeTruthy();
   expect(launched).toEqual(['second']);
@@ -69,6 +74,7 @@ it('explains managed scope before install and allows a cancelled authorization t
   });
   render(App, { browserBridge });
   await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  await fireEvent.click(screen.getByRole('link', { name: 'Browser setup' }));
   const family = await screen.findByRole('group', { name: 'Zen' });
   expect(within(family).getByText(/all profiles/)).toBeTruthy();
   expect(within(family).getByText(/Remove extension/)).toBeTruthy();

@@ -26,9 +26,9 @@ export function moveMonth(month: string, months: number): string {
   return isoDate(value).slice(0, 7);
 }
 
-export function calendarDays(month: string): (string | null)[] {
+export function calendarDays(month: string, firstWeekday: 0 | 1 = 1): (string | null)[] {
   const first = `${month}-01`;
-  const offset = (utcDate(first).getUTCDay() + 6) % 7;
+  const offset = (utcDate(first).getUTCDay() + 7 - firstWeekday) % 7;
   return Array.from({ length: 42 }, (_, index) => {
     const date = moveDate(first, index - offset);
     return date.startsWith(month) ? date : null;

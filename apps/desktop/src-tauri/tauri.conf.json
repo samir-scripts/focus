@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.focus-local.desktop",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node ../../scripts/stage-glance.mjs && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build && node ../../scripts/stage-desktop-policy-helper.mjs",
+    "beforeBuildCommand": "node ../../scripts/stage-glance.mjs && npm run build && node ../../scripts/stage-desktop-policy-helper.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -36,6 +36,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../../../docs/design/productivity/references/3f-glance-LICENSE.txt": "Glance-LICENSE.txt"
+    },
     "linux": {
       "deb": {
         "recommends": ["pkexec"],

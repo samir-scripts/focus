@@ -18,17 +18,22 @@
   import HomeTypewriter from './typewriter/HomeTypewriter.svelte';
   import HomeSchedules from './HomeSchedules.svelte';
   import typewriterStill from './typewriter/assets/rest.png';
+  import ReadingPanel from './ReadingPanel.svelte';
+  import ReadingSetup from './ReadingSetup.svelte';
+  import { reading, type ReadingSettings } from './reading';
 
   let {
     browserBridge = isTauri() ? nativeBrowserBridge : null,
     startGrace = isTauri() ? startGraceSession : null,
     sessionsWindow = false,
     openSessions = isTauri() ? () => invoke<void>('open_sessions') : undefined,
+    readingBridge = isTauri() ? reading : undefined,
   }: {
     browserBridge?: BrowserBridge | null;
     startGrace?: (() => Promise<GraceOutcome>) | null;
     sessionsWindow?: boolean;
     openSessions?: () => Promise<void>;
+    readingBridge?: typeof reading;
   } = $props();
 
   const pages = ['Sites', 'Statistics', 'Settings'] as const;
@@ -49,13 +54,14 @@
     appearance: { label: 'Appearance', icon: 'M3 3h18v13H3zM8 21h8m-4-5v5' },
     accessibility: { label: 'Accessibility', icon: 'M10 3h4v4h-4zM4 9h16m-8 0v6m0-2-5 8m5-8 5 8' },
     browser: { label: 'Browser setup', icon: 'M3 4h18v16H3zM3 9h18M6 6.5h1m2 0h1' },
+    reading: { label: 'Reading', icon: 'M3 5h7l2 2 2-2h7v14h-7l-2 2-2-2H3zM12 7v14' },
   };
   type Category = keyof typeof categories;
   function settingsRoute() {
     const hash = location.hash;
     if (hash === '#settings') return null;
     const key = hash.startsWith('#settings/') ? hash.slice(10) : '';
-    return Object.hasOwn(categories, key) ? key as Category : undefined;
+    return Object.hasOwn(categories, key) && (key !== 'reading' || readingBridge) ? key as Category : undefined;
   }
   let category = $state<Category | null>(settingsRoute() ?? null);
   let page = $state<Page>(settingsRoute() === undefined ? 'Home' : 'Settings');
@@ -295,6 +301,32 @@
     catch { sessionsError = true; }
   }
 
+  let readingSettings = $state<ReadingSettings>();
+  let readingError = $state(false);
+  let readingCollapsed = $state(false);
+  $effect(() => {
+    const bridge = sessionsWindow ? undefined : readingBridge;
+    if (!bridge) return;
+    let mounted = true;
+    let unlisten: (() => void) | undefined;
+    void bridge.onConfirmed(() => { if (mounted) readingCollapsed = true; })
+      .then(stop => { if (mounted) unlisten = stop; else stop(); }, () => {});
+    void bridge.settings().then(
+      settings => { if (mounted) readingSettings = settings; },
+      () => { if (mounted) readingError = true; },
+    );
+    return () => { mounted = false; unlisten?.(); };
+  });
+  async function saveReading(settings: ReadingSettings) {
+    if (!readingBridge) return;
+    readingSettings = await readingBridge.save(settings);
+    readingCollapsed = false;
+  }
+  async function showReading(external = false) {
+    await readingBridge?.open(external);
+    readingCollapsed = false;
+  }
+
   async function openPage(next: Page, event: MouseEvent, nextCategory: Category | null = null) {
     if (next === page && (next !== 'Settings' || category === nextCategory)) return;
     revealPage = event.detail > 0;
@@ -333,7 +365,10 @@
   let index = $state(0);
   let heldClick = false;
   let hold: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | undefined;
-  const quickPages: Page[] = ['Home', ...pages];
+  let quickPages = $derived<(Page | 'Reading' | 'Sessions' | 'Calendar')[]>([
+    'Home', ...(openSessions ? ['Sessions' as const] : []), ...(isTauri() ? ['Calendar' as const] : []),
+    ...(readingSettings?.enabled ? ['Reading' as const] : []), ...pages,
+  ]);
   function cancelHold() {
     if (hold) clearTimeout(hold.timer);
     hold = undefined;
@@ -406,6 +441,15 @@
             <button type="button" role="menuitem" tabindex={index === i ? 0 : -1} onclick={(event) => {
               quickOpen = false;
               mark?.focus();
+              if (entry === 'Reading') {
+                void showReading().catch(() => { void openPage('Home', event); });
+                return;
+              }
+              if (entry === 'Sessions') { void showSessions(); return; }
+              if (entry === 'Calendar') {
+                void openPage('Home', event).then(() => document.querySelector<HTMLElement>('.dashboard-calendar h2')?.focus());
+                return;
+              }
               void openPage(entry, event);
             }}>{entry}</button>
           {/each}
@@ -500,7 +544,8 @@
             {#if isTauri()}<HomeSchedules />{/if}
             {:else}
               <div class="dashboard">
-                <h1 tabindex="-1" bind:this={heading}>Home</h1>
+                <h1 class="dashboard-title" tabindex="-1" bind:this={heading}>Home</h1>
+                <div class="dashboard-side">
                 {#if isTauri()}<div class="dashboard-calendar"><HomeSchedules calendar /></div>{/if}
                 <section class="sessions-summary" aria-labelledby="sessions-summary-heading">
                   <h2 id="sessions-summary-heading">Sessions</h2>
@@ -511,6 +556,12 @@
                   {#if openSessions}<button type="button" class="outline" onclick={showSessions}>Open sessions</button>{/if}
                   {#if sessionsError}<p role="alert">Could not open Sessions.</p>{/if}
                 </section>
+                </div>
+                {#if readingBridge}
+                  <ReadingPanel settings={readingSettings} collapsed={readingCollapsed} error={readingError}
+                    setup={(event) => openPage('Settings', event, 'reading')} expand={() => readingCollapsed = false}
+                    load={readingBridge.preview} open={showReading} article={readingBridge.article} />
+                {/if}
               </div>
             {/if}
           {:else if page === 'Sites'}
@@ -588,7 +639,7 @@
           {:else if category === null}
             <header class="page-heading"><SettingsPrint bind:heading /></header>
             <ul class="settings-categories">
-              {#each Object.entries(categories) as [key, entry]}
+              {#each Object.entries(categories).filter(([key]) => key !== 'reading' || readingBridge) as [key, entry]}
                 <li><a href={`#settings/${key}`} id={`settings-row-${key}`} onclick={(event) => followCategory(event, key as Category)}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d={entry.icon} /></svg>
                   <span>{entry.label}</span>
@@ -671,6 +722,9 @@
               </form>
               {#if actionError}<p class="browser-error" role="alert">{actionError}</p>{/if}
             </fieldset>
+            {:else if category === 'reading'}
+              {#if readingSettings}<ReadingSetup settings={readingSettings} save={saveReading} />
+              {:else}<p role="status">{readingError ? 'Reading settings are unavailable.' : 'Loading Reading settings…'}</p>{/if}
             {:else}
               <BrowserSettings profiles={browserState?.profiles ?? []} bridge={browserBridge} disconnect={revoke} active={true} />
             {/if}
@@ -769,6 +823,7 @@
     inset-inline-start: max(var(--traffic-inset), min(calc((100% - var(--home-target)) / 2), calc(100% - var(--navigation-width) - var(--home-target))));
     min-width: var(--home-target);
     border: 1px solid var(--ink);
+    border-radius: var(--radius-control);
     background: var(--surface);
   }
   nav .quick-menu button { width: 100%; justify-content: start; padding-inline: 10px; }
@@ -874,12 +929,15 @@
 
   main.home { padding: 0; }
   .home-page { max-width: none; background: transparent; }
-  .dashboard { display: grid; grid-template-columns: minmax(210px, 32%) minmax(0, 1fr); gap: 20px; padding: 24px; }
-  .dashboard h1 { grid-column: 1 / -1; }
-  .dashboard-calendar, .sessions-summary { grid-column: 1; }
-  .sessions-summary { display: grid; justify-items: start; gap: 8px; }
+  .dashboard { display: grid; grid-template-columns: minmax(210px, 30%) minmax(0, 1fr); gap: 20px; padding: 24px; }
+  .dashboard-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .dashboard-side { display: grid; min-width: 0; align-content: start; gap: 20px; border-inline-end: 1px solid var(--divider); padding-inline-end: 18px; }
+  .sessions-summary { display: grid; justify-items: start; gap: 8px; border-block-start: 1px solid var(--divider); padding-top: 12px; }
   .typewriter-still { image-rendering: pixelated; }
-  @media (max-width: 635px) { .dashboard { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 635px) {
+    .dashboard { grid-template-columns: minmax(0, 1fr); }
+    .dashboard-side { border-inline-end: 0; padding-inline-end: 0; }
+  }
   @media (forced-colors: active) { .typewriter-still { display: none; } }
   .launch-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; min-height: max(345px, 47vw); }
   .hero-copy { position: relative; width: fit-content; max-width: min(88%, 410px); margin: 32px 0 32px 7.6%; }

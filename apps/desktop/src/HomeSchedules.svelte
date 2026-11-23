@@ -113,7 +113,7 @@
 
 <section aria-labelledby="schedules-heading">
   <header>
-    <h2 id="schedules-heading">{calendar ? 'Calendar' : 'Schedules'}</h2>
+    <h2 id="schedules-heading" tabindex={calendar ? -1 : undefined}>{calendar ? 'Calendar' : 'Schedules'}</h2>
     {#if available && !calendar}<button type="button" bind:this={add} onclick={(event) => create(undefined, event.currentTarget)}>New schedule</button>{/if}
   </header>
   {#if available && calendar}

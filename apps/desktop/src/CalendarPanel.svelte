@@ -9,8 +9,8 @@
     edit: (schedule: Schedule, opener: HTMLButtonElement) => void;
     create: (day: string, opener: HTMLButtonElement) => void;
   } = $props();
-  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  let days = $derived(calendarDays(month));
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  let days = $derived(calendarDays(month, 0));
   let next = $derived(entries.find(entry => entry.nextAt !== null));
   let agenda = $derived(occurrences.filter(entry => localDate(new Date(entry.at * 1000)) === selected));
 </script>

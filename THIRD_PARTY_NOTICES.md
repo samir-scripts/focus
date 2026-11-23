@@ -48,11 +48,15 @@ The Cobalt typewriter illustration adapts the [Grab3D Typewriter](https://grab3d
 
 The standalone 3D.2 typewriter preview uses [Three.js 0.184.0](https://github.com/mrdoob/three.js/tree/r184), copyright © 2010–2026 three.js authors, under the [MIT license](https://github.com/mrdoob/three.js/blob/r184/LICENSE). Its offline HTML includes the full license. The keyboard's printed legends are rasterized from the project's Focus Bitmap Regular face. [Viewer provenance and recipes](docs/design/productivity/typewriter/README.md#slice-3d2--standalone-interactive-preview).
 
+## Glance
+
+The separately executed Glance v0.8.8 program and captured reader test snippets are from [Glance and its contributors](https://github.com/glanceapp/glance), under the [AGPL-3.0 license](docs/design/productivity/references/3f-glance-LICENSE.txt). The executable is unmodified. [Corresponding source at commit `53aec7f392ca72143870dcb45526ec7c80a68f32`](https://github.com/glanceapp/glance/tree/53aec7f392ca72143870dcb45526ec7c80a68f32), [source archive](https://codeload.github.com/glanceapp/glance/tar.gz/53aec7f392ca72143870dcb45526ec7c80a68f32), and [build input and distribution record](docs/design/productivity/3f-glance-reading-plan.md#glance-build-input).
+
 ## Mona Sans and Mona Sans Mono
 
 The bundled variable WOFF2 fonts were copied from the sibling Grace project, whose font provenance identifies the GitHub Mona Sans project: https://github.com/github/mona-sans. The fonts are distributed under the following license.
 
-The separately named **Focus Bitmap Display** and **Focus Bitmap Wordmark** fonts are bitmap-outline derivatives of those same Mona fonts, distributed under the same SIL OFL. `python3.12 packages/ui/tools/build-bitmap-fonts.py` regenerates them offline with fontTools and Pillow (with WOFF2-capable FreeType). The **Focus Bitmap Regular** and **Bold** faces are original: their small letterforms come from the approved `focus-bitmap-particles.html` design study, with the rest of Basic Latin drawn to match.
+The separately named **Focus Bitmap Display**, **Focus Bitmap DisplaySolid** and **Focus Bitmap Wordmark** fonts are bitmap-outline derivatives of those same Mona fonts, distributed under the same SIL OFL. `python3.12 packages/ui/tools/build-bitmap-fonts.py` regenerates them offline with fontTools and Pillow (with WOFF2-capable FreeType). The **Focus Bitmap Regular** and **Bold** faces are original: their small letterforms come from the approved `focus-bitmap-particles.html` design study, with the rest of Basic Latin drawn to match.
 
 Copyright (c) 2023, GitHub https://github.com/github/mona-sans
 with Reserved Font Name "Mona Sans"

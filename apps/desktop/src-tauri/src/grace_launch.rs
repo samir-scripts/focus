@@ -43,7 +43,9 @@ pub(crate) async fn start_grace(app: AppHandle) -> Outcome {
 pub(crate) fn launch(app: &AppHandle, request_id: Uuid, manual: bool) -> Outcome {
     #[cfg(target_os = "macos")]
     {
-        macos::launch(app, request_id, manual)
+        let outcome = macos::launch(app, request_id, manual);
+        if outcome == Outcome::Started { crate::reading::confirmed_start(app, request_id); }
+        outcome
     }
     #[cfg(not(target_os = "macos"))]
     {
