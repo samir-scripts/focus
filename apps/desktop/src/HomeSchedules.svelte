@@ -111,9 +111,9 @@
   }
 </script>
 
-<section aria-labelledby="schedules-heading">
+<section class:calendar aria-labelledby="schedules-heading">
   <header>
-    <h2 id="schedules-heading" tabindex={calendar ? -1 : undefined}>{calendar ? 'Calendar' : 'Schedules'}</h2>
+    <h2 id="schedules-heading" tabindex="-1">{calendar ? 'Calendar' : 'Schedules'}</h2>
     {#if available && !calendar}<button type="button" bind:this={add} onclick={(event) => create(undefined, event.currentTarget)}>New schedule</button>{/if}
   </header>
   {#if available && calendar}
@@ -149,6 +149,7 @@
 
 <style>
   section { position: relative; margin-inline: 16px; border-top: 1px solid var(--edge); padding: 14px 9px; }
+  section.calendar { margin-inline: 0; padding: 10px 0; }
   header, li, .actions { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
   h2 { font-size: 19px; margin: 0; }
   p { margin: 4px 0 0; }

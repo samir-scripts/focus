@@ -552,7 +552,6 @@
                   {#if appearance.printIllustrations}
                     <img class="typewriter-still" data-print="launch" src={typewriterStill} alt="Blue typewriter floating over a pink disc" width="104" height="96" />
                   {/if}
-                  <p>Grace opens and runs your session.</p>
                   {#if openSessions}<button type="button" class="outline" onclick={showSessions}>Open sessions</button>{/if}
                   {#if sessionsError}<p role="alert">Could not open Sessions.</p>{/if}
                 </section>
@@ -931,7 +930,7 @@
   .home-page { max-width: none; background: transparent; }
   .dashboard { display: grid; grid-template-columns: minmax(210px, 30%) minmax(0, 1fr); gap: 20px; padding: 24px; }
   .dashboard-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .dashboard-side { display: grid; min-width: 0; align-content: start; gap: 20px; border-inline-end: 1px solid var(--divider); padding-inline-end: 18px; }
+  .dashboard-side { display: grid; min-width: 0; align-content: start; gap: 16px; border-inline-end: 1px solid var(--divider); padding-inline-end: 18px; background: var(--canvas); }
   .sessions-summary { display: grid; justify-items: start; gap: 8px; border-block-start: 1px solid var(--divider); padding-top: 12px; }
   .typewriter-still { image-rendering: pixelated; }
   @media (max-width: 635px) {
