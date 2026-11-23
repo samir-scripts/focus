@@ -65,6 +65,7 @@
   }
   let category = $state<Category | null>(settingsRoute() ?? null);
   let page = $state<Page>(settingsRoute() === undefined ? 'Home' : 'Settings');
+  let showStock = $derived(!sessionsWindow && (page === 'Sites' || page === 'Statistics'));
   let launchPending = $state(false);
   let launchOutcome = $state<GraceOutcome>();
   let sessionsError = $state(false);
@@ -441,7 +442,7 @@
 <div class="shell" class:toner-paused={appearance.tonerPaused || windowHidden}>
   {#if !sessionsWindow}
   <header class="toolbar" class:native-mac={nativeMacToolbar}>
-    <PaperStock />
+    {#if showStock}<PaperStock />{/if}
     <nav aria-label="Main" class:move-indicator={revealPage} data-page={page}>
       <button type="button" class="brand" aria-label="Home" title="Home" bind:this={mark}
         aria-haspopup="menu" aria-expanded={quickOpen} onpointerdown={pressMark} ondragstart={cancelHold}
@@ -538,7 +539,7 @@
     {/if}
 
     <main class:home={page === 'Home'}>
-      <PaperStock particles />
+      {#if showStock}<PaperStock particles />{/if}
       {#if browserError || actionError}
         <p class="browser-error" role="alert">{browserError || actionError}</p>
       {/if}

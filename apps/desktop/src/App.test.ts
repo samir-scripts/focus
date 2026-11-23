@@ -340,6 +340,29 @@ describe('desktop shell', () => {
     expect(screen.getByRole('button', { name: /^Dark palette/ }).textContent).toContain('Plum');
   });
 
+  it('uses solid paper on 3F views and retains animated stock on Sites and Statistics', async () => {
+    const shell = render(App);
+    const stock = () => shell.container.querySelectorAll('.stock');
+    const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+    expect(stock()).toHaveLength(0);
+    for (const [name, count] of [['Sites', 3], ['Statistics', 2]] as const) {
+      await open(name);
+      expect(stock()).toHaveLength(count);
+      expect(screen.getByRole('main').querySelector('.stock .toner')).not.toBeNull();
+    }
+    await open('Settings');
+    expect(stock()).toHaveLength(0);
+    for (const name of ['Appearance', 'Accessibility', 'Browser setup']) {
+      await fireEvent.click(screen.getByRole('link', { name }));
+      expect(stock()).toHaveLength(0);
+      await fireEvent.click(screen.getByRole('link', { name: 'Back to Settings' }));
+    }
+    await open('Home');
+    expect(stock()).toHaveLength(0);
+    shell.unmount();
+    expect(render(App, { sessionsWindow: true }).container.querySelector('.stock')).toBeNull();
+  });
+
   it('removes both impressions when disabled and keeps them off on restart', async () => {
     const shell = render(App);
     const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));

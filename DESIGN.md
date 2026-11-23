@@ -32,6 +32,8 @@ Three distinct effects guide the art and stock.
 
 Keep the 3.6s paper-grain hiss changing in place. Flake drift is separate, with poses held at 12 fps without slowing travel or stepping the density fade. Persist toner pause across launches, and pause grain, ink static and flakes when paused or hidden. Reduced motion stops the animated stock and sweeps. Forced colors, where supported, suppress decorative art, grain, flakes, wear, sweeps and SVG halftoning while retaining legible text, controls and marks.
 
+**3F solid-paper exception.** Home (including Calendar and Reading), Sessions, and every Settings page use solid paper, including the shared toolbar when present. Do not mount background grain or drifting flecks there. Preserve the Settings title's 3.6s toner steps and held solid hover, worn dividers, and the typewriter's halftone and motion. Sites and Statistics retain their existing stock.
+
 The historical [light-wear comparison](docs/design/dither-ui/printed-ink-light-wear-comparison.png) and [printed-ink Light Cobalt target](docs/design/dither-ui/printed-ink-light-cobalt-target.png) document the baseline treatment.
 
 For 3C, compare the shipped and trial paper-grain opacities for canvas and rail. These trial values leave shipped settings unchanged in 3A.

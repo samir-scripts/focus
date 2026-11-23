@@ -66,6 +66,8 @@ Start each behavior with a failing test. Complete the tests green and commit foc
 
 Reading starts off if the settings file is missing. If it is invalid or cannot be read, focus. still opens with Reading disabled. Settings → Reading offers an explicit reset; it keeps the original file in a `reading-recovery-*` folder beside the settings file before allowing new subscriptions. If the backup cannot be made, the file is left untouched and Reading stays off.
 
+The approved solid-paper correction removes background grain and drifting flecks from Home, Sessions, and all Settings pages, including the toolbar. The Settings heading effect, worn dividers, and typewriter art are unchanged. Sites and Statistics keep their stock.
+
 Earlier native evidence: 3D.3 verified the interactive viewer, keyboard launch and WebGL fallback against the signed Grace fixture. 3E verified cold scheduling from minimized focus., recurring starts, Busy, missed starts after suspension and time-zone retention on macOS 15.7.7 using the same Grace commit. Use a disposable VM and exact signed bundle bytes for 3F; these earlier results do not qualify its window or Reading changes.
 
 ## Evidence and review
