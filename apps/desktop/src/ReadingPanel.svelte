@@ -35,20 +35,20 @@
   <h2 id="reading-title">Reading</h2>
   {#if error === 'recovery'}
     <p role="status">Reading is off because its settings file could not be read.</p>
-    <button type="button" onclick={setup}>Manage Reading settings</button>
+    <button type="button" class="dashboard-control" onclick={setup}>Manage Reading settings</button>
   {:else if error}
     <p role="status">Could not load Reading settings.</p>
   {:else if !settings}
     <p role="status">Loading Reading settings…</p>
   {:else if !settings.enabled}
     <p>Choose what you want to read. Reading is off by default.</p>
-    <button type="button" onclick={setup}>Set up Reading</button>
+    <button type="button" class="dashboard-control" onclick={setup}>Set up Reading</button>
   {:else}
     {#if settings.page}<p class="destination">Connected to {settings.page}</p>{/if}
     <div class="actions">
-      <button type="button" onclick={() => act(open)}>Open Reading</button>
-      {#if settings.page}<button type="button" onclick={() => act(() => open(true))}>Open in browser</button>{/if}
-      {#if collapsed}<button type="button" onclick={expand}>Show headlines</button>{/if}
+      <button type="button" class="dashboard-control" onclick={() => act(open)}>Open Reading</button>
+      {#if settings.page}<button type="button" class="dashboard-control" onclick={() => act(() => open(true))}>Open in browser</button>{/if}
+      {#if collapsed}<button type="button" class="dashboard-control" onclick={expand}>Show headlines</button>{/if}
     </div>
     {#if !collapsed && settings.feeds.length}
       {#if !preview}<p role="status">Loading feeds…</p>
@@ -63,7 +63,7 @@
             {/each}
           </ul>
         {/if}
-        <button type="button" onclick={() => revision++}>Refresh headlines</button>
+        <button type="button" class="dashboard-control" onclick={() => revision++}>Refresh headlines</button>
       {/if}
     {/if}
   {/if}

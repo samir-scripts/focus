@@ -22,9 +22,9 @@
 </script>
 
 <div class="month-tools">
-  <button type="button" aria-label="Previous month" onclick={() => navigate(moveMonth(month, -1))}>‹</button>
+  <button type="button" class="dashboard-control" aria-label="Previous month" onclick={() => navigate(moveMonth(month, -1))}>‹</button>
   <strong>{dateLabel(`${month}-01`, { month: 'long', year: 'numeric' })}</strong>
-  <button type="button" aria-label="Next month" onclick={() => navigate(moveMonth(month, 1))}>›</button>
+  <button type="button" class="dashboard-control" aria-label="Next month" onclick={() => navigate(moveMonth(month, 1))}>›</button>
 </div>
 <div class="month" aria-label="Month days">
   {#each weekdays as weekday}<span>{weekday}</span>{/each}
@@ -49,13 +49,14 @@
     </ul>
   {/if}
 {/if}
-<button type="button" onclick={(event) => create(selected, event.currentTarget)}>New schedule</button>
+<button type="button" class="dashboard-control new-schedule" onclick={(event) => create(selected, event.currentTarget)}>New schedule</button>
 
 <style>
   .month-tools { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
   .month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; margin-block: 8px; gap: 2px; }
   .month span { font-size: 12px; }
   button { border: 1px solid var(--edge); background: var(--surface); color: var(--ink); font: inherit; min-height: 26px; padding: 0 3px; }
+  .new-schedule { padding: 4px 10px; }
   .month button:not(:hover, [aria-pressed='true']) { border-color: transparent; background: transparent; }
   button:is(:hover, [aria-pressed='true']) { background: var(--ink); color: var(--surface); }
   h3, p { margin: 8px 0; }

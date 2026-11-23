@@ -571,7 +571,7 @@
                   {#if appearance.printIllustrations}
                     <img class="typewriter-still" data-print="launch" src={typewriterStill} alt="Blue typewriter floating over a pink disc" width="104" height="96" />
                   {/if}
-                  {#if openSessions}<button type="button" class="outline" onclick={showSessions}>Open sessions</button>{/if}
+                  {#if openSessions}<button type="button" class="dashboard-control sessions-open" onclick={showSessions}>Open sessions</button>{/if}
                   {#if sessionsError}<p role="alert">Could not open Sessions.</p>{/if}
                 </section>
                 </div>
@@ -985,6 +985,51 @@
   }
   @media (forced-colors: active) {
     .dashboard :global(.dashboard-rule) { border-block-start-color: CanvasText; }
+  }
+  .sessions-open { min-height: 36px; padding-inline: 10px; }
+  .dashboard :global(button.dashboard-control) {
+    border: 1px solid var(--ink);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .dashboard :global(button.dashboard-control:is(:hover, :active)) {
+    background: var(--ink);
+    color: var(--surface);
+  }
+  @media (forced-colors: none) {
+    .dashboard :global(button.dashboard-control) {
+      --button-fill: var(--surface);
+      position: relative;
+      isolation: isolate;
+      border-color: transparent;
+      background: transparent;
+    }
+    .dashboard :global(button.dashboard-control:is(:hover, :active)) {
+      --button-fill: var(--ink);
+      background: transparent;
+    }
+    .dashboard :global(button.dashboard-control)::before,
+    .dashboard :global(button.dashboard-control)::after {
+      --step: 1px;
+      content: '';
+      pointer-events: none;
+      position: absolute;
+      z-index: -1;
+      clip-path: polygon(
+        calc(2 * var(--step)) 0, calc(100% - 2 * var(--step)) 0,
+        calc(100% - 2 * var(--step)) var(--step), calc(100% - var(--step)) var(--step),
+        calc(100% - var(--step)) calc(2 * var(--step)), 100% calc(2 * var(--step)),
+        100% calc(100% - 2 * var(--step)), calc(100% - var(--step)) calc(100% - 2 * var(--step)),
+        calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - 2 * var(--step)) calc(100% - var(--step)),
+        calc(100% - 2 * var(--step)) 100%, calc(2 * var(--step)) 100%,
+        calc(2 * var(--step)) calc(100% - var(--step)), var(--step) calc(100% - var(--step)),
+        var(--step) calc(100% - 2 * var(--step)), 0 calc(100% - 2 * var(--step)),
+        0 calc(2 * var(--step)), var(--step) calc(2 * var(--step)),
+        var(--step) var(--step), calc(2 * var(--step)) var(--step)
+      );
+    }
+    .dashboard :global(button.dashboard-control)::before { inset: -1px; background: var(--ink); }
+    .dashboard :global(button.dashboard-control)::after { inset: 0; background: var(--button-fill); }
   }
   .typewriter-still { image-rendering: pixelated; }
   @media (max-width: 635px) {
