@@ -46,7 +46,7 @@ try {
     if (!res.ok) throw new Error(`${kind}: ${res.status}`);
     const html = await res.text();
     if (!html.includes('widget-type-rss')) throw new Error(`No RSS widget found: ${kind}`);
-    await writeFile(join(destination, `${kind}.html`), html);
+    await writeFile(join(destination, `${kind}.html`), html.replace(/[ \t]+$/gm, ''));
   }
 } finally {
   child.kill();

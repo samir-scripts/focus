@@ -20,7 +20,7 @@
   import typewriterStill from './typewriter/assets/rest.png';
   import ReadingPanel from './ReadingPanel.svelte';
   import ReadingSetup from './ReadingSetup.svelte';
-  import { reading, type ReadingSettings } from './reading';
+  import { reading, readingSettingsRecovery, type ReadingSettings } from './reading';
 
   let {
     browserBridge = isTauri() ? nativeBrowserBridge : null,
@@ -302,7 +302,9 @@
   }
 
   let readingSettings = $state<ReadingSettings>();
-  let readingError = $state(false);
+  let readingError = $state<'load' | 'recovery'>();
+  let resettingReading = $state(false);
+  let readingResetError = $state('');
   let readingCollapsed = $state(false);
   $effect(() => {
     const bridge = sessionsWindow ? undefined : readingBridge;
@@ -313,7 +315,7 @@
       .then(stop => { if (mounted) unlisten = stop; else stop(); }, () => {});
     void bridge.settings().then(
       settings => { if (mounted) readingSettings = settings; },
-      () => { if (mounted) readingError = true; },
+      error => { if (mounted) readingError = error === readingSettingsRecovery ? 'recovery' : 'load'; },
     );
     return () => { mounted = false; unlisten?.(); };
   });
@@ -321,6 +323,22 @@
     if (!readingBridge) return;
     readingSettings = await readingBridge.save(settings);
     readingCollapsed = false;
+  }
+  async function resetReading() {
+    if (!readingBridge || readingError !== 'recovery' || resettingReading) return;
+    resettingReading = true;
+    readingResetError = '';
+    try {
+      readingSettings = await readingBridge.reset();
+      readingError = undefined;
+      readingCollapsed = false;
+      await tick();
+      if (page === 'Settings' && category === 'reading') heading?.focus();
+    } catch (error) {
+      readingResetError = typeof error === 'string' ? error : 'Could not reset Reading settings.';
+    } finally {
+      resettingReading = false;
+    }
   }
   async function showReading(external = false) {
     await readingBridge?.open(external);
@@ -722,7 +740,11 @@
               {#if actionError}<p class="browser-error" role="alert">{actionError}</p>{/if}
             </fieldset>
             {:else if category === 'reading'}
-              {#if readingSettings}<ReadingSetup settings={readingSettings} save={saveReading} />
+              {#if readingError === 'recovery'}
+                <p role="alert">Reading is off because its settings file could not be read. Reset to start fresh and keep the original file as a backup.</p>
+                <button type="button" class="outline" disabled={resettingReading} onclick={resetReading}>Reset Reading settings</button>
+                {#if readingResetError}<p role="status">{readingResetError}</p>{/if}
+              {:else if readingSettings}<ReadingSetup settings={readingSettings} save={saveReading} />
               {:else}<p role="status">{readingError ? 'Reading settings are unavailable.' : 'Loading Reading settings…'}</p>{/if}
             {:else}
               <BrowserSettings profiles={browserState?.profiles ?? []} bridge={browserBridge} disconnect={revoke} active={true} />

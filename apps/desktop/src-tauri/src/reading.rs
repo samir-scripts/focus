@@ -1,4 +1,4 @@
-use std::{fs, io::Read, net::{Ipv4Addr, TcpListener}, path::PathBuf, process::{Child, Command, Stdio}, sync::Mutex, time::{Duration, Instant}};
+use std::{fs, io::Read, net::{Ipv4Addr, TcpListener}, path::{Path, PathBuf}, process::{Child, Command, Stdio}, sync::Mutex, time::{Duration, Instant}};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -7,6 +7,8 @@ use url::Url;
 
 const CONTENT: &str = "api/pages/reading/content/";
 const MAX_HTML: u64 = 2 * 1024 * 1024;
+const RECOVERY_REQUIRED: &str = "reading_settings_recovery";
+const SETTINGS_UNAVAILABLE: &str = "Reading settings are unavailable.";
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub(crate) struct Settings {
@@ -52,20 +54,15 @@ impl Settings {
 pub(crate) struct Reading(Mutex<Runtime>);
 
 struct Runtime {
-    path: PathBuf,
-    settings: Settings,
+    path: Option<PathBuf>,
+    settings: Result<Settings, &'static str>,
     child: Option<Glance>,
 }
 
 impl Reading {
-    pub(crate) fn load(path: PathBuf) -> std::io::Result<Self> {
-        let settings = match fs::read(&path) {
-            Ok(data) => serde_json::from_slice::<Settings>(&data).map_err(std::io::Error::other)?
-                .validate().map_err(std::io::Error::other)?,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Settings::default(),
-            Err(err) => return Err(err),
-        };
-        Ok(Self(Mutex::new(Runtime { path, settings, child: None })))
+    pub(crate) fn load(path: Option<PathBuf>) -> Self {
+        let settings = path.as_deref().ok_or(SETTINGS_UNAVAILABLE).and_then(load_settings);
+        Self(Mutex::new(Runtime { path, settings, child: None }))
     }
 
     pub(crate) fn stop(&self) {
@@ -73,29 +70,71 @@ impl Reading {
     }
 }
 
+fn load_settings(path: &Path) -> Result<Settings, &'static str> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Settings::default()),
+        Err(_) => return Err(RECOVERY_REQUIRED),
+    }
+    if !fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
+        return Err(RECOVERY_REQUIRED);
+    }
+    let bytes = fs::read(path).map_err(|_| RECOVERY_REQUIRED)?;
+    serde_json::from_slice::<Settings>(&bytes).map_err(|_| RECOVERY_REQUIRED)?
+        .validate().map_err(|_| RECOVERY_REQUIRED)
+}
+
 impl Runtime {
+    fn settings(&self) -> Result<&Settings, &'static str> {
+        self.settings.as_ref().map_err(|&error| error)
+    }
+
+    fn reset(&mut self) -> Result<Settings, &'static str> {
+        if self.settings != Err(RECOVERY_REQUIRED) {
+            return Err("Reading settings do not need recovery.");
+        }
+        let path = self.path.as_deref().ok_or(SETTINGS_UNAVAILABLE)?;
+        let backup_error = "Could not keep a copy of the original Reading settings. Nothing was reset.";
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.is_file() => {
+                let parent = path.parent().ok_or(backup_error)?;
+                let backup = tempfile::Builder::new().prefix("reading-recovery-")
+                    .tempdir_in(parent).map_err(|_| backup_error)?;
+                fs::rename(path, backup.path().join("reading.json")).map_err(|_| backup_error)?;
+                let _ = backup.keep();
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            _ => return Err(backup_error),
+        }
+        let settings = Settings::default();
+        self.settings = Ok(settings.clone());
+        Ok(settings)
+    }
+
     fn sidecar(&mut self) -> Result<Url, &'static str> {
-        if !self.settings.enabled || self.settings.feeds.is_empty() { return Err("Reading feeds are not enabled."); }
+        let settings = self.settings()?;
+        if !settings.enabled || settings.feeds.is_empty() { return Err("Reading feeds are not enabled."); }
         if let Some(glance) = &mut self.child {
             if matches!(glance.child.try_wait(), Ok(None)) { return Ok(glance.base.clone()); }
         }
         self.child = None;
-        let glance = Glance::start(&self.settings.feeds)?;
+        let glance = Glance::start(&self.settings()?.feeds)?;
         let base = glance.base.clone();
         self.child = Some(glance);
         Ok(base)
     }
 
     fn save(&mut self, settings: Settings) -> Result<bool, &'static str> {
-        if settings == self.settings { return Ok(false); }
-        let parent = self.path.parent().ok_or("Reading settings path is unavailable.")?;
+        if &settings == self.settings()? { return Ok(false); }
+        let path = self.path.as_deref().ok_or(SETTINGS_UNAVAILABLE)?;
+        let parent = path.parent().ok_or(SETTINGS_UNAVAILABLE)?;
         fs::create_dir_all(parent).map_err(|_| "Could not create the Reading settings folder.")?;
         let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|_| "Could not save Reading settings.")?;
         serde_json::to_writer(&mut file, &settings).map_err(|_| "Could not save Reading settings.")?;
         file.as_file().sync_all().map_err(|_| "Could not save Reading settings.")?;
-        file.persist(&self.path).map_err(|_| "Could not save Reading settings.")?;
+        file.persist(path).map_err(|_| "Could not save Reading settings.")?;
         self.child = None;
-        self.settings = settings;
+        self.settings = Ok(settings);
         Ok(true)
     }
 }
@@ -172,7 +211,7 @@ fn client(timeout: Duration) -> Result<reqwest::blocking::Client, &'static str> 
 #[tauri::command]
 pub(crate) async fn reading_settings(app: AppHandle) -> Result<Settings, &'static str> {
     tauri::async_runtime::spawn_blocking(move || {
-        Ok(app.state::<Reading>().0.lock().map_err(|_| "Reading is unavailable.")?.settings.clone())
+        app.state::<Reading>().0.lock().map_err(|_| SETTINGS_UNAVAILABLE)?.settings().cloned()
     }).await.map_err(|_| "Reading is unavailable.")?
 }
 
@@ -186,6 +225,13 @@ pub(crate) async fn save_reading_settings(app: AppHandle, settings: Settings) ->
         }
         Ok(settings)
     }).await.map_err(|_| "Could not save Reading settings.")?
+}
+
+#[tauri::command]
+pub(crate) async fn reset_reading_settings(app: AppHandle) -> Result<Settings, &'static str> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Reading>().0.lock().map_err(|_| SETTINGS_UNAVAILABLE)?.reset()
+    }).await.map_err(|_| SETTINGS_UNAVAILABLE)?
 }
 
 #[tauri::command]
@@ -207,8 +253,9 @@ pub(crate) async fn open_reading(app: AppHandle, external: bool) -> Result<(), S
     let url = tauri::async_runtime::spawn_blocking(move || {
         let state = worker.state::<Reading>();
         let mut rt = state.0.lock().map_err(|_| "Reading is unavailable.")?;
-        if !rt.settings.enabled { return Err("Reading is disabled."); }
-        match &rt.settings.page {
+        let settings = rt.settings()?;
+        if !settings.enabled { return Err("Reading is disabled."); }
+        match &settings.page {
             Some(page) => web_url(page),
             None if external => Err("Only a connected Glance page can open in your browser."),
             None => rt.sidecar(),
@@ -221,13 +268,14 @@ pub(crate) async fn open_reading(app: AppHandle, external: bool) -> Result<(), S
         let result = (|| -> Result<(), String> {
             let state = handle.state::<Reading>();
             let rt = state.0.lock().map_err(|_| "Reading is unavailable.")?;
-            if !rt.settings.enabled || match &rt.settings.page {
+            let settings = rt.settings()?;
+            if !settings.enabled || match &settings.page {
                 Some(page) => page != url.as_str(),
                 None => rt.child.as_ref().is_none_or(|child| child.base != url),
             } { return Err("Reading settings changed. Try again.".into()); }
             let reader = match handle.get_webview_window("reading") {
                 Some(reader) => {
-                    if rt.settings.page.is_none() && reader.url().is_ok_and(|current| current.origin() != url.origin()) {
+                    if settings.page.is_none() && reader.url().is_ok_and(|current| current.origin() != url.origin()) {
                         reader.navigate(url).map_err(|err| err.to_string())?;
                     }
                     reader
@@ -289,11 +337,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn invalid_or_unreadable_preferences_do_not_prevent_startup() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("reading.json");
+        for bytes in [b"{".as_slice(), br#"{"enabled":true,"page":null,"feeds":[]}"#] {
+            fs::write(&path, bytes).unwrap();
+            let state = Reading::load(Some(path.clone()));
+            let mut runtime = state.0.lock().unwrap();
+            assert_eq!(runtime.settings(), Err(RECOVERY_REQUIRED));
+            assert_eq!(runtime.sidecar(), Err(RECOVERY_REQUIRED));
+            assert!(runtime.child.is_none());
+            assert_eq!(runtime.save(Settings::default()), Err(RECOVERY_REQUIRED));
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+            assert_eq!(runtime.reset().unwrap(), Settings::default());
+            assert!(!path.exists());
+            assert!(runtime.sidecar().is_err());
+            assert!(fs::read_dir(root.path()).unwrap().any(|entry| {
+                fs::read(entry.unwrap().path().join("reading.json")).is_ok_and(|backup| backup == bytes)
+            }));
+        }
+        let non_file = path.with_extension("directory");
+        fs::create_dir(&non_file).unwrap();
+        let state = Reading::load(Some(non_file.clone()));
+        let mut runtime = state.0.lock().unwrap();
+        assert_eq!(runtime.sidecar(), Err(RECOVERY_REQUIRED));
+        assert!(runtime.reset().is_err());
+        assert_eq!(runtime.settings(), Err(RECOVERY_REQUIRED));
+        assert!(non_file.is_dir());
+    }
+
+    #[test]
     fn stores_disabled_feeds_without_starting_glance() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("reading.json");
-        let state = Reading::load(path.clone()).unwrap();
+        let state = Reading::load(Some(path.clone()));
         let mut runtime = state.0.lock().unwrap();
+        assert_eq!(runtime.settings().unwrap(), &Settings::default());
         let settings = Settings {
             feeds: vec![Subscription { url: "https://example.com/rss".into(), name: " News ".into() }],
             ..Settings::default()
@@ -301,14 +380,19 @@ mod tests {
         runtime.save(settings.clone()).unwrap();
         assert!(runtime.sidecar().is_err());
         assert!(runtime.child.is_none());
-        assert_eq!(settings, Reading::load(path).unwrap().0.into_inner().unwrap().settings);
+        let restored = Reading::load(Some(path));
+        let mut restored = restored.0.lock().unwrap();
+        assert_eq!(restored.settings().unwrap(), &settings);
+        assert!(restored.reset().is_err());
+        assert!(restored.sidecar().is_err());
+        assert!(restored.child.is_none());
     }
 
     #[test]
     #[ignore = "requires the pinned Glance executable staged by scripts/stage-glance.mjs"]
     fn pinned_glance_is_reused_and_stopped_after_disable() {
         let root = tempfile::tempdir().unwrap();
-        let state = Reading::load(root.path().join("reading.json")).unwrap();
+        let state = Reading::load(Some(root.path().join("reading.json")));
         let mut runtime = state.0.lock().unwrap();
         let mut settings = Settings {
             enabled: true,

@@ -2,7 +2,7 @@
   import type { Preview, ReadingSettings } from './reading';
 
   let { settings, collapsed, error, setup, expand, load, open, article }: {
-    settings?: ReadingSettings; collapsed: boolean; error: boolean;
+    settings?: ReadingSettings; collapsed: boolean; error?: 'load' | 'recovery';
     setup: (event: MouseEvent) => void; expand: () => void;
     load: () => Promise<Preview>; open: (external?: boolean) => Promise<void>;
     article: (url: string) => Promise<void>;
@@ -33,7 +33,10 @@
 
 <section aria-labelledby="reading-title">
   <h2 id="reading-title">Reading</h2>
-  {#if error}
+  {#if error === 'recovery'}
+    <p role="status">Reading is off because its settings file could not be read.</p>
+    <button type="button" onclick={setup}>Manage Reading settings</button>
+  {:else if error}
     <p role="status">Could not load Reading settings.</p>
   {:else if !settings}
     <p role="status">Loading Reading settings…</p>

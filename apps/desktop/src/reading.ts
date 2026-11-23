@@ -6,6 +6,8 @@ export interface ReadingSettings { enabled: boolean; page: string | null; feeds:
 export interface Headline { title: string; source: string; url: string }
 export interface Preview { state: 'ready' | 'empty' | 'offline' | 'partial'; items: Headline[] }
 
+export const readingSettingsRecovery = 'reading_settings_recovery';
+
 export function webUrl(value: string) {
   try {
     const url = new URL(value);
@@ -37,6 +39,7 @@ export function parsePreview(html: string): Preview {
 export const reading = {
   settings: () => invoke<ReadingSettings>('reading_settings'),
   save: (settings: ReadingSettings) => invoke<ReadingSettings>('save_reading_settings', { settings }),
+  reset: () => invoke<ReadingSettings>('reset_reading_settings'),
   preview: async () => parsePreview(await invoke<string>('reading_preview')),
   open: (external = false) => invoke<void>('open_reading', { external }),
   article: (url: string) => invoke<void>('open_article', { url }),

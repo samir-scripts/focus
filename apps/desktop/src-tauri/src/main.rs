@@ -41,6 +41,7 @@ fn main() {
         open_sessions,
         reading::reading_settings,
         reading::save_reading_settings,
+        reading::reset_reading_settings,
         reading::reading_preview,
         reading::open_reading,
         reading::open_article,
@@ -89,8 +90,8 @@ fn main() {
             commands(invoke)
         })
         .setup(|app| {
-            let path = app.path().app_config_dir()?.join("reading.json");
-            app.manage(reading::Reading::load(path)?);
+            let path = app.path().app_config_dir().ok().map(|dir| dir.join("reading.json"));
+            app.manage(reading::Reading::load(path));
             #[cfg(target_os = "macos")]
             titlebar::install(app)?;
             scheduling::run(app.handle().clone());
