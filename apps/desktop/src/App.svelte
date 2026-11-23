@@ -40,7 +40,20 @@
   ] as const;
   const paletteIds = Object.keys(palettes) as Palette[];
 
-  let page = $state<Page>('Home');
+  const categories = {
+    appearance: { label: 'Appearance', icon: 'M3 3h18v13H3zM8 21h8m-4-5v5' },
+    accessibility: { label: 'Accessibility', icon: 'M10 3h4v4h-4zM4 9h16m-8 0v6m0-2-5 8m5-8 5 8' },
+    browser: { label: 'Browser setup', icon: 'M3 4h18v16H3zM3 9h18M6 6.5h1m2 0h1' },
+  };
+  type Category = keyof typeof categories;
+  function settingsRoute() {
+    const hash = location.hash;
+    if (hash === '#settings') return null;
+    const key = hash.startsWith('#settings/') ? hash.slice(10) : '';
+    return Object.hasOwn(categories, key) ? key as Category : undefined;
+  }
+  let category = $state<Category | null>(settingsRoute() ?? null);
+  let page = $state<Page>(settingsRoute() === undefined ? 'Home' : 'Settings');
   let launchPending = $state(false);
   let launchOutcome = $state<GraceOutcome>();
   let browserState = $state.raw<BrowserState>();
@@ -91,6 +104,10 @@
         revealPage = false;
         revealSite = false;
         page = target ? 'Sites' : 'Settings';
+        if (!target) {
+          category = 'browser';
+          history.replaceState(null, '', '#settings/browser');
+        }
         if (target) await focusSiteSelection();
         else {
           await tick();
@@ -265,18 +282,42 @@
     }
   }
 
-  async function openPage(next: Page, event: MouseEvent) {
-    if (next === page) return;
+  async function openPage(next: Page, event: MouseEvent, nextCategory: Category | null = null) {
+    if (next === page && (next !== 'Settings' || category === nextCategory)) return;
     revealPage = event.detail > 0;
     revealSite = false;
     openPalette = null;
     page = next;
+    category = nextCategory;
+    const hash = next === 'Settings' ? `#settings${category ? `/${category}` : ''}` : '';
+    if (hash !== location.hash) history.pushState(null, '', hash || location.pathname + location.search);
     await tick();
     heading?.focus();
+  }
+
+  async function followCategory(event: MouseEvent, next: Category | null) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const previous = category;
+    await openPage('Settings', event, next);
+    if (next === null && previous) document.getElementById(`settings-row-${previous}`)?.focus();
+  }
+
+  async function followSettingsHash() {
+    const next = settingsRoute();
+    const previous = category;
+    if (next === undefined && page !== 'Settings') return;
+    revealPage = false;
+    page = next === undefined ? 'Home' : 'Settings';
+    category = next ?? null;
+    await tick();
+    if (next === null && previous) document.getElementById(`settings-row-${previous}`)?.focus();
+    else heading?.focus();
   }
 </script>
 
 <svelte:document onvisibilitychange={() => windowHidden = document.hidden} />
+<svelte:window onhashchange={followSettingsHash} />
 
 {#if pendingPair}
   {#key pendingPair.id}
@@ -404,7 +445,7 @@
                   <p class="connection"><span aria-hidden="true"></span>No browsers connected</p>
                 {/if}
               </div>
-              <button type="button" class="outline" onclick={(event) => openPage('Settings', event)}>Browser settings</button>
+              <button type="button" class="outline" onclick={(event) => openPage('Settings', event, 'browser')}>Browser settings</button>
             </section>
             {#if currentPolicy && browserState?.entryAvailable}
               {@const policy = currentPolicy}
@@ -449,10 +490,25 @@
                 <div class="impression sheet"><PrintImpression variant="sheet" /></div>
               {/if}
             </section>
-          {:else}
+          {:else if category === null}
             <header class="page-heading"><SettingsPrint bind:heading /></header>
-            <fieldset>
-              <legend>Appearance</legend>
+            <ul class="settings-categories">
+              {#each Object.entries(categories) as [key, entry]}
+                <li><a href={`#settings/${key}`} id={`settings-row-${key}`} onclick={(event) => followCategory(event, key as Category)}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d={entry.icon} /></svg>
+                  <span>{entry.label}</span>
+                </a></li>
+              {/each}
+            </ul>
+          {:else}
+            {#key category}
+              <header class="page-heading">
+                <a href="#settings" onclick={(event) => followCategory(event, null)}>Back to Settings</a>
+                <h1 bind:this={heading} tabindex="-1">{categories[category].label}</h1>
+              </header>
+            {/key}
+            {#if category === 'appearance'}
+            <fieldset aria-label="Appearance">
               <div class="appearances">
                 {#each modes as option}
                   <label>
@@ -500,6 +556,7 @@
                 <span>Pause toner particles</span>
               </label>
             </fieldset>
+            {:else if category === 'accessibility'}
             <fieldset disabled={!browserBridge || !browserState || editingRule}>
               <legend>Accessibility</legend>
               {#if !browserState?.entryAvailable}<p>Site entry is unavailable in this build. These settings apply only when it is enabled.</p>{/if}
@@ -519,12 +576,12 @@
               </form>
               {#if actionError}<p class="browser-error" role="alert">{actionError}</p>{/if}
             </fieldset>
+            {:else}
+              <BrowserSettings profiles={browserState?.profiles ?? []} bridge={browserBridge} disconnect={revoke} active={true} />
+            {/if}
           {/if}
         </div>
       {/key}
-      <div class="page" class:reveal={revealPage && page === 'Settings'} hidden={page !== 'Settings'}>
-        <BrowserSettings profiles={browserState?.profiles ?? []} bridge={browserBridge} disconnect={revoke} active={page === 'Settings'} />
-      </div>
     </main>
   </div>
 </div>
@@ -738,6 +795,9 @@
     .launch-action { border-color: ButtonText; color: ButtonText; }
   }
 
+  .settings-categories { list-style: none; margin: 0; padding: 0; }
+  .settings-categories a { display: flex; align-items: center; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--divider); padding-inline: 8px; text-decoration: none; color: var(--ink); }
+  .settings-categories a:hover { background: var(--accent); color: var(--on-accent); }
   .page-heading { padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
   @media (forced-colors: none) {
     .page-heading, .rule-row, .palette-picker, .effect-preference { position: relative; border-color: transparent; }

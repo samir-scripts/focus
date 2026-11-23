@@ -20,6 +20,7 @@ function prepareViewer() {
 
 afterEach(() => {
   cleanup();
+  history.replaceState(null, '', location.pathname);
   window.localStorage.clear();
   mountViewer.mockReset();
   document.documentElement.dataset.theme = 'system';
@@ -53,6 +54,7 @@ describe('desktop shell', () => {
     expect(screen.queryByRole('img', { name: artName })).toBeNull();
 
     await open('Settings');
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     expect(second.destroy).toHaveBeenCalledOnce();
     await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
     await open('Home');
@@ -243,6 +245,7 @@ describe('desktop shell', () => {
       decidePair: async () => {}, revoke: async () => {},
     } });
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.click(screen.getByRole('link', { name: 'Accessibility' }));
     const duration = await screen.findByLabelText<HTMLInputElement>('Hold duration (seconds)');
     await waitFor(() => expect(duration.matches(':disabled')).toBe(false));
     expect(duration.value).toBe('15');
@@ -250,6 +253,19 @@ describe('desktop shell', () => {
     await fireEvent.click(screen.getByRole('checkbox', { name: 'Use two-step confirmation instead of holding' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Save accessibility settings' }));
     await waitFor(() => expect(saved).toEqual([[2, { holdSeconds: 45, twoStepConfirmation: true }]]));
+  });
+
+  it('opens an isolated Settings category and returns keyboard focus to its row', async () => {
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const row = screen.getByRole('link', { name: 'Appearance' });
+    expect(row.getAttribute('href')).toBe('#settings/appearance');
+    await fireEvent.click(row);
+    expect(window.location.hash).toBe('#settings/appearance');
+    expect(screen.getByRole('radio', { name: 'Dark' })).toBeTruthy();
+    expect(screen.queryByLabelText('Hold duration (seconds)')).toBeNull();
+    await fireEvent.click(screen.getByRole('link', { name: 'Back to Settings' }));
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Appearance' }));
   });
 
   it('reports disconnected and empty states without presenting active filtering or tracking controls', async () => {
@@ -260,11 +276,12 @@ describe('desktop shell', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Statistics' }));
     expect(await screen.findByRole('heading', { name: 'No time recorded' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.click(screen.getByRole('link', { name: 'Browser setup' }));
     expect(await screen.findByRole('heading', { name: 'Browsers' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'YouTube' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Browser settings' }));
-    const settings = await screen.findByRole('heading', { level: 1, name: 'Settings' });
+    const settings = await screen.findByRole('heading', { level: 1, name: 'Browser setup' });
     expect(document.activeElement).toBe(settings);
   });
 
@@ -272,12 +289,12 @@ describe('desktop shell', () => {
     const shell = render(App);
     expect(document.documentElement.dataset.theme).toBe('system');
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     await fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     shell.unmount();
     render(App);
     expect(document.documentElement.dataset.theme).toBe('dark');
-    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     await fireEvent.click(screen.getByRole('radio', { name: 'System' }));
     expect(document.documentElement.dataset.theme).toBe('system');
   });
@@ -286,6 +303,7 @@ describe('desktop shell', () => {
     window.localStorage.setItem('focus.appearance', 'dark');
     const shell = render(App);
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     const picker = (mode: string) => screen.getByRole('button', { name: new RegExp(`^${mode} palette`) });
     expect(picker('Dark').textContent).toContain('Sage');
     await fireEvent.click(picker('Light'));
@@ -299,7 +317,6 @@ describe('desktop shell', () => {
     await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
     shell.unmount();
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(picker('Light').textContent).toContain('Cobalt');
     expect(picker('Dark').textContent).toContain('Plum');
@@ -311,6 +328,7 @@ describe('desktop shell', () => {
     window.localStorage.setItem('focus.palette.dark', 'plum');
     render(App);
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     expect(screen.getByRole('button', { name: /^Light palette/ }).textContent).toContain('Sage');
     expect(screen.getByRole('button', { name: /^Dark palette/ }).textContent).toContain('Plum');
   });
@@ -327,6 +345,7 @@ describe('desktop shell', () => {
     expect(impression()).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'No time recorded' })).toBeTruthy();
     await open('Settings');
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     expect(impression()).toBeNull();
     await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
     await open('Statistics');
@@ -338,6 +357,7 @@ describe('desktop shell', () => {
     render(App);
     expect(impression()).toBeNull();
     await open('Settings');
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     await fireEvent.click(screen.getByRole('checkbox', { name: 'Print illustrations' }));
     await open('Sites');
     expect(impression()).not.toBeNull();
@@ -349,6 +369,7 @@ describe('desktop shell', () => {
     const print = () => screen.getByRole<HTMLInputElement>('checkbox', { name: 'Print illustrations' });
     const shell = render(App);
     await open('Settings');
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     expect(pause().checked).toBe(false);
     await fireEvent.click(pause());
     expect(print().checked).toBe(true);
@@ -357,14 +378,12 @@ describe('desktop shell', () => {
     shell.unmount();
 
     const restored = render(App);
-    await open('Settings');
     expect(pause().checked).toBe(true);
     expect(print().checked).toBe(false);
     await fireEvent.click(pause());
     restored.unmount();
 
     render(App);
-    await open('Settings');
     expect(pause().checked).toBe(false);
     expect(print().checked).toBe(false);
   });

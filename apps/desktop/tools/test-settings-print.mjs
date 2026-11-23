@@ -44,10 +44,14 @@ try {
   }
   await page.mouse.move(0, 0);
   assert.equal((await idle())[0].opacity, '0');
-  const pause = page.getByRole('checkbox', { name: 'Pause toner particles' });
-  await pause.check();
+  const setPaused = async checked => {
+    if (!process.argv[2]) await page.getByRole('link', { name: 'Appearance' }).click();
+    await page.getByRole('checkbox', { name: 'Pause toner particles' }).setChecked(checked);
+    if (!process.argv[2]) await page.getByRole('link', { name: 'Back to Settings' }).click();
+  };
+  await setPaused(true);
   assert.equal((await idle())[1].state, 'paused');
-  await pause.uncheck();
+  await setPaused(false);
   assert.equal((await idle())[1].state, 'running');
   if (process.env.CAPTURE) await page.waitForTimeout(1100);
   await page.emulateMedia({ reducedMotion: 'reduce' });
