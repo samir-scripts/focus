@@ -262,9 +262,19 @@ pub(crate) fn confirmed_start(app: &AppHandle, id: uuid::Uuid) {
 #[tauri::command]
 pub(crate) fn open_article(url: String) -> Result<(), String> { open_in_browser(web_url(&url)?) }
 
+#[cfg(target_os = "macos")]
 fn open_in_browser(url: Url) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    let mut command = Command::new("/usr/bin/open");
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::{NSString, NSURL};
+
+    let url = NSURL::URLWithString(&NSString::from_str(url.as_str()))
+        .ok_or("Could not prepare the browser URL.")?;
+    if NSWorkspace::sharedWorkspace().openURL(&url) { Ok(()) }
+    else { Err("The system could not open the default browser.".into()) }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_in_browser(url: Url) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     let mut command = Command::new("xdg-open");
     #[cfg(target_os = "windows")]
