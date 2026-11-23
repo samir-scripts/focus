@@ -8,6 +8,7 @@
   import PrintImpression from './PrintImpression.svelte';
   import { sites as curatedSites } from './sites';
   import BrowserSettings from './BrowserSettings.svelte';
+  import SettingsPrint from './SettingsPrint.svelte';
   import PairBrowser from './PairBrowser.svelte';
   import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState } from './browser';
   import SiteEntryEditor from './SiteEntryEditor.svelte';
@@ -449,7 +450,7 @@
               {/if}
             </section>
           {:else}
-            <header class="page-heading"><h1 tabindex="-1" bind:this={heading}>Settings</h1></header>
+            <header class="page-heading"><SettingsPrint bind:heading /></header>
             <fieldset>
               <legend>Appearance</legend>
               <div class="appearances">

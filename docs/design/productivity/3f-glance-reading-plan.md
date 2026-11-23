@@ -17,6 +17,7 @@ The original paths below document provenance, not runtime dependencies. Sample h
 | [Quick switch](references/3f-quick-switch.png) | Menu placement beneath centered focus. | `a785af70a0e53434e1d47704807436b115d2c56907072e6f58f05e1a57f26d51` |
 | [Settings pages](references/3f-settings-pages.html) | Index, categories and Back behavior | `10fc76bf2f256bb1691d883009dceb406d485dda7aa17b90ad64442a45b353a8` |
 | [Pixel Settings](references/3f-settings-pixel.html) | Gear, provider marks and optical alignment | `79aac51a5ae52f62054d18b33f332b895ef736f21690ed980d2d0e5f25fd86c3` |
+| [Offline Settings print proof](references/3f-settings-print.html) | Production bitmap heading, approved pixel gear, original-mark screen and dry divider | `c5e514b87359b3f02ba68f21aa87c22ad298fd50cdc1ba951594a45ed0b56435` |
 | [Planner layout](references/3f-day-planner.png), [interactive planner](references/3f-day-planner.html) | Follow-on boxed plus, field SVGs and plan/reminder/log flow | `268f3ed8c2b5fe6b9d8fa92da5c75418840f9dc4c17575723ad63a4cbd8b4663`, `9b696c980b80c78a0894321d7463daad2dcdc1363c4fd47546c9a3259fc3a62f` |
 | [Hourglass](references/3f-hourglass.gif) | Follow-on heading placement and stepped sand | `17633f9c054cb0ba1de9aafe39c0f6a4aa5bf90dc523056ef790ef6268cd485f` |
 

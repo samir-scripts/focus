@@ -1,0 +1,55 @@
+@font-face {
+  font-family: 'Focus Settings Solid';
+  src: url('../../../packages/ui/src/assets/FocusBitmap-DisplaySolid.ttf') format('truetype');
+  font-weight: 800;
+  font-display: swap;
+}
+
+h1.settings-print {
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  color: var(--ink);
+  font: 800 36px/1.15 'Focus Settings Solid', var(--font-display);
+}
+
+.settings-print:focus { outline: none; }
+.settings-print-ink {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: .24em;
+  opacity: 0;
+}
+.settings-print-ink::before {
+  content: '';
+  flex: none;
+  width: .72em;
+  aspect-ratio: 1;
+  background: currentColor;
+  mask: url('./assets/settings-gear.svg') center / contain no-repeat;
+}
+.settings-print-screen {
+  font-family: var(--font-display);
+  opacity: 1;
+  mask: url('../../../packages/ui/src/assets/mark-screen.svg') 0 0 / 4px 4px repeat;
+  animation: settings-toner 3.6s steps(1, end) infinite;
+  animation-play-state: var(--toner-play-state, running);
+}
+.settings-print:hover > .settings-print-ink { opacity: 1; }
+.settings-print:hover > .settings-print-screen { visibility: hidden; opacity: 0; }
+@keyframes settings-toner {
+  25% { mask-position: 1px 0; }
+  50% { mask-position: 1px 1px; }
+  75% { mask-position: 0 1px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-print-screen { animation-play-state: paused; }
+}
+@media (forced-colors: active) {
+  h1.settings-print { color: CanvasText; }
+  .settings-print-ink { opacity: 1; }
+  .settings-print-ink::before { forced-color-adjust: none; }
+  .settings-print-screen { visibility: hidden; opacity: 0; animation: none; }
+}

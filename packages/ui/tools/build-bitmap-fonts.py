@@ -91,7 +91,7 @@ def bitmap_cells(ch, bold):
 BAYER = (0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
 
 
-def screen(font, ch, em, step, small):
+def screen(font, ch, em, step, small, solid=False):
     # Rasterize first, then apply the proof's ordered screen and uneven toner pull.
     # Oversampling separates the screen from FreeType's integer pen positions.
     scale = 4
@@ -109,10 +109,10 @@ def screen(font, ch, em, step, small):
             coverage = pixels[int(x * scale), int(y * scale)] / 255
             threshold = (BAYER[row % 4 * 4 + col % 4] + .5) / 16
             fade = max(0, (y / em - .42) * 1.25 + .16 * sin(x / em * 3.8))
-            if coverage * (1 - .72 * fade - (0 if small else .08)) <= threshold:
+            if (coverage < .5 if solid else coverage * (1 - .72 * fade - (0 if small else .08)) <= threshold):
                 continue
             grain = sin(col * 13.1 + row * 83.2) * 1934.77
-            unit = step * (.99 if small or grain - floor(grain) > .21 else .72)
+            unit = step * (1 if solid else .99 if small or grain - floor(grain) > .21 else .72)
             factor = EM / em
             left = (x - origin / scale) * factor
             top = (baseline / scale - y) * factor
@@ -177,6 +177,8 @@ def main():
         font = ImageFont.truetype(ASSETS / f'{source}.woff2', em * 4)
         font.set_variation_by_axes(axes)
         build(name, weight, glyphs, lambda ch: screen(font, ch, em, step, name == 'Wordmark'), 'Regular')
+        if name == 'Display':
+            build('DisplaySolid', weight, set('Settings'), lambda ch: screen(font, ch, em, step, False, solid=True), 'Regular')
 
 
 if __name__ == '__main__':
