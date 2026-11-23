@@ -72,6 +72,10 @@ See the [approved 3F implementation plan and references](design/productivity/3f-
 
 Verify sidecar stop, empty and error states, offline behavior, pinned updates and rollback. Retain exact shipped artifacts with their digests and corresponding source under the [Glance AGPL license](https://github.com/glanceapp/glance/blob/main/LICENSE).
 
+### After 3F — PS1-inspired visual refinement
+
+The [approved visual direction](design/productivity/ps1-visual-direction.md) queues the updated Home rules, button spacing and typewriter treatment for a separately reviewed slice. The local day planner, calendar sync and subsequent slices continue in the order recorded in the [3F handoff](design/productivity/3f-glance-reading-plan.md#follow-on-scope-to-document-only). Apply the same visual language to future surfaces within their own scope and gates.
+
 ## Original remaining slices
 
 - **4 — Site adapters.** Nine fixture-backed adapters with protected neighbors, reversal and relevant late-DOM or SPA coverage.

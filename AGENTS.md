@@ -10,7 +10,7 @@ Follow the [roadmap](docs/roadmap.md) in order and stop at every review gate. Th
 
 Read [DESIGN.md](DESIGN.md) for visual and accessibility requirements. Use the shared UI package and [CSS tokens](packages/ui/src/tokens.css) for the executable theme, spacing, type and motion. Apply the approved productivity target only in the owning slice. Until then, preserve the baseline toolbar geometry and drag regions, Sites layout, read-only popup and Statistics empty state. Keep Pause and Block guarded in normal builds.
 
-Give the Home typewriter hard PS2-style facets, stepped pixel edges, real bitmap key legends, ordered dither and bounded fields of vivid ink. Keep moving texture off text, controls and feed rows. Keep the light animated paper hiss quiet. Ask before adding an accent, decorative mark or visual treatment.
+For future visual work, follow the approved [PS1-inspired direction and review gate](docs/design/productivity/ps1-visual-direction.md). Use stepped pixel edges, faceted original artwork and real bitmap key legends. Keep body text and controls clear, use solid paper on 3F surfaces and respect motion preferences. Ask before adding an accent, decorative mark or visual treatment.
 
 Follow the [illustrated 3D.1–3D.3 implementation plan](docs/design/productivity/3d-typewriter-plan.md). Get explicit user approval of the live standalone 3D.2 viewer before mounting it on Home in 3D.3.
 

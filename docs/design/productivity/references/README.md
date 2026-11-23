@@ -1,5 +1,25 @@
 # Productivity art references
 
+## Approved PS1-inspired direction
+
+These browser-rendered design proofs use the current focus. dashboard, sample NASA headlines, and the existing typewriter geometry. The Home artwork and 3.6-second rule animation are visual targets for the pending [PS1 refinement](../ps1-visual-direction.md). They are not captures of implemented application behavior.
+
+![Light Cobalt Home with padded New schedule button](ps1-dashboard-light.png)
+
+Light Home including the revised New schedule padding. SHA-256 `cc00d0ff0da48d8f6a51019fd27165f57a3a253d4a3b26335f9e130bc4ce9a3a`.
+
+![Dark Cobalt Home](ps1-dashboard-dark.png)
+
+Dark Home predates the final New schedule padding adjustment. SHA-256 `b4ba5cb103f1e17ac7b0f6071cf7cad9857c685f2c0d5042da01f025d1786207`.
+
+![Stepped motion within straight header rules](ps1-header-motion.gif)
+
+Four-frame, 3.6-second browser motion study. SHA-256 `f4326baec7ffe9f679084e6b587e43038f8e6b2aa2ebaae7a973b775ecd07704`.
+
+![Typewriter rendered from two angles](ps1-typewriter-study.png)
+
+Enlarged static render from existing geometry showing the unshadowed pink plate and coarse pixel treatment. Key legends in this study are too small to judge; production legends must remain legible. SHA-256 `fe32b51b01be7de4880f4b4089d09b89c8a7ac56b2877ef815fafc77d7568e0a`.
+
 These PNGs are unresized, byte-for-byte copies supplied or approved by the user. Use them for art direction only. Keep their artwork, characters, watermarks and lettering out of the app. Read the [design contract](../../../../DESIGN.md) and the [illustrated 3D.1–3D.3 implementation plan](../3d-typewriter-plan.md) for where to apply these studies.
 
 ## Approved Light Cobalt floating typewriter

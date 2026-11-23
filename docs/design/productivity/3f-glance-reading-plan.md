@@ -1,6 +1,6 @@
 # OMP handoff — focus. dashboard and Glance Reading
 
-The user approved implementation. Implement 3F only on feature/productivity-3f-glance-reading in /private/tmp/focus-productivity-3f. After fetch, local dev, origin/dev and integration/productivity-desktop all resolve to feb8594c1888186c0d15fb7988d192797a4d38c7, tree 905598a995beeeb4a3cbd537a1105f98530bf733. The base contains reviewed 3D.3 and 3E. Preserve the main and Grace checkouts. No merge, push, promotion, or follow-on implementation. Codex owns independent review and merge.
+**Historical execution record.** Slice 3F was reviewed and merged locally at `0d3b72c3d730f97cfec203f6c3342ff60e22a168`. Its implementation base was `feb8594c1888186c0d15fb7988d192797a4d38c7`. The subsequent [PS1-inspired visual direction](ps1-visual-direction.md) is pending a separate implementation and review.
 
 ## Startup and first commit
 
