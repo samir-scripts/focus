@@ -14,6 +14,8 @@ The user approved this browser mockup as the future visual target. Slice 3F is m
 
 ## Pending slice and review
 
+Use the [ordered PS1 refinement plan](ps1-refinement-plan.md) for implementation and qualification.
+
 Cut one feature branch from the latest reviewed integration head. Use a fresh GPT-6.2 Sol OMP session in Ghostty/tmux with read-only `--prewalk`, following the [OMP handoff](omp-handoff.md). Invoke Using Superpowers, Ask Matt and Using Agent Skills at entry; use Impeccable and Design for visual comparison, Algorithmic Art for reproducible effects, Test-Driven Development for behavior and Verification Before Completion for the candidate. Commit focused changes early and return the exact candidate and evidence to Codex for independent review before local integration.
 
 Compare the native Home with the tracked Light and Dark proofs at 960×640 and 100%, 635px reflow and 200% zoom. Inspect all six palette/appearance combinations, keyboard focus, solid hover, pause and resume, relaunch persistence, hidden windows, reduced motion and forced colors. Capture at least two complete rule-animation cycles. Inspect the interactive typewriter at multiple angles, including legible legends, key presses and the existing motion. Confirm immediate and scheduled Grace starts and Reading remain usable. Report native and browser-emulated results separately.

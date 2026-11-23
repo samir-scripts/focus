@@ -10,6 +10,8 @@ For 3F, use the [approved dashboard and Glance Reading implementation plan](3f-g
 
 After 3F, consult the [PS1-inspired visual direction](ps1-visual-direction.md) for the separately reviewed Home refinement and for visual consistency in later planner, calendar sync and Screen Time work. This is a design handoff; the refinement is pending.
 
+For the PS1 slice, use the [refinement implementation plan](ps1-refinement-plan.md) and return its exact candidate and qualification evidence for independent review.
+
 Use solid paper on 3F Home (including Calendar and Reading), Sessions, and all Settings pages, including their shared toolbar when present. Do not mount background grain or drifting flecks. Keep the approved Settings toner steps and solid hover, worn dividers, and typewriter treatment. Sites and Statistics retain their stock.
 
 ## Slice 3A candidate
