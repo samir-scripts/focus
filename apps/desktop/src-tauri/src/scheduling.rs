@@ -46,6 +46,31 @@ pub(crate) async fn list_schedules() -> Result<Vec<Entry>, &'static str> {
     }).await
 }
 
+#[derive(Serialize)]
+pub(crate) struct Occurrence {
+    schedule: Schedule,
+    at: i64,
+}
+
+#[tauri::command]
+pub(crate) async fn schedule_occurrences(start: i64, end: i64) -> Result<Vec<Occurrence>, &'static str> {
+    if !matches!(end.checked_sub(start), Some(1..=2_764_800)) || start == i64::MIN {
+        return Err("invalid_range");
+    }
+    database(move |db| {
+        let mut entries = Vec::new();
+        for schedule in db.schedules()? {
+            let mut after = start - 1;
+            while let Some(at) = schedule.next_after(after)?.map(|instant| instant.timestamp()).filter(|&at| at < end) {
+                entries.push(Occurrence { schedule: schedule.clone(), at });
+                after = at;
+            }
+        }
+        entries.sort_unstable_by_key(|entry| (entry.at, entry.schedule.id));
+        Ok(entries)
+    }).await
+}
+
 #[tauri::command]
 pub(crate) fn preview_schedule(schedule: Schedule) -> Result<Option<i64>, &'static str> {
     schedule.next_after(now()).map(|next| next.map(|instant| instant.timestamp())).map_err(Error::code)

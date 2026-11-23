@@ -14,3 +14,8 @@ export interface ScheduleEntry {
   nextAt: number | null;
   outcome: GraceOutcome | null;
 }
+
+export interface ScheduleOccurrence {
+  schedule: Schedule;
+  at: number;
+}

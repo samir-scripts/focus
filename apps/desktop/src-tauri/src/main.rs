@@ -50,6 +50,7 @@ fn main() {
             grace_launch::start_grace,
             scheduling::scheduling_available,
             scheduling::list_schedules,
+            scheduling::schedule_occurrences,
             scheduling::preview_schedule,
             scheduling::save_schedule,
             scheduling::delete_schedule,

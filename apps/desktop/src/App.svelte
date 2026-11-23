@@ -437,6 +437,7 @@
             {:else}
               <div class="dashboard">
                 <h1 tabindex="-1" bind:this={heading}>Home</h1>
+                {#if isTauri()}<div class="dashboard-calendar"><HomeSchedules calendar /></div>{/if}
                 <section class="sessions-summary" aria-labelledby="sessions-summary-heading">
                   <h2 id="sessions-summary-heading">Sessions</h2>
                   {#if appearance.printIllustrations}
@@ -800,6 +801,7 @@
   .home-page { max-width: none; background: transparent; }
   .dashboard { display: grid; grid-template-columns: minmax(210px, 32%) minmax(0, 1fr); gap: 20px; padding: 24px; }
   .dashboard h1 { grid-column: 1 / -1; }
+  .dashboard-calendar, .sessions-summary { grid-column: 1; }
   .sessions-summary { display: grid; justify-items: start; gap: 8px; }
   .typewriter-still { image-rendering: pixelated; }
   @media (max-width: 635px) { .dashboard { grid-template-columns: minmax(0, 1fr); } }

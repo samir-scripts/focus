@@ -2,11 +2,16 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import { onMount, tick } from 'svelte';
-  import { dateLabel, occurrenceLabel } from './calendar';
+  import { dateLabel, localDate, moveMonth, occurrenceLabel } from './calendar';
+  import CalendarPanel from './CalendarPanel.svelte';
   import { graceMessage } from './grace';
   import ScheduleDialog from './ScheduleDialog.svelte';
-  import type { Schedule, ScheduleEntry } from './schedules';
+  import type { Schedule, ScheduleEntry, ScheduleOccurrence } from './schedules';
 
+  let { calendar = false }: { calendar?: boolean } = $props();
+  let selected = $state(localDate(new Date()));
+  let month = $state(localDate(new Date()).slice(0, 7));
+  let occurrences = $state<ScheduleOccurrence[]>([]);
   let available = $state<boolean>();
   let entries = $state<ScheduleEntry[]>([]);
   let active = $state<Schedule>();
@@ -19,8 +24,18 @@
   async function refresh() {
     const current = ++request;
     try {
-      const result = await invoke<ScheduleEntry[]>('list_schedules');
-      if (current === request) entries = result;
+      const [result, dates] = await Promise.all([
+        invoke<ScheduleEntry[]>('list_schedules'),
+        calendar ? invoke<ScheduleOccurrence[]>('schedule_occurrences', {
+          start: new Date(`${month}-01T00:00:00`).getTime() / 1000,
+          end: new Date(`${moveMonth(month, 1)}-01T00:00:00`).getTime() / 1000,
+        }) : [],
+      ]);
+      if (current === request) {
+        entries = result;
+        occurrences = dates;
+        error = '';
+      }
     } catch {
       if (current === request) error = 'Could not load schedules.';
     }
@@ -42,6 +57,7 @@
       if (available && document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', refreshOnRestore);
+    window.addEventListener('focus', refreshOnRestore);
     const timer = setInterval(() => { if (available) void refresh(); }, 30_000);
     return () => {
       current = false;
@@ -49,16 +65,28 @@
       stop?.();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', refreshOnRestore);
+      window.removeEventListener('focus', refreshOnRestore);
     };
   });
 
-  function create(event: MouseEvent & { currentTarget: HTMLButtonElement }) {
+  function create(day: string | undefined, source: HTMLButtonElement) {
     const now = new Date();
     now.setMinutes(now.getMinutes() + 5, 0, 0);
-    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    opener = event.currentTarget;
-    active = { id: crypto.randomUUID(), date, time, zone: Intl.DateTimeFormat().resolvedOptions().timeZone, weekdays: null };
+    opener = source;
+    active = { id: crypto.randomUUID(), date: day ?? localDate(now), time, zone: Intl.DateTimeFormat().resolvedOptions().timeZone, weekdays: null };
+  }
+
+  function edit(schedule: Schedule, source: HTMLButtonElement) {
+    opener = source;
+    active = { ...schedule, editing: true };
+  }
+
+  function navigate(next: string) {
+    month = next;
+    selected = `${next}-01`;
+    occurrences = [];
+    void refresh();
   }
 
   async function close() {
@@ -85,10 +113,12 @@
 
 <section aria-labelledby="schedules-heading">
   <header>
-    <h2 id="schedules-heading">Schedules</h2>
-    {#if available}<button type="button" bind:this={add} onclick={create}>New schedule</button>{/if}
+    <h2 id="schedules-heading">{calendar ? 'Calendar' : 'Schedules'}</h2>
+    {#if available && !calendar}<button type="button" bind:this={add} onclick={(event) => create(undefined, event.currentTarget)}>New schedule</button>{/if}
   </header>
-  {#if available}
+  {#if available && calendar}
+    <CalendarPanel {month} bind:selected {entries} {occurrences} {navigate} {edit} {create} />
+  {:else if available}
     <p>Keep focus. running or minimized to start scheduled sessions.</p>
     {#if entries.length === 0 && !error}<p>No scheduled starts yet.</p>{/if}
     <ul>
@@ -103,7 +133,7 @@
             {:else if nextAt === null}<p>This start was missed. Edit the schedule to choose a future time.</p>{/if}
           </div>
           <div class="actions">
-            <button type="button" aria-label={`Edit ${label}`} onclick={(event) => { opener = event.currentTarget; active = { ...schedule, editing: true }; }}>Edit</button>
+            <button type="button" aria-label={`Edit ${label}`} onclick={(event) => edit(schedule, event.currentTarget)}>Edit</button>
             <button type="button" aria-label={`Remove ${label}`} disabled={removing === schedule.id} onclick={() => remove(schedule.id)}>Remove</button>
           </div>
         </li>
