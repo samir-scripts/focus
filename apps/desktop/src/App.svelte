@@ -954,6 +954,10 @@
   .dashboard { display: grid; grid-template-columns: minmax(210px, 30%) minmax(0, 1fr); gap: 20px; padding: 24px; }
   .dashboard-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .dashboard-side { display: grid; min-width: 0; align-content: start; gap: 16px; border-inline-end: 1px solid var(--divider); padding-inline-end: 18px; background: var(--canvas); }
+  .dashboard:has(:global(.planner-open)) { grid-template-columns: minmax(0, 1fr); }
+  .dashboard:has(:global(.planner-open)) > :global(:not(.dashboard-side)),
+  .dashboard:has(:global(.planner-open)) .sessions-summary { display: none; }
+  .dashboard:has(:global(.planner-open)) .dashboard-side { border-inline-end: 0; padding-inline-end: 0; }
   .sessions-summary { display: grid; justify-items: start; gap: 8px; padding-top: 12px; }
   .dashboard :global(.dashboard-rule) {
     position: relative;

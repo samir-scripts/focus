@@ -4,6 +4,7 @@
   import { onMount, tick } from 'svelte';
   import { dateLabel, localDate, moveMonth, occurrenceLabel } from './calendar';
   import CalendarPanel from './CalendarPanel.svelte';
+  import PlannerAgenda from './PlannerAgenda.svelte';
   import { graceMessage } from './grace';
   import ScheduleDialog from './ScheduleDialog.svelte';
   import type { Schedule, ScheduleEntry, ScheduleOccurrence } from './schedules';
@@ -19,6 +20,9 @@
   let removing = $state<string>();
   let add = $state<HTMLButtonElement>();
   let opener: HTMLButtonElement | undefined;
+  let dayOpener: HTMLButtonElement | undefined;
+  let agendaDay = $state<string>();
+  let monthColumn = $state<HTMLDivElement>();
   let request = 0;
 
   async function refresh() {
@@ -86,7 +90,21 @@
     month = next;
     selected = `${next}-01`;
     occurrences = [];
-    void refresh();
+    if (agendaDay) agendaDay = selected;
+    if (available) void refresh();
+  }
+
+  function openDay(day: string, source: HTMLButtonElement) {
+    selected = day;
+    dayOpener = source;
+    agendaDay = day;
+  }
+
+  async function closeAgenda() {
+    agendaDay = undefined;
+    await tick();
+    if (dayOpener?.isConnected) dayOpener.focus();
+    else monthColumn?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')?.focus();
   }
 
   async function close() {
@@ -111,13 +129,20 @@
   }
 </script>
 
-<section class:calendar class:dashboard-rule={calendar} aria-labelledby="schedules-heading">
-  <header>
+<section class:calendar class:planner-open={agendaDay !== undefined} class:dashboard-rule={calendar && !agendaDay} aria-label={agendaDay ? 'Day planner' : undefined} aria-labelledby={agendaDay ? undefined : 'schedules-heading'}>
+  <header hidden={agendaDay !== undefined}>
     <h2 id="schedules-heading" tabindex="-1">{calendar ? 'Calendar' : 'Schedules'}</h2>
     {#if available && !calendar}<button type="button" bind:this={add} onclick={(event) => create(undefined, event.currentTarget)}>New schedule</button>{/if}
   </header>
-  {#if available && calendar}
-    <CalendarPanel {month} bind:selected {entries} {occurrences} {navigate} {edit} {create} />
+  {#if calendar}
+    <div class="calendar-content">
+      <div class="month-column" bind:this={monthColumn}>
+        <CalendarPanel {month} {selected} {entries} {navigate} {openDay} create={available && !agendaDay ? create : undefined} />
+      </div>
+      {#if agendaDay}
+        {#key agendaDay}<PlannerAgenda day={agendaDay} {occurrences} {edit} create={available ? create : undefined} back={closeAgenda} />{/key}
+      {/if}
+    </div>
   {:else if available}
     <p>Keep focus. running or minimized to start scheduled sessions.</p>
     {#if entries.length === 0 && !error}<p>No scheduled starts yet.</p>{/if}
@@ -150,6 +175,14 @@
 <style>
   section { position: relative; margin-inline: 16px; border-top: 1px solid var(--edge); padding: 14px 9px; }
   section.calendar { margin-inline: 0; padding: 10px 0; }
+  header[hidden] { display: none; }
+  .planner-open { border-top: 0; }
+  .planner-open .calendar-content { display: grid; grid-template-columns: minmax(180px, 30%) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .planner-open .month-column { border-inline-end: 1px solid var(--edge); padding-inline-end: 16px; }
+  @media (max-width: 635px) {
+    .planner-open .calendar-content { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .planner-open .month-column { padding-inline-end: 0; border-inline-end: 0; }
+  }
   header, li, .actions { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
   h2 { font-size: 19px; margin: 0; }
   p { margin: 4px 0 0; }

@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import HomeSchedules from './HomeSchedules.svelte';
+import { dateLabel, localDate } from './calendar';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
@@ -113,4 +114,54 @@ it('unsubscribes even if native registration finishes after leaving Home', async
   const unlisten = vi.fn();
   resolve(unlisten);
   await waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
+});
+
+it('opens a local agenda without Grace and restores the originating day on return', async () => {
+  const day = localDate(new Date());
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === 'scheduling_available') return false;
+    if (command === 'planner_day' && args && 'date' in args && args.date === day) {
+      return [{ id: 'log-1', kind: 'log', title: 'Reviewed notes', notes: null, date: day, time: '10:00:00', end: null, zone: 'UTC', lead: null }];
+    }
+    throw new Error(command);
+  });
+  render(HomeSchedules, { calendar: true });
+  const name = dateLabel(day, { dateStyle: 'long' });
+  const opener = screen.getByRole('button', { name });
+  await fireEvent.click(opener);
+  expect(await screen.findByRole('heading', { name: 'Day log' })).toBeTruthy();
+  expect(await screen.findByText('Reviewed notes')).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Back to Calendar' }));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name })));
+});
+
+it('applies an off-label minute to the entry draft and restores the clock opener', async () => {
+  const day = localDate(new Date());
+  let saved: unknown;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    switch (command) {
+      case 'scheduling_available': return false;
+      case 'planner_day': return saved ? [saved] : [];
+      case 'planner_validate': return { time_offset: null, end_offset: null };
+      case 'planner_save': saved = args && 'entry' in args ? args.entry : null; return;
+      default: throw new Error(command);
+    }
+  });
+  render(HomeSchedules, { calendar: true });
+  await fireEvent.click(screen.getByRole('button', { name: dateLabel(day, { dateStyle: 'long' }) }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Add entry' }));
+  const editor = screen.getByRole('dialog', { name: 'Add entry' });
+  await fireEvent.click(within(editor).getByRole('button', { name: 'Log' }));
+  await fireEvent.input(within(editor).getByLabelText('Title'), { target: { value: 'Reviewed notes' } });
+  const opener = within(editor).getByRole('button', { name: /^Time/ });
+  await fireEvent.click(opener);
+  const clock = screen.getByRole('dialog', { name: 'Set time' });
+  await fireEvent.click(within(clock).getByRole('button', { name: '3 hours' }));
+  await fireEvent.click(within(clock).getByRole('button', { name: '23 minutes' }));
+  await fireEvent.click(within(clock).getByRole('button', { name: 'PM' }));
+  await fireEvent.click(within(clock).getByRole('button', { name: 'Set time' }));
+  await waitFor(() => expect(document.activeElement).toBe(opener));
+  await fireEvent.click(within(editor).getByRole('button', { name: 'Save log' }));
+  expect(await screen.findByText('Reviewed notes')).toBeTruthy();
+  expect(saved).toMatchObject({ date: day, kind: 'log', time: '15:23:00', end: null });
 });

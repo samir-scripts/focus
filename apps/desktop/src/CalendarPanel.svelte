@@ -1,16 +1,14 @@
 <script lang="ts">
   import { calendarDays, dateLabel, moveMonth, occurrenceLabel } from './calendar';
-  import type { Schedule, ScheduleEntry, ScheduleOccurrence } from './schedules';
-  import { localDate } from './calendar';
+  import type { ScheduleEntry } from './schedules';
 
-  let { month, selected = $bindable(), entries, occurrences, navigate, edit, create }: {
-    month: string; selected: string; entries: ScheduleEntry[]; occurrences: ScheduleOccurrence[];
+  let { month, selected, entries, navigate, openDay, create }: {
+    month: string; selected: string; entries: ScheduleEntry[];
     navigate: (month: string) => void;
-    edit: (schedule: Schedule, opener: HTMLButtonElement) => void;
-    create: (day: string, opener: HTMLButtonElement) => void;
+    openDay: (day: string, opener: HTMLButtonElement) => void;
+    create?: (day: string, opener: HTMLButtonElement) => void;
   } = $props();
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  let dayChosen = $state(false);
   let days = $derived.by(() => {
     const grid = calendarDays(month, 0);
     let end = grid.length;
@@ -18,7 +16,6 @@
     return grid.slice(0, Math.ceil(end / 7) * 7);
   });
   let next = $derived(entries.find(entry => entry.nextAt !== null));
-  let agenda = $derived(occurrences.filter(entry => localDate(new Date(entry.at * 1000)) === selected));
 </script>
 
 <div class="month-tools">
@@ -31,25 +28,14 @@
   {#each days as day}
     {#if day}
       <button type="button" aria-label={dateLabel(day, { dateStyle: 'long' })} aria-pressed={day === selected}
-        onclick={() => { selected = day; dayChosen = true; }}>{Number(day.slice(-2))}</button>
+        onclick={(event) => openDay(day, event.currentTarget)}>{Number(day.slice(-2))}</button>
     {:else}<span aria-hidden="true"></span>{/if}
   {/each}
 </div>
-<p>{next?.nextAt != null ? `Next start: ${occurrenceLabel(next.nextAt, next.schedule.zone)}` : 'No upcoming scheduled start.'}</p>
-{#if dayChosen}
-  <h3>{dateLabel(selected, { dateStyle: 'long' })}</h3>
-  {#if !agenda.length}
-    <p>No scheduled starts on this day.</p>
-  {:else}
-    <ul>
-      {#each agenda as { schedule, at } (`${schedule.id}:${at}`)}
-        {@const label = occurrenceLabel(at, schedule.zone)}
-        <li>{label} <button type="button" aria-label={`Edit ${label}`} onclick={(event) => edit(schedule, event.currentTarget)}>Edit</button></li>
-      {/each}
-    </ul>
-  {/if}
+{#if create}
+  <p>{next?.nextAt != null ? `Next start: ${occurrenceLabel(next.nextAt, next.schedule.zone)}` : 'No upcoming scheduled start.'}</p>
+  <button type="button" class="dashboard-control new-schedule" onclick={(event) => create?.(selected, event.currentTarget)}>New schedule</button>
 {/if}
-<button type="button" class="dashboard-control new-schedule" onclick={(event) => create(selected, event.currentTarget)}>New schedule</button>
 
 <style>
   .month-tools { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
@@ -59,6 +45,5 @@
   .new-schedule { padding: 4px 10px; }
   .month button:not(:hover, [aria-pressed='true']) { border-color: transparent; background: transparent; }
   button:is(:hover, [aria-pressed='true']) { background: var(--ink); color: var(--surface); }
-  h3, p { margin: 8px 0; }
-  ul { padding-inline-start: 16px; }
+  p { margin: 8px 0; }
 </style>
