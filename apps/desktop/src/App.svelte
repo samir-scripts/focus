@@ -20,6 +20,7 @@
   import typewriterStill from './typewriter/assets/rest.png';
   import ReadingPanel from './ReadingPanel.svelte';
   import ReadingSetup from './ReadingSetup.svelte';
+  import PlannerRetention from './PlannerRetention.svelte';
   import { reading, readingSettingsRecovery, type ReadingSettings } from './reading';
 
   let {
@@ -55,13 +56,14 @@
     accessibility: { label: 'Accessibility', icon: 'M10 3h4v4h-4zM4 9h16m-8 0v6m0-2-5 8m5-8 5 8' },
     browser: { label: 'Browser setup', icon: 'M3 4h18v16H3zM3 9h18M6 6.5h1m2 0h1' },
     reading: { label: 'Reading', icon: 'M3 5h7l2 2 2-2h7v14h-7l-2 2-2-2H3zM12 7v14' },
+    retention: { label: 'Data retention', icon: 'M3 3h18v5H3zM5 8h14v13H5zM9 12h6' },
   };
   type Category = keyof typeof categories;
   function settingsRoute() {
     const hash = location.hash;
     if (hash === '#settings') return null;
     const key = hash.startsWith('#settings/') ? hash.slice(10) : '';
-    return Object.hasOwn(categories, key) && (key !== 'reading' || readingBridge) ? key as Category : undefined;
+    return Object.hasOwn(categories, key) && (key !== 'reading' || readingBridge) && (key !== 'retention' || isTauri()) ? key as Category : undefined;
   }
   let category = $state<Category | null>(settingsRoute() ?? null);
   let page = $state<Page>(settingsRoute() === undefined ? 'Home' : 'Settings');
@@ -657,7 +659,7 @@
           {:else if category === null}
             <header class="page-heading"><SettingsPrint bind:heading /></header>
             <ul class="settings-categories">
-              {#each Object.entries(categories).filter(([key]) => key !== 'reading' || readingBridge) as [key, entry]}
+              {#each Object.entries(categories).filter(([key]) => (key !== 'reading' || readingBridge) && (key !== 'retention' || isTauri())) as [key, entry]}
                 <li><a href={`#settings/${key}`} id={`settings-row-${key}`} onclick={(event) => followCategory(event, key as Category)}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d={entry.icon} /></svg>
                   <span>{entry.label}</span>
@@ -667,7 +669,11 @@
           {:else}
             {#key category}
               <header class="page-heading">
-                <a href="#settings" onclick={(event) => followCategory(event, null)}>Back to Settings</a>
+                {#if category === 'retention'}
+                  <a class="planner-key retention-back" href="#settings" onclick={(event) => followCategory(event, null)}><span>Back to Settings</span></a>
+                {:else}
+                  <a href="#settings" onclick={(event) => followCategory(event, null)}>Back to Settings</a>
+                {/if}
                 <h1 bind:this={heading} tabindex="-1">{categories[category].label}</h1>
               </header>
             {/key}
@@ -747,6 +753,8 @@
                 {#if readingResetError}<p role="status">{readingResetError}</p>{/if}
               {:else if readingSettings}<ReadingSetup settings={readingSettings} save={saveReading} />
               {:else}<p role="status">{readingError ? 'Reading settings are unavailable.' : 'Loading Reading settings…'}</p>{/if}
+            {:else if category === 'retention'}
+              <PlannerRetention />
             {:else}
               <BrowserSettings profiles={browserState?.profiles ?? []} bridge={browserBridge} disconnect={revoke} active={true} />
             {/if}

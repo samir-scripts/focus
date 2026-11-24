@@ -9,6 +9,7 @@ mod scheduling;
 mod reading;
 mod planner;
 mod planner_export;
+mod planner_retention;
 #[cfg(target_os = "macos")]
 mod planner_notifications;
 #[cfg(target_os = "macos")]
@@ -65,6 +66,10 @@ fn main() {
         planner::planner_alerts_available,
         planner_export::planner_export_count,
         planner_export::planner_export,
+        planner_retention::planner_retention,
+        planner_retention::planner_retention_preview,
+        planner_retention::planner_retention_apply,
+        planner_retention::planner_retention_export,
         commands::scan_browsers,
         commands::start_browser_installation,
         commands::remove_browser_installation,
@@ -112,6 +117,7 @@ fn main() {
             #[cfg(target_os = "macos")]
             planner_notifications::install();
             scheduling::run(app.handle().clone());
+            planner_retention::run();
             Ok(())
         })
         .build(tauri::generate_context!())

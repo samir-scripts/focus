@@ -72,3 +72,32 @@ impl Entry {
         Ok(self.lead.map(|lead| at - i64::from(lead) * 60))
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Retention { Keep, Days30, Days90, Year }
+
+impl Retention {
+    pub(crate) fn days(self) -> u32 {
+        match self { Self::Keep => 0, Self::Days30 => 30, Self::Days90 => 90, Self::Year => 365 }
+    }
+
+    pub(crate) fn cutoff(self, today: NaiveDate) -> Option<NaiveDate> {
+        match self {
+            Self::Keep => None,
+            Self::Year => today.checked_sub_months(chrono::Months::new(12)),
+            span => today.checked_sub_days(chrono::Days::new(span.days().into())),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct RetentionPreview {
+    pub cutoff: Option<NaiveDate>,
+    pub count: usize,
+    pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", content = "preview", rename_all = "snake_case")]
+pub enum RetentionUpdate { Applied, Changed(RetentionPreview) }

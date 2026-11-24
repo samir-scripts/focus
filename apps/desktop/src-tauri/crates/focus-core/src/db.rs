@@ -1,5 +1,5 @@
 use crate::model::{self, Accessibility, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
-use crate::planner::{Entry, Kind};
+use crate::planner::{Entry, Kind, Retention, RetentionPreview, RetentionUpdate};
 use chrono::NaiveDate;
 use crate::schedule::Schedule;
 use rusqlite::{params, types::ValueRef, Connection, ErrorCode, OptionalExtension, TransactionBehavior::Immediate};
@@ -148,17 +148,25 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 6 { return Err(Error::Database); }
+        if version(&db)? == 6 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 6 {
+                tx.execute_batch(include_str!("../migrations/007.sql"))?;
+                tx.pragma_update(None, "user_version", 7)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 7 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
     pub fn planner_day(&self, date: NaiveDate) -> Result<Vec<Entry>> {
-        self.planner_query("WHERE local_date = ?1 ORDER BY wall_time, id", [date.to_string()])
+        Self::planner_query(&self.0, "WHERE local_date = ?1 ORDER BY wall_time, id", [date.to_string()])
     }
 
     pub fn planner_range(&self, from: NaiveDate, through: NaiveDate) -> Result<Vec<Entry>> {
         if through < from { return Err(Error::Invalid); }
-        self.planner_query(
+        Self::planner_query(&self.0,
             "WHERE local_date BETWEEN ?1 AND ?2 ORDER BY local_date, wall_time, id",
             [from.to_string(), through.to_string()],
         )
@@ -173,11 +181,11 @@ impl Db {
     }
 
     pub fn planner_alerts(&self) -> Result<Vec<Entry>> {
-        self.planner_query("WHERE lead IS NOT NULL", [])
+        Self::planner_query(&self.0, "WHERE lead IS NOT NULL", [])
     }
 
-    fn planner_query(&self, tail: &str, params: impl rusqlite::Params) -> Result<Vec<Entry>> {
-        let mut stmt = self.0.prepare(&format!(
+    fn planner_query(db: &Connection, tail: &str, params: impl rusqlite::Params) -> Result<Vec<Entry>> {
+        let mut stmt = db.prepare(&format!(
             "SELECT id, kind, title, notes, wall_time, end_time, zone, lead, local_date FROM planner_entry {tail}"
         ))?;
         let mut rows = stmt.query(params)?;
@@ -202,6 +210,77 @@ impl Db {
             });
         }
         Ok(entries)
+    }
+
+    pub fn planner_retention(&self) -> Result<Retention> {
+        Self::read_retention(&self.0)
+    }
+
+    fn read_retention(db: &Connection) -> Result<Retention> {
+        match db.query_row("SELECT retention FROM planner_preferences WHERE singleton = 1", [], |row| row.get::<_, u32>(0))? {
+            0 => Ok(Retention::Keep), 30 => Ok(Retention::Days30), 90 => Ok(Retention::Days90),
+            365 => Ok(Retention::Year), _ => Err(Error::Database),
+        }
+    }
+
+    fn retention_set(db: &Connection, policy: Retention, today: NaiveDate, now: i64) -> Result<(RetentionPreview, Vec<Entry>)> {
+        let cutoff = policy.cutoff(today);
+        let mut digest = Sha256::new();
+        digest.update(policy.days().to_le_bytes());
+        digest.update(Self::read_retention(db)?.days().to_le_bytes());
+        let mut entries = Vec::new();
+        if let Some(cutoff) = cutoff {
+            let date = cutoff.to_string();
+            digest.update(date.as_bytes());
+            entries = Self::planner_query(db, "WHERE local_date < ?1 ORDER BY local_date, wall_time, id", [date])?;
+            entries.retain(|entry| {
+                // If time-zone data became unreadable, protect the entry.
+                let Ok(times) = entry.validate() else { return false };
+                let alert = entry.lead.map(|lead| times.time_at - i64::from(lead) * 60);
+                times.time_at <= now && times.end_at.is_none_or(|end| end <= now) &&
+                    alert.is_none_or(|at| at <= now)
+            });
+            for entry in &entries { digest.update(entry.id.as_bytes()); }
+        }
+        let token = format!("{:x}", digest.finalize());
+        Ok((RetentionPreview { cutoff, count: entries.len(), token }, entries))
+    }
+
+    pub fn planner_retention_preview(&self, policy: Retention, today: NaiveDate, now: i64) -> Result<RetentionPreview> {
+        Ok(Self::retention_set(&self.0, policy, today, now)?.0)
+    }
+
+    pub fn planner_retention_export(&self, policy: Retention, today: NaiveDate, now: i64, token: &str) -> Result<Option<Vec<Entry>>> {
+        let (preview, entries) = Self::retention_set(&self.0, policy, today, now)?;
+        Ok((preview.token == token).then_some(entries))
+    }
+
+    fn remove_retained(db: &Connection, entries: &[Entry]) -> Result<()> {
+        let mut stmt = db.prepare("DELETE FROM planner_entry WHERE id = ?1")?;
+        for entry in entries { stmt.execute([entry.id.as_bytes()])?; }
+        Ok(())
+    }
+
+    pub fn apply_planner_retention(&mut self, policy: Retention, today: NaiveDate, now: i64, token: Option<&str>) -> Result<RetentionUpdate> {
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        let current = Self::read_retention(&tx)?;
+        if policy != Retention::Keep && (current == Retention::Keep || policy.days() < current.days()) {
+            let (preview, entries) = Self::retention_set(&tx, policy, today, now)?;
+            if token != Some(preview.token.as_str()) { return Ok(RetentionUpdate::Changed(preview)); }
+            Self::remove_retained(&tx, &entries)?;
+        }
+        tx.execute("UPDATE planner_preferences SET retention = ?1 WHERE singleton = 1", [policy.days()])?;
+        tx.commit()?;
+        Ok(RetentionUpdate::Applied)
+    }
+
+    pub fn clean_planner_retention(&mut self, today: NaiveDate, now: i64) -> Result<usize> {
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        let policy = Self::read_retention(&tx)?;
+        let (_, entries) = Self::retention_set(&tx, policy, today, now)?;
+        Self::remove_retained(&tx, &entries)?;
+        tx.commit()?;
+        Ok(entries.len())
     }
 
     pub fn save_planner_entry(&mut self, entry: &Entry) -> Result<()> {
