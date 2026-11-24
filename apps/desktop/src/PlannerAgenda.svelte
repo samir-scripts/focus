@@ -4,6 +4,7 @@
   import { dateLabel, localDate, occurrenceLabel } from './calendar';
   import { alertText, deviceZone, kindLabel, plannerTime, type AlertStatus, type PlannerEntry } from './planner';
   import EntryEditor from './PlannerEntryEditor.svelte';
+  import PlannerExport from './PlannerExport.svelte';
   import type { Schedule, ScheduleOccurrence } from './schedules';
 
   let { day, occurrences, edit, create, back }: {
@@ -17,6 +18,9 @@
   let pending = $state(true);
   let error = $state(false);
   let draft = $state<PlannerEntry>();
+  let exporting = $state(false);
+  let exported = $state(false);
+  let exportButton = $state<HTMLButtonElement>();
   let add: HTMLButtonElement;
   let heading: HTMLHeadingElement;
   let opener: HTMLButtonElement;
@@ -83,6 +87,12 @@
     await tick();
     (opener.isConnected ? opener : add).focus();
   }
+  async function closeExport(wrote: boolean) {
+    exporting = false;
+    exported = wrote;
+    await tick();
+    exportButton?.focus();
+  }
 </script>
 
 {#snippet plannerRow(entry: PlannerEntry)}
@@ -122,8 +132,13 @@
   <h3>Day log</h3>
   {#if !pending && !error && !logs.length}<p>No work logged.</p>{/if}
   <ul>{#each logs as entry (entry.id)}{@render plannerRow(entry)}{/each}</ul>
+  <footer>
+    {#if exported}<span role="status">Planner CSV saved.</span>{/if}
+    <button type="button" class="planner-key" bind:this={exportButton} onclick={() => { exported = false; exporting = true; }}><span>Export CSV</span></button>
+  </footer>
 </div>
 {#if draft}<EntryEditor initial={draft} existing={entries.some(entry => entry.id === draft?.id)} {close} />{/if}
+{#if exporting}<PlannerExport {day} close={closeExport} />{/if}
 
 <style>
   header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
@@ -133,5 +148,6 @@
   li { display: grid; grid-template-columns: minmax(5ch, auto) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding-block: 6px; border-bottom: 1px solid var(--edge); }
   li span { overflow-wrap: anywhere; }
   small { display: block; }
+  footer { margin-block-start: 20px; border-top: 1px solid var(--edge); padding-top: 10px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
   svg { vertical-align: text-bottom; }
 </style>

@@ -22,7 +22,7 @@ pub(super) fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64
 }
 
-async fn with_db<T: Send + 'static>(operation: impl FnOnce(Db) -> DbResult<T> + Send + 'static) -> Result<T, &'static str> {
+pub(super) async fn with_db<T: Send + 'static>(operation: impl FnOnce(Db) -> DbResult<T> + Send + 'static) -> Result<T, &'static str> {
     tauri::async_runtime::spawn_blocking(move || operation(Db::open_default()?))
         .await.map_err(|_| "database_unavailable")?.map_err(|error| error.code())
 }

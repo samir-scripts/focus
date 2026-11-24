@@ -156,6 +156,22 @@ impl Db {
         self.planner_query("WHERE local_date = ?1 ORDER BY wall_time, id", [date.to_string()])
     }
 
+    pub fn planner_range(&self, from: NaiveDate, through: NaiveDate) -> Result<Vec<Entry>> {
+        if through < from { return Err(Error::Invalid); }
+        self.planner_query(
+            "WHERE local_date BETWEEN ?1 AND ?2 ORDER BY local_date, wall_time, id",
+            [from.to_string(), through.to_string()],
+        )
+    }
+
+    pub fn planner_range_count(&self, from: NaiveDate, through: NaiveDate) -> Result<usize> {
+        if through < from { return Err(Error::Invalid); }
+        Ok(self.0.query_row(
+            "SELECT count(*) FROM planner_entry WHERE local_date BETWEEN ?1 AND ?2",
+            [from.to_string(), through.to_string()], |row| row.get(0),
+        )?)
+    }
+
     pub fn planner_alerts(&self) -> Result<Vec<Entry>> {
         self.planner_query("WHERE lead IS NOT NULL", [])
     }

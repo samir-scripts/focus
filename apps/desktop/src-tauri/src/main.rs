@@ -8,6 +8,7 @@ mod grace_launch;
 mod scheduling;
 mod reading;
 mod planner;
+mod planner_export;
 #[cfg(target_os = "macos")]
 mod planner_notifications;
 #[cfg(target_os = "macos")]
@@ -62,6 +63,8 @@ fn main() {
         planner::planner_delete,
         planner::planner_alert_statuses,
         planner::planner_alerts_available,
+        planner_export::planner_export_count,
+        planner_export::planner_export,
         commands::scan_browsers,
         commands::start_browser_installation,
         commands::remove_browser_installation,
@@ -81,6 +84,7 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(move |invoke: tauri::ipc::Invoke| {
             let view = invoke.message.webview_ref();
             let label = view.label();
