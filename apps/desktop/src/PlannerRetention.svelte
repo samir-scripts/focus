@@ -92,7 +92,7 @@
         <div class="planner-actions">
           <button class="planner-key export" type="button" disabled={busy} onclick={exportRows}><span>Export CSV</span></button>
           <button class="planner-key" type="button" bind:this={cancel} disabled={busy} onclick={cancelReview}><span>Cancel</span></button>
-          <button class="planner-key" type="button" disabled={busy} onclick={() => apply(preview?.token)}><span>Apply {options[selected]}</span></button>
+          <button class="planner-key primary" type="button" disabled={busy} onclick={() => apply(preview?.token)}><span>Apply {options[selected]}</span></button>
         </div>
       </div>
     {/if}

@@ -104,7 +104,9 @@
 {#snippet icon(path: string)}
   <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d={path}/></svg>
 {/snippet}
-<dialog class="planner entry-editor" aria-labelledby="planner-editor-heading" bind:this={dialog} oncancel={(event) => { event.preventDefault(); cancel(); }}>
+<dialog class="planner entry-editor" aria-labelledby="planner-editor-heading" bind:this={dialog}
+  onkeydown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } }}
+  oncancel={(event) => { event.preventDefault(); cancel(); }}>
   <h2 id="planner-editor-heading">{existing ? 'Edit entry' : 'Add entry'}</h2>
   {#if deleting}
     <p>Delete “{entry.title}” from the planner?</p>
@@ -151,7 +153,7 @@
         <div class="planner-actions">
           {#if existing}<button type="button" class="planner-key delete" bind:this={deleteButton} onclick={() => confirmDelete(true)}><span>Delete…</span></button>{/if}
           <button type="button" class="planner-key" onclick={cancel}><span>Cancel</span></button>
-          <button type="submit" class="planner-key"><span>{confirmation ? 'Save first occurrence' : existing ? 'Save changes' : `Save ${kindLabel[entry.kind].toLowerCase()}`}</span></button>
+          <button type="submit" class="planner-key primary"><span>{confirmation ? 'Save first occurrence' : existing ? 'Save changes' : `Save ${kindLabel[entry.kind].toLowerCase()}`}</span></button>
         </div>
       </fieldset>
     </form>

@@ -42,6 +42,7 @@
 </script>
 
 <dialog class="planner export" bind:this={dialog} aria-labelledby="planner-export-heading"
+  onkeydown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) close(false); } }}
   oncancel={(event) => { event.preventDefault(); if (!busy) close(false); }}>
   <h2 id="planner-export-heading">Export CSV</h2>
   <form onsubmit={choose}>
@@ -55,7 +56,7 @@
       {:else if from && through}<p role="status">Counting entries…</p>{/if}
       <div class="planner-actions">
         <button class="planner-key" type="button" onclick={() => close(false)}><span>Cancel</span></button>
-        <button class="planner-key" type="submit" disabled={count === undefined}><span>Choose file…</span></button>
+        <button class="planner-key primary" type="submit" disabled={count === undefined}><span>Choose file…</span></button>
       </div>
     </fieldset>
   </form>

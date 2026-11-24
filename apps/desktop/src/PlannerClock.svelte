@@ -13,6 +13,7 @@
   const indices = Array.from({ length: 60 }, (_, i) => i);
   const point = (index: number, radius: number) => [50 + radius * Math.sin(index * Math.PI / 30), 50 - radius * Math.cos(index * Math.PI / 30)];
   let hourPoint = $derived(point((Number(hours) % 12) * 5 + Number(minutes) / 12, 24));
+  const bezel = 'M16 1H84V2H88V4H91V6H94V9H96V12H98V16H99V84H98V88H96V91H94V94H91V96H88V98H84V99H16V98H12V96H9V94H6V91H4V88H2V84H1V16H2V12H4V9H6V6H9V4H12V2H16Z';
   let minutePoint = $derived(point(Number(minutes), 33));
   onMount(() => { dialog.showModal(); hourInput.focus(); });
 
@@ -34,7 +35,9 @@
   }
 </script>
 
-<dialog class="planner clock-picker" bind:this={dialog} aria-labelledby="planner-clock-heading" oncancel={(event) => { event.preventDefault(); close(); }}>
+<dialog class="planner clock-picker" bind:this={dialog} aria-labelledby="planner-clock-heading"
+  onkeydown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } }}
+  oncancel={(event) => { event.preventDefault(); close(); }}>
   <h3 id="planner-clock-heading">Set time</h3>
   <div class="clock-fields">
     <input bind:this={hourInput} bind:value={hours} aria-label="Hour" inputmode="numeric" maxlength="2" onfocus={() => mode = 'hour'} />
@@ -48,15 +51,23 @@
   {#if invalid}<p role="alert">Enter an hour from 1 to 12 and a minute from 0 to 59.</p>{/if}
   <div class="dial" role="group" aria-label={mode === 'hour' ? 'Select hour' : 'Select minute'}>
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <path class="bezel" d="M35 1H65V4H75V9H83V15H89V23H95V34H99V66H95V77H89V85H83V91H75V96H65V99H35V96H25V91H17V85H11V77H5V66H1V34H5V23H11V15H17V9H25V4H35Z" />
-      <line x1="50" y1="50" x2={hourPoint[0]} y2={hourPoint[1]} stroke-width="2" />
+      <path class="bezel" d={bezel} />
+      <path class="face" d={bezel} transform="translate(4 4) scale(.92)" />
+      {#each indices as i}
+        {@const [x, y] = point(i, 39)}
+        {@const size = i % 15 === 0 ? 2 : i % 5 === 0 ? 1.4 : .65}
+        <rect class:quarter={i % 15 === 0} class:major={i % 5 === 0} class="tick"
+          x={x - size / 2} y={y - size / 2} width={size} height={size} />
+      {/each}
+      <line class="hour-hand" x1="50" y1="50" x2={hourPoint[0]} y2={hourPoint[1]} stroke-width="2.7" />
       <line x1="50" y1="50" x2={minutePoint[0]} y2={minutePoint[1]} stroke-width="1" />
+      <rect x="47.5" y="47.5" width="5" height="5" transform="rotate(45 50 50)" />
       <rect class="pivot" x="48" y="48" width="4" height="4" />
     </svg>
     {#each indices as i}
       {#if mode === 'minute' || i % 5 === 0}
         {@const label = i % 5 === 0}
-        {@const [x, y] = point(i, label ? 33 : 43)}
+        {@const [x, y] = point(i, label ? 30 : 39)}
         {@const selected = mode === 'hour' ? Number(hours) % 12 * 5 === i : Number(minutes) === i}
         <button type="button" class="dial-key" class:numeral={label} style:left={`${x}%`} style:top={`${y}%`}
           aria-label={mode === 'hour' ? `${i / 5 || 12} hours` : `${i} minutes`} aria-pressed={selected}
@@ -68,25 +79,30 @@
   </div>
   <div class="planner-actions">
     <button type="button" class="planner-key" onclick={() => close()}><span>Cancel</span></button>
-    <button type="button" class="planner-key" onclick={finish}><span>Set time</span></button>
+    <button type="button" class="planner-key primary" onclick={finish}><span>Set time</span></button>
   </div>
 </dialog>
 
 <style>
   h3 { margin: 0 0 12px; }
-  .clock-picker { inline-size: 340px; }
-  .clock-fields { display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .clock-fields input { inline-size: 2.5ch; padding-inline: 3px; text-align: center; }
+  .clock-picker { inline-size: 364px; }
+  .clock-fields { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .clock-fields input { inline-size: 2.5ch; padding-inline: 0; text-align: center; font-size: 24px; line-height: 1.1; font-weight: bold; border: 0; border-bottom: 1px solid var(--edge); }
+  .clock-fields input:focus { color: var(--accent); }
   .period { display: flex; gap: 4px; margin-inline-start: 4px; }
-  .period button { padding-inline: 5px; }
-  .dial { position: relative; inline-size: min(100%, 260px); aspect-ratio: 1; margin: 14px auto 0; }
-  svg { position: absolute; inset: 0; width: 100%; height: 100%; stroke: currentColor; }
-  .bezel { fill: var(--surface); stroke-width: 1.5; }
-  .pivot { fill: var(--accent); stroke: none; }
+  .dial { position: relative; inline-size: min(100%, 288px); aspect-ratio: 1; margin: 14px auto 0; }
+  .planner-actions { border-top: 1px solid var(--edge); padding-top: 10px; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; stroke: currentColor; shape-rendering: crispEdges; }
+  .bezel { fill: var(--divider); stroke: var(--muted); stroke-width: .75; }
+  .face { fill: var(--surface); stroke-width: 1; }
+  .tick { fill: var(--muted); stroke: none; }
+  .tick:not(.major) { opacity: .7; }
+  .tick.quarter, .pivot { fill: var(--accent); stroke: none; }
+  .hour-hand { stroke: var(--accent); }
   .dial-key { position: absolute; translate: -50% -50%; display: grid; place-items: center; width: 4.4%; aspect-ratio: 1; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; }
-  .dial-key span { display: block; width: 3px; height: 3px; background: currentColor; }
-  .dial-key.numeral { width: 12%; font-size: clamp(14px, 4vw, 21px); font-weight: bold; }
-  .dial-key.numeral span { width: auto; height: auto; background: none; transition: transform 180ms ease-out; }
+  .dial-key span { display: block; }
+  .dial-key.numeral { width: 12%; font-size: clamp(14px, 4vw, 24px); font-weight: bold; }
+  .dial-key.numeral span { transition: transform 180ms ease-out; }
   .dial-key:is(:hover, [aria-pressed='true']) { color: var(--surface); background: var(--ink); }
   .dial-key.numeral:active span { transform: translateY(1px); transition-duration: 55ms; }
   @media (prefers-reduced-motion: reduce) { .dial-key.numeral span, .dial-key.numeral:active span { transform: none; transition: none; } }

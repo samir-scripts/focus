@@ -7,17 +7,42 @@
   min-inline-size: 0;
   padding: 4px 8px;
 }
-.planner-key > span { display: inline-block; transition: transform 180ms ease-out; }
-.planner-key:not(:disabled):is(:hover, :active, [aria-pressed='true']) { background: var(--ink); color: var(--surface); }
-.planner-key:not(:disabled):active > span { transform: translateY(2px); transition-duration: 55ms; }
+.planner-key {
+  --key-face: var(--surface);
+  --key-ink: var(--ink);
+  display: inline-grid;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: none;
+}
+.planner-key > span {
+  display: block;
+  padding: 4px 8px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--key-face);
+  color: var(--key-ink);
+  box-shadow: 0 2px 0 var(--ink);
+  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+  pointer-events: none;
+}
+.planner-key.primary, .planner-key[aria-pressed='true'] { --key-face: var(--accent); --key-ink: var(--surface); }
+.planner-key:not(:disabled):is(:hover, :active) { --key-face: var(--ink); --key-ink: var(--surface); }
+.planner-key:not(:disabled):active > span { transform: translateY(2px); box-shadow: 0 0 0 var(--ink); transition-duration: 55ms; }
+.planner-key:disabled { opacity: .55; }
 .planner :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 dialog.planner { color: var(--ink); background: var(--surface); border: 1px solid var(--ink); border-radius: 6px; padding: 16px; max-inline-size: calc(100% - 24px); max-block-size: calc(100% - 24px); box-sizing: border-box; }
 dialog.planner::backdrop { background: rgb(0 0 0 / .24); }
 .planner-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-block-start: 16px; }
 @media (prefers-reduced-motion: reduce) {
   .planner-key > span, .planner-key:not(:disabled):active > span { transform: none; transition: none; }
+  .planner-key:not(:disabled):active > span { box-shadow: 0 2px 0 var(--ink); }
 }
 @media (forced-colors: active) {
   .planner :focus-visible { outline-color: Highlight; }
-  .planner-key:not(:disabled):is(:hover, :active, [aria-pressed='true']) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  .planner-key > span { box-shadow: 0 2px 0 ButtonText; }
+  .planner-key:not(:disabled):is(:hover, :active, [aria-pressed='true']) > span {
+    forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight;
+  }
 }
