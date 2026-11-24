@@ -10,3 +10,13 @@ const timeFormat = new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', hour: '
 export function plannerTime(time: string) {
   return timeFormat.format(new Date(`2000-01-01T${time.slice(0, 5)}:00Z`));
 }
+
+export const reminderLeads = [[0, 'At start'], [5, '5 minutes before'], [15, '15 minutes before'], [60, '1 hour before']] as const;
+export const alertText = {
+  scheduled: 'Alert scheduled',
+  denied: 'Alerts are off. Allow focus. in System Settings → Notifications, then save again.',
+  failed: 'Alert not scheduled. Edit the reminder and save again.',
+  elapsed: 'Alert time has passed.',
+  unavailable: 'Local alerts are unavailable in this app.',
+} as const;
+export type AlertStatus = keyof typeof alertText;

@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount, tick } from 'svelte';
   import { dateLabel, localDate, occurrenceLabel } from './calendar';
-  import { deviceZone, kindLabel, plannerTime, type PlannerEntry } from './planner';
+  import { alertText, deviceZone, kindLabel, plannerTime, type AlertStatus, type PlannerEntry } from './planner';
   import EntryEditor from './PlannerEntryEditor.svelte';
   import type { Schedule, ScheduleOccurrence } from './schedules';
 
@@ -13,6 +13,7 @@
     back: () => void;
   } = $props();
   let entries = $state<PlannerEntry[]>([]);
+  let alertStatuses = $state<Record<string, AlertStatus>>({});
   let pending = $state(true);
   let error = $state(false);
   let draft = $state<PlannerEntry>();
@@ -20,6 +21,7 @@
   let heading: HTMLHeadingElement;
   let opener: HTMLButtonElement;
   let serial = 0;
+  let statusSerial = 0;
   const timeKey = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   let agenda = $derived([
     ...entries.filter(entry => entry.kind !== 'log').map(entry => ({ id: entry.id, time: entry.time.slice(0, 5), entry })),
@@ -40,13 +42,32 @@
     } catch {
       if (request === serial) error = true;
     } finally {
+      if (request === serial) void refreshAlerts();
       if (request === serial) pending = false;
     }
   }
+  async function refreshAlerts() {
+    const request = ++statusSerial;
+    if (!entries.some(entry => entry.lead !== null)) { alertStatuses = {}; return; }
+    try {
+      const statuses = await invoke<Record<string, AlertStatus>>('planner_alert_statuses', { date: day });
+      if (request === statusSerial) alertStatuses = statuses;
+    } catch {
+      if (request === statusSerial) alertStatuses = {};
+    }
+  }
+
   onMount(() => {
     heading.focus();
     void refresh();
-    return () => { serial++; };
+    window.addEventListener('focus', refreshAlerts);
+    const timer = window.setInterval(refreshAlerts, 30_000);
+    return () => {
+      serial++;
+      statusSerial++;
+      window.removeEventListener('focus', refreshAlerts);
+      window.clearInterval(timer);
+    };
   });
 
   function open(source: HTMLButtonElement, entry?: PlannerEntry) {
@@ -69,6 +90,7 @@
     <time>{plannerTime(entry.time)}{entry.end ? ` – ${plannerTime(entry.end)}` : ''}</time>
     <span>{entry.title}{entry.kind !== 'log' ? ` · ${kindLabel[entry.kind]}` : ''}
       {#if entry.zone !== deviceZone()}<small>{entry.zone}</small>{/if}
+      {#if alertStatuses[entry.id]}<small role="status">{alertText[alertStatuses[entry.id]]}</small>{/if}
     </span>
     <button type="button" class="planner-key" aria-label={`Edit ${entry.title}`} onclick={(event) => open(event.currentTarget, entry)}><span>Edit</span></button>
   </li>

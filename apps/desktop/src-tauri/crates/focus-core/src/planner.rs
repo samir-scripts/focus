@@ -65,3 +65,10 @@ impl Entry {
         Ok(Resolved { time_at, time_offset, end_at, end_offset })
     }
 }
+
+impl Entry {
+    pub fn reminder_at(&self) -> Result<Option<i64>, Issue> {
+        let at = self.validate()?.time_at;
+        Ok(self.lead.map(|lead| at - i64::from(lead) * 60))
+    }
+}

@@ -9,6 +9,8 @@ mod scheduling;
 mod reading;
 mod planner;
 #[cfg(target_os = "macos")]
+mod planner_notifications;
+#[cfg(target_os = "macos")]
 mod focus_launch_identity;
 
 use tauri::Manager;
@@ -58,6 +60,8 @@ fn main() {
         planner::planner_validate,
         planner::planner_save,
         planner::planner_delete,
+        planner::planner_alert_statuses,
+        planner::planner_alerts_available,
         commands::scan_browsers,
         commands::start_browser_installation,
         commands::remove_browser_installation,
@@ -101,6 +105,8 @@ fn main() {
             app.manage(reading::Reading::load(path));
             #[cfg(target_os = "macos")]
             titlebar::install(app)?;
+            #[cfg(target_os = "macos")]
+            planner_notifications::install();
             scheduling::run(app.handle().clone());
             Ok(())
         })

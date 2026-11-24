@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount, tick } from 'svelte';
   import PlannerClock from './PlannerClock.svelte';
-  import { deviceZone, kindLabel, plannerTime, type PlannerEntry, type PlannerKind } from './planner';
+  import { deviceZone, kindLabel, plannerTime, reminderLeads, type PlannerEntry, type PlannerKind } from './planner';
   import './planner.css';
 
   let { initial, existing, close }: { initial: PlannerEntry; existing: boolean; close: (changed: boolean) => void } = $props();
@@ -13,17 +13,23 @@
   let deleting = $state(false);
   let error = $state('');
   let confirmation = $state('');
+  let alertsAvailable = $state<boolean>();
   let dialog: HTMLDialogElement;
   let title = $state<HTMLInputElement>();
   let timeButton = $state<HTMLButtonElement>();
   let endButton = $state<HTMLButtonElement>();
   let deleteButton = $state<HTMLButtonElement>();
   let keepButton = $state<HTMLButtonElement>();
-  onMount(() => { dialog.showModal(); title?.focus(); });
+  onMount(() => {
+    dialog.showModal();
+    title?.focus();
+    void invoke<boolean>('planner_alerts_available').then(value => alertsAvailable = value, () => alertsAvailable = false);
+  });
 
   const paths = {
     title: 'M2 11v3h3l9-9-3-3zM9 4l3 3', date: 'M2 3h12v11H2zM2 6h12M5 1v4M11 1v4M5 9h2m2 0h2',
     time: 'M6 2h4l4 4v4l-4 4H6l-4-4V6zM8 4v4h3',
+    bell: 'M3 11h10l-2-3V5L9 3H7L5 5v3zM7 13h2',
     notes: 'M3 2h8l2 2v10H3zM5 6h6M5 9h6M5 12h4',
   };
   function changeKind(kind: PlannerKind) {
@@ -90,6 +96,7 @@
     time_gap: 'This time does not exist on this date in the saved zone.',
     end_gap: 'This end time does not exist on this date in the saved zone.',
     end_order: 'End must be after start on the same day.',
+    alert_elapsed: 'The alert time has passed. Choose a future time or No alert.',
   };
   let field = $derived(error === 'time_gap' ? 'time' : error.startsWith('end_') ? 'end' : error);
 </script>
@@ -126,12 +133,21 @@
             <button type="button" class="planner-key time" aria-labelledby="planner-end-label planner-end" aria-haspopup="dialog" aria-describedby={field === 'end' ? 'planner-end-error' : undefined} bind:this={endButton} onclick={() => clock = 'end'}><span id="planner-end">{plannerTime(entry.end)}</span></button>
             {#if field === 'end'}<p id="planner-end-error" role="alert" class="field-error">{messages[error]}</p>{/if}
           {/if}
+          {#if entry.kind === 'reminder'}
+            <label for="planner-lead">{@render icon(paths.bell)} Notify</label>
+            <select id="planner-lead" bind:value={entry.lead} onchange={changed}>
+              <option value={null}>No alert</option>
+              {#each reminderLeads as [lead, label]}<option value={lead}>{label}</option>{/each}
+            </select>
+            {#if entry.lead !== null && alertsAvailable !== true}<p class="field-error">{alertsAvailable === false ? 'Local alerts are unavailable in this app. The reminder will still be saved.' : 'Checking local alert availability…'}</p>{/if}
+            {#if error === 'alert_elapsed'}<p class="field-error" role="alert">{messages.alert_elapsed}</p>{/if}
+          {/if}
           <label for="planner-notes">{@render icon(paths.notes)} Notes</label>
           <textarea id="planner-notes" rows="2" value={entry.notes ?? ''} oninput={(event) => { entry.notes = event.currentTarget.value; changed(); }}></textarea>
         </div>
         {#if entry.zone !== deviceZone()}<p>Saved time zone: {entry.zone}</p>{/if}
         {#if confirmation}<p role="status">{confirmation}</p>{/if}
-        {#if error && !['title', 'time', 'end'].includes(field)}<p role="alert">{messages[error] ?? 'Could not save the entry. Check the fields and try again.'}</p>{/if}
+        {#if error && !['title', 'time', 'end', 'alert_elapsed'].includes(field)}<p role="alert">{messages[error] ?? 'Could not save the entry. Check the fields and try again.'}</p>{/if}
         <div class="planner-actions">
           {#if existing}<button type="button" class="planner-key delete" bind:this={deleteButton} onclick={() => confirmDelete(true)}><span>Delete…</span></button>{/if}
           <button type="button" class="planner-key" onclick={cancel}><span>Cancel</span></button>

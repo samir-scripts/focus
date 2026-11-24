@@ -153,11 +153,18 @@ impl Db {
     }
 
     pub fn planner_day(&self, date: NaiveDate) -> Result<Vec<Entry>> {
-        let mut stmt = self.0.prepare(
-            "SELECT id, kind, title, notes, wall_time, end_time, zone, lead
-             FROM planner_entry WHERE local_date = ?1 ORDER BY wall_time, id"
-        )?;
-        let mut rows = stmt.query([date.to_string()])?;
+        self.planner_query("WHERE local_date = ?1 ORDER BY wall_time, id", [date.to_string()])
+    }
+
+    pub fn planner_alerts(&self) -> Result<Vec<Entry>> {
+        self.planner_query("WHERE lead IS NOT NULL", [])
+    }
+
+    fn planner_query(&self, tail: &str, params: impl rusqlite::Params) -> Result<Vec<Entry>> {
+        let mut stmt = self.0.prepare(&format!(
+            "SELECT id, kind, title, notes, wall_time, end_time, zone, lead, local_date FROM planner_entry {tail}"
+        ))?;
+        let mut rows = stmt.query(params)?;
         let mut entries = Vec::new();
         while let Some(row) = rows.next()? {
             let bytes: Vec<u8> = row.get(0)?;
@@ -169,6 +176,8 @@ impl Db {
                 row.get_ref(index)?.as_str().map_err(|_| Error::Database)?
                     .parse().map_err(|_| Error::Database)
             };
+            let date = row.get_ref(8)?.as_str().map_err(|_| Error::Database)?
+                .parse().map_err(|_| Error::Database)?;
             entries.push(Entry {
                 id: Uuid::from_slice(&bytes).map_err(|_| Error::Database)?,
                 kind, title: row.get(2)?, notes: row.get(3)?, date, time: parse_time(4)?,

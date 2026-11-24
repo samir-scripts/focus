@@ -34,3 +34,15 @@ fn moving_and_reopening_keeps_identity_and_local_date() {
     db.delete_planner_entry(entry.id).unwrap();
     assert!(db.planner_day(entry.date).unwrap().is_empty());
 }
+
+#[test]
+fn reminder_lead_is_subtracted_from_the_first_fold_instant() {
+    let mut entry = plan();
+    entry.kind = Kind::Reminder;
+    entry.end = None;
+    entry.lead = Some(60);
+    let alert: chrono::DateTime<chrono::Utc> = "2025-11-02T04:30:00Z".parse().unwrap();
+    assert_eq!(entry.reminder_at().unwrap(), Some(alert.timestamp()));
+    entry.lead = None;
+    assert_eq!(entry.reminder_at().unwrap(), None);
+}
