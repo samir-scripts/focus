@@ -12,6 +12,8 @@ After 3F, consult the [PS1-inspired visual direction](ps1-visual-direction.md) f
 
 For the PS1 slice, use the [refinement implementation plan](ps1-refinement-plan.md) and return its exact candidate and qualification evidence for independent review.
 
+For the next slice after PS1 refinement, use the [local day planner plan](local-day-planner-plan.md). Commit the portable proofs before runtime work and return the exact candidate to Codex for independent review and local integration.
+
 Use solid paper on 3F Home (including Calendar and Reading), Sessions, and all Settings pages, including their shared toolbar when present. Do not mount background grain or drifting flecks. Keep the approved Settings toner steps and solid hover, worn dividers, and typewriter treatment. Sites and Statistics retain their stock.
 
 ## Slice 3A candidate

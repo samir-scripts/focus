@@ -76,6 +76,10 @@ Verify sidecar stop, empty and error states, offline behavior, pinned updates an
 
 The [approved visual direction](design/productivity/ps1-visual-direction.md) queues the updated Home rules, button spacing and typewriter treatment for a separately reviewed slice. The local day planner, calendar sync and subsequent slices continue in the order recorded in the [3F handoff](design/productivity/3f-glance-reading-plan.md#follow-on-scope-to-document-only). Apply the same visual language to future surfaces within their own scope and gates.
 
+### After PS1 refinement — Local day planner
+
+Use the [local day planner implementation plan and approved proofs](design/productivity/local-day-planner-plan.md). This slice covers local agenda entries, reminders, CSV export and retention. Calendar sync remains separate.
+
 ## Original remaining slices
 
 - **4 — Site adapters.** Nine fixture-backed adapters with protected neighbors, reversal and relevant late-DOM or SPA coverage.
