@@ -44,9 +44,12 @@ pub(crate) async fn planner_save(entry: Entry) -> Result<Option<AlertStatus>, &'
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = MUTATION.lock().map_err(|_| "database_unavailable")?;
         if at.is_some_and(|value| value <= now()) { return Err("alert_elapsed"); }
-        Db::open_default().and_then(|mut db| db.save_planner_entry(&entry)).map_err(|e| e.code())?;
+        let mut db = Db::open_default().map_err(|e| e.code())?;
         #[cfg(target_os = "macos")]
-        return Ok(crate::planner_notifications::update(entry.id, at.map(|at| (&entry, at))));
+        crate::planner_notifications::cancel_before_change(&db, entry.id).map_err(|e| e.code())?;
+        db.save_planner_entry(&entry).map_err(|e| e.code())?;
+        #[cfg(target_os = "macos")]
+        return Ok(at.map(|at| crate::planner_notifications::schedule(&entry, at)));
         #[cfg(not(target_os = "macos"))]
         Ok(at.map(|_| AlertStatus::Unavailable))
     }).await.map_err(|_| "database_unavailable")?
@@ -78,9 +81,8 @@ pub(crate) async fn planner_delete(id: String) -> Result<(), &'static str> {
     let id = Uuid::parse_str(&id).map_err(|_| "invalid_request")?;
     with_db(move |mut db| {
         let _guard = MUTATION.lock().map_err(|_| focus_core::db::Error::Database)?;
-        db.delete_planner_entry(id)?;
         #[cfg(target_os = "macos")]
-        crate::planner_notifications::update(id, None);
-        Ok(())
+        crate::planner_notifications::cancel_before_change(&db, id)?;
+        db.delete_planner_entry(id)
     }).await
 }

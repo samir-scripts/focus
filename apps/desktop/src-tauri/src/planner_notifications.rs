@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}, ptr::NonNull, sync::mpsc, time::Duration};
+use std::{collections::HashMap, ptr::NonNull, sync::mpsc, thread, time::Duration};
 
 use block2::{DynBlock, RcBlock};
-use focus_core::{db::Db, planner::Entry};
+use focus_core::{db::{Db, Error}, planner::Entry};
 use objc2::{define_class, rc::{autoreleasepool, Retained}, runtime::{Bool, ProtocolObject}, ClassType};
 use objc2_foundation::{NSArray, NSBundle, NSCalendar, NSCalendarIdentifierGregorian, NSCalendarUnit, NSDate, NSError, NSObject, NSObjectProtocol, NSString, NSTimeZone};
 use objc2_user_notifications::{UNAuthorizationOptions, UNAuthorizationStatus, UNCalendarNotificationTrigger,
@@ -45,9 +45,14 @@ pub(super) fn install() {
     if let Some(center) = center() {
         DELEGATE.with(|delegate| center.setDelegate(Some(ProtocolObject::from_ref(&**delegate))));
         tauri::async_runtime::spawn_blocking(|| {
-            let Ok(_guard) = MUTATION.lock() else { return };
-            let Ok(db) = Db::open_default() else { return };
-            autoreleasepool(|_| reconcile(&db));
+            for _ in 0..3 {
+                let reconciled = {
+                    let Ok(_guard) = MUTATION.lock() else { return };
+                    Db::open_default().is_ok_and(|db| autoreleasepool(|_| reconcile(&db)))
+                };
+                if reconciled { return; }
+                thread::sleep(Duration::from_secs(1));
+            }
         });
     }
 }
@@ -72,13 +77,29 @@ fn authorization(center: &UNUserNotificationCenter, prompt: bool) -> Result<bool
     }
 }
 
-fn pending(center: &UNUserNotificationCenter) -> Result<HashSet<Uuid>, AlertStatus> {
+struct PendingAlert {
+    title: String,
+    at: Option<i64>,
+}
+
+impl PendingAlert {
+    fn matches(&self, title: &str, at: i64) -> bool {
+        self.title == title && self.at == Some(at)
+    }
+}
+
+fn pending(center: &UNUserNotificationCenter) -> Result<HashMap<Uuid, PendingAlert>, AlertStatus> {
     let (tx, rx) = mpsc::channel();
     let reply = RcBlock::new(move |requests: NonNull<NSArray<UNNotificationRequest>>| {
-        let ids = unsafe { requests.as_ref() }.iter().filter_map(|request| {
-            Uuid::parse_str(request.identifier().to_string().strip_prefix(PREFIX)?).ok()
+        let alerts = unsafe { requests.as_ref() }.iter().filter_map(|request| {
+            let id = Uuid::parse_str(request.identifier().to_string().strip_prefix(PREFIX)?).ok()?;
+            let at = request.trigger()
+                .and_then(|trigger| trigger.downcast::<UNCalendarNotificationTrigger>().ok())
+                .and_then(|trigger| trigger.nextTriggerDate())
+                .map(|date| date.timeIntervalSince1970().round() as i64);
+            Some((id, PendingAlert { title: request.content().title().to_string(), at }))
         }).collect();
-        let _ = tx.send(ids);
+        let _ = tx.send(alerts);
     });
     center.getPendingNotificationRequestsWithCompletionHandler(&reply);
     rx.recv_timeout(CALLBACK).map_err(|_| AlertStatus::Failed)
@@ -112,17 +133,33 @@ fn register(center: &UNUserNotificationCenter, entry: &Entry, at: i64) -> AlertS
     else { cancel(center, entry.id); AlertStatus::Failed }
 }
 
-pub(super) fn update(id: Uuid, desired: Option<(&Entry, i64)>) -> Option<AlertStatus> {
+pub(super) fn cancel_before_change(db: &Db, id: Uuid) -> Result<(), Error> {
+    if !db.planner_has_alert(id)? { return Ok(()); }
     autoreleasepool(|_| {
-        let Some(center) = center() else { return desired.map(|_| AlertStatus::Unavailable) };
-        let Some((entry, at)) = desired else { cancel(&center, id); return None };
-        // Cancel a superseded alert before a consent prompt can delay replacement.
-        cancel(&center, id);
-        Some(match authorization(&center, true) {
+        let Some(center) = center() else { return Ok(()) };
+
+        // Keep the saved entry until macOS confirms its old request is gone.
+        for _ in 0..3 {
+            let requests = pending(&center).map_err(|_| Error::Database)?;
+            if !requests.contains_key(&id) { return Ok(()); }
+            cancel(&center, id);
+            thread::sleep(Duration::from_millis(60));
+        }
+        match pending(&center) {
+            Ok(requests) if !requests.contains_key(&id) => Ok(()),
+            _ => Err(Error::Database),
+        }
+    })
+}
+
+pub(super) fn schedule(entry: &Entry, at: i64) -> AlertStatus {
+    autoreleasepool(|_| {
+        let Some(center) = center() else { return AlertStatus::Unavailable };
+        match authorization(&center, true) {
             Ok(true) => register(&center, entry, at),
             Ok(false) => AlertStatus::Denied,
             Err(status) => status,
-        })
+        }
     })
 }
 
@@ -136,7 +173,7 @@ pub(super) fn statuses(entries: Vec<Entry>) -> HashMap<Uuid, AlertStatus> {
         entries.into_iter().filter_map(|entry| {
             let at = entry.reminder_at().ok().flatten()?;
             let status = if at <= now { AlertStatus::Elapsed } else { match &current {
-                Ok(ids) if ids.contains(&entry.id) => AlertStatus::Scheduled,
+                Ok(requests) if requests.get(&entry.id).is_some_and(|alert| alert.matches(&entry.title, at)) => AlertStatus::Scheduled,
                 Ok(_) => AlertStatus::Failed,
                 Err(status) => *status,
             }};
@@ -145,18 +182,70 @@ pub(super) fn statuses(entries: Vec<Entry>) -> HashMap<Uuid, AlertStatus> {
     })
 }
 
-fn reconcile(db: &Db) {
-    let (Some(center), Ok(entries)) = (center(), db.planner_alerts()) else { return };
+struct Reconciliation {
+    cancel: Vec<Uuid>,
+    register: Vec<Uuid>,
+}
+
+fn reconciliation(authorization: Result<bool, AlertStatus>, requests: &HashMap<Uuid, PendingAlert>,
+    desired: &HashMap<Uuid, (&str, i64)>) -> Result<Reconciliation, AlertStatus> {
+    let allowed = authorization?;
+    let cancel = requests.keys().copied()
+        .filter(|id| !allowed || !desired.contains_key(id)).collect();
+    let register = desired.iter()
+        .filter(|(id, (title, at))| allowed && !requests.get(id).is_some_and(|request| request.matches(title, *at)))
+        .map(|(id, _)| *id).collect();
+    Ok(Reconciliation { cancel, register })
+}
+
+fn reconcile(db: &Db) -> bool {
+    let Some(center) = center() else { return true };
+    let Ok(entries) = db.planner_alerts() else { return false };
+    let authorization = authorization(&center, false);
+    let Ok(requests) = pending(&center) else { return false };
     let now = now();
     let desired: HashMap<_, _> = entries.iter().filter_map(|entry| {
         let at = entry.reminder_at().ok().flatten()?;
         (at > now).then_some((entry.id, (entry, at)))
     }).collect();
-    let authorized = matches!(authorization(&center, false), Ok(true));
-    if let Ok(ids) = pending(&center) {
-        for id in ids { if !authorized || !desired.contains_key(&id) { cancel(&center, id); } }
+    let info = desired.iter().map(|(id, (entry, at))| (*id, (entry.title.as_str(), *at))).collect();
+    let Ok(actions) = reconciliation(authorization, &requests, &info) else { return false };
+    for id in actions.cancel { cancel(&center, id); }
+    let mut successful = true;
+    for id in actions.register {
+        let (entry, at) = desired[&id];
+        successful &= !matches!(register(&center, entry, at), AlertStatus::Failed);
     }
-    if authorized {
-        for (_, (entry, at)) in desired { register(&center, entry, at); }
+    successful
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_timed_out_permission_lookup_does_not_plan_a_cancellation() {
+        let id = Uuid::nil();
+        let requests = HashMap::from([(id, PendingAlert { title: "Saved".into(), at: Some(1_000) })]);
+        assert!(matches!(
+            reconciliation(Err(AlertStatus::Failed), &requests, &HashMap::new()),
+            Err(AlertStatus::Failed),
+        ));
+    }
+
+    #[test]
+    fn reconciliation_preserves_current_requests_and_replaces_stale_ones() {
+        let current = Uuid::from_u128(1);
+        let stale = Uuid::from_u128(2);
+        let orphan = Uuid::from_u128(3);
+        let requests = HashMap::from([
+            (current, PendingAlert { title: "Saved".into(), at: Some(1_000) }),
+            (stale, PendingAlert { title: "Saved".into(), at: Some(999) }),
+            (orphan, PendingAlert { title: "Removed".into(), at: Some(1_000) }),
+        ]);
+        let desired = HashMap::from([(current, ("Saved", 1_000)), (stale, ("Saved", 1_000))]);
+        let actions = reconciliation(Ok(true), &requests, &desired).ok().unwrap();
+        assert_eq!(actions.cancel, [orphan]);
+        assert_eq!(actions.register, [stale]);
     }
 }

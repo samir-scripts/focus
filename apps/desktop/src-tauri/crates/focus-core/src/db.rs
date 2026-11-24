@@ -180,6 +180,14 @@ impl Db {
         )?)
     }
 
+    pub fn planner_has_alert(&self, id: Uuid) -> Result<bool> {
+        Ok(self.0.query_row(
+            "SELECT EXISTS(SELECT 1 FROM planner_entry WHERE id = ?1 AND lead IS NOT NULL)",
+            [id.as_bytes()],
+            |row| row.get(0),
+        )?)
+    }
+
     pub fn planner_alerts(&self) -> Result<Vec<Entry>> {
         Self::planner_query(&self.0, "WHERE lead IS NOT NULL", [])
     }
