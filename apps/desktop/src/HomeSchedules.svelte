@@ -90,7 +90,10 @@
     month = next;
     selected = `${next}-01`;
     occurrences = [];
-    if (agendaDay) agendaDay = selected;
+    if (agendaDay) {
+      dayOpener = undefined;
+      agendaDay = selected;
+    }
     if (available) void refresh();
   }
 

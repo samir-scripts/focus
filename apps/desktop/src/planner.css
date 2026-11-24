@@ -24,12 +24,13 @@
   background: var(--key-face);
   color: var(--key-ink);
   box-shadow: 0 2px 0 var(--ink);
-  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+  transition: transform 180ms var(--ease), box-shadow 180ms var(--ease),
+    background-color var(--motion-hover) var(--ease), color var(--motion-hover) var(--ease);
   pointer-events: none;
 }
 .planner-key.primary, .planner-key[aria-pressed='true'] { --key-face: var(--accent); --key-ink: var(--surface); }
 .planner-key:not(:disabled):is(:hover, :active) { --key-face: var(--ink); --key-ink: var(--surface); }
-.planner-key:not(:disabled):active > span { transform: translateY(2px); box-shadow: 0 0 0 var(--ink); transition-duration: 55ms; }
+.planner-key:not(:disabled):active > span { transform: translateY(2px); box-shadow: 0 0 0 var(--ink); transition-duration: 55ms, 55ms, var(--motion-hover), var(--motion-hover); }
 .planner-key:disabled { opacity: .55; }
 .planner :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 dialog.planner { color: var(--ink); background: var(--surface); border: 1px solid var(--ink); border-radius: 6px; padding: 16px; max-inline-size: calc(100% - 24px); max-block-size: calc(100% - 24px); box-sizing: border-box; }

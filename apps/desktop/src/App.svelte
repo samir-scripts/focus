@@ -468,7 +468,9 @@
               }
               if (entry === 'Sessions') { void showSessions(); return; }
               if (entry === 'Calendar') {
-                void openPage('Home', event).then(() => document.querySelector<HTMLElement>('.dashboard-calendar h2')?.focus());
+                void openPage('Home', event).then(() => {
+                  document.querySelector<HTMLElement>('.dashboard-calendar h2:not(header[hidden] h2)')?.focus();
+                });
                 return;
               }
               void openPage(entry, event);

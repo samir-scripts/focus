@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import HomeSchedules from './HomeSchedules.svelte';
-import { dateLabel, localDate } from './calendar';
+import { dateLabel, localDate, moveMonth } from './calendar';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
@@ -135,6 +135,24 @@ it('opens a local agenda without Grace and restores the originating day on retur
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name })));
 });
 
+it('returns focus to the selected day after changing months in the agenda', async () => {
+  const today = localDate(new Date());
+  const day = `${today.slice(0, 7)}-15`;
+  const nextDay = `${moveMonth(today.slice(0, 7), 1)}-01`;
+  vi.mocked(invoke).mockImplementation(async command => {
+    if (command === 'scheduling_available') return false;
+    if (command === 'planner_day') return [];
+    throw new Error(command);
+  });
+  render(HomeSchedules, { calendar: true });
+  await fireEvent.click(screen.getByRole('button', {name: dateLabel(day, {dateStyle: 'long'})}));
+  await fireEvent.click(screen.getByRole('button', {name: 'Next month'}));
+  await fireEvent.click(screen.getByRole('button', {name: 'Back to Calendar'}));
+  await waitFor(() => {
+    expect(document.activeElement).toBe(screen.getByRole('button', {name: dateLabel(nextDay, {dateStyle: 'long'})}));
+  });
+});
+
 it('applies an off-label minute to the entry draft and restores the clock opener', async () => {
   const day = localDate(new Date());
   let saved: unknown;
@@ -157,7 +175,14 @@ it('applies an off-label minute to the entry draft and restores the clock opener
   await fireEvent.click(opener);
   const clock = screen.getByRole('dialog', { name: 'Set time' });
   await fireEvent.click(within(clock).getByRole('button', { name: '3 hours' }));
-  await fireEvent.click(within(clock).getByRole('button', { name: '23 minutes' }));
+  const dial = within(clock).getByRole('group', { name: 'Select minute' }).querySelector('svg')!;
+  vi.spyOn(dial, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 200, 200));
+  const angle = 23 * Math.PI / 30;
+  const pointer = new MouseEvent('pointerup', {
+    bubbles: true, clientX: 100 + 78 * Math.sin(angle), clientY: 100 - 78 * Math.cos(angle),
+  });
+  Object.defineProperty(pointer, 'isPrimary', {value: true});
+  await fireEvent(dial, pointer);
   await fireEvent.click(within(clock).getByRole('button', { name: 'PM' }));
   await fireEvent.click(within(clock).getByRole('button', { name: 'Set time' }));
   await waitFor(() => expect(document.activeElement).toBe(opener));

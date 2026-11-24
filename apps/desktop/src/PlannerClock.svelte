@@ -27,6 +27,17 @@
       minutes = String(index).padStart(2, '0');
     }
   }
+  function selectDial(event: PointerEvent) {
+    if (!event.isPrimary || event.button !== 0) return;
+    const dial = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const dx = event.clientX - dial.x - dial.width / 2;
+    const dy = event.clientY - dial.y - dial.height / 2;
+    const radius = Math.hypot(dx, dy);
+    if (radius < dial.width * .22 || radius > dial.width * .48) return;
+    const angle = (Math.atan2(dx, -dy) / (2 * Math.PI) + 1) % 1;
+    const step = mode === 'hour' ? 5 : 1;
+    void select(Math.round(angle * (60 / step)) * step % 60);
+  }
   function finish() {
     const h = Number(hours), m = Number(minutes);
     if (!/^\d{1,2}$/.test(hours) || h < 1 || h > 12) { invalid = true; hourInput.focus(); return; }
@@ -50,7 +61,7 @@
   </div>
   {#if invalid}<p role="alert">Enter an hour from 1 to 12 and a minute from 0 to 59.</p>{/if}
   <div class="dial" role="group" aria-label={mode === 'hour' ? 'Select hour' : 'Select minute'}>
-    <svg viewBox="0 0 100 100" aria-hidden="true">
+    <svg viewBox="0 0 100 100" aria-hidden="true" onpointerup={selectDial}>
       <path class="bezel" d={bezel} />
       <path class="face" d={bezel} transform="translate(4 4) scale(.92)" />
       {#each indices as i}
@@ -99,7 +110,7 @@
   .tick:not(.major) { opacity: .7; }
   .tick.quarter, .pivot { fill: var(--accent); stroke: none; }
   .hour-hand { stroke: var(--accent); }
-  .dial-key { position: absolute; translate: -50% -50%; display: grid; place-items: center; width: 4.4%; aspect-ratio: 1; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; }
+  .dial-key { position: absolute; translate: -50% -50%; display: grid; place-items: center; width: 4.4%; aspect-ratio: 1; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; transition: background-color var(--motion-hover) var(--ease), color var(--motion-hover) var(--ease); }
   .dial-key span { display: block; }
   .dial-key.numeral { width: 12%; font-size: clamp(14px, 4vw, 24px); font-weight: bold; }
   .dial-key.numeral span { transition: transform 180ms ease-out; }
