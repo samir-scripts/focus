@@ -43,7 +43,7 @@ fn v1_upgrade_preserves_rule_and_pairing_without_granting_hosts() {
     assert!(!original.sites[0].grayscale);
     let schema = Connection::open(&path).unwrap();
     let version: u32 = schema.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
     assert!(db.schedules().unwrap().is_empty());
     let saved: (String, bool) = schema.query_row("SELECT entry, grayscale FROM site_policy WHERE site_id='youtube'", [], |row| {
         Ok((row.get(0)?, row.get(1)?))
@@ -91,4 +91,51 @@ fn upgrading_a_copy_of_v4_preserves_preferences_policy_and_pairing() {
     let prefs: (u32, bool) = sql.query_row("SELECT hold_seconds, two_step_confirmation FROM meta", [],
         |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
     assert_eq!(prefs, (60, true));
+}
+
+#[test]
+fn v5_upgrade_preserves_policy_preferences_and_grace_schedule() {
+    use focus_core::schedule::Schedule;
+    use uuid::Uuid;
+
+    for populated in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("focus.sqlite3");
+        let old = Connection::open(&path).unwrap();
+        for sql in [
+            include_str!("../migrations/001.sql"), include_str!("../migrations/002.sql"),
+            include_str!("../migrations/003.sql"), include_str!("../migrations/004.sql"),
+            include_str!("../migrations/005.sql"),
+        ] { old.execute_batch(sql).unwrap(); }
+        old.pragma_update(None, "user_version", 5).unwrap();
+        let id = Uuid::new_v4();
+        if populated {
+            old.execute_batch("
+                INSERT INTO site VALUES ('youtube','YouTube');
+                INSERT INTO site_policy(site_id, revision, grayscale) VALUES ('youtube',7,1);
+                INSERT INTO site_rule VALUES ('youtube','youtube.hide-shorts',1);
+                UPDATE meta SET revision=7, hold_seconds=60, two_step_confirmation=1;
+            ").unwrap();
+            old.execute("INSERT INTO grace_schedule VALUES (?1, '2027-01-05', '13:00', 'America/New_York', NULL)", [id.as_bytes()]).unwrap();
+        }
+        drop(old);
+        let db = Db::open(&path).unwrap();
+        assert!(db.planner_day("2027-01-05".parse().unwrap()).unwrap().is_empty());
+        let schedules: Vec<Schedule> = db.schedules().unwrap();
+        if populated {
+            assert_eq!(schedules.len(), 1);
+            assert_eq!(schedules[0].id, id);
+            let state = db.state().unwrap();
+            assert_eq!(state.revision, 7);
+            assert!(state.hide_shorts);
+            assert!(state.sites.iter().any(|site| site.grayscale));
+            let upgraded = Connection::open(&path).unwrap();
+            let prefs = upgraded.query_row("SELECT hold_seconds, two_step_confirmation FROM meta", [], |row| {
+                Ok((row.get::<_, u32>(0)?, row.get::<_, bool>(1)?))
+            }).unwrap();
+            assert_eq!(prefs, (60, true));
+        } else {
+            assert!(schedules.is_empty());
+        }
+    }
 }

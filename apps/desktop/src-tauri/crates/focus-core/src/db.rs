@@ -1,4 +1,6 @@
 use crate::model::{self, Accessibility, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
+use crate::planner::{Entry, Kind};
+use chrono::NaiveDate;
 use crate::schedule::Schedule;
 use rusqlite::{params, types::ValueRef, Connection, ErrorCode, OptionalExtension, TransactionBehavior::Immediate};
 use sha2::{Digest, Sha256};
@@ -138,8 +140,63 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 5 { return Err(Error::Database); }
+        if version(&db)? == 5 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 5 {
+                tx.execute_batch(include_str!("../migrations/006.sql"))?;
+                tx.pragma_update(None, "user_version", 6)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 6 { return Err(Error::Database); }
         Ok(Self(db, false))
+    }
+
+    pub fn planner_day(&self, date: NaiveDate) -> Result<Vec<Entry>> {
+        let mut stmt = self.0.prepare(
+            "SELECT id, kind, title, notes, wall_time, end_time, zone, lead
+             FROM planner_entry WHERE local_date = ?1 ORDER BY wall_time, id"
+        )?;
+        let mut rows = stmt.query([date.to_string()])?;
+        let mut entries = Vec::new();
+        while let Some(row) = rows.next()? {
+            let bytes: Vec<u8> = row.get(0)?;
+            let kind = match row.get_ref(1)?.as_str().map_err(|_| Error::Database)? {
+                "plan" => Kind::Plan, "reminder" => Kind::Reminder, "log" => Kind::Log,
+                _ => return Err(Error::Database),
+            };
+            let parse_time = |index| {
+                row.get_ref(index)?.as_str().map_err(|_| Error::Database)?
+                    .parse().map_err(|_| Error::Database)
+            };
+            entries.push(Entry {
+                id: Uuid::from_slice(&bytes).map_err(|_| Error::Database)?,
+                kind, title: row.get(2)?, notes: row.get(3)?, date, time: parse_time(4)?,
+                end: if row.get_ref(5)? == ValueRef::Null { None } else { Some(parse_time(5)?) },
+                zone: row.get(6)?, lead: row.get(7)?,
+            });
+        }
+        Ok(entries)
+    }
+
+    pub fn save_planner_entry(&mut self, entry: &Entry) -> Result<()> {
+        entry.validate().map_err(|_| Error::Invalid)?;
+        let kind = match entry.kind { Kind::Plan => "plan", Kind::Reminder => "reminder", Kind::Log => "log" };
+        self.0.execute(
+            "INSERT INTO planner_entry(id, kind, title, notes, local_date, wall_time, end_time, zone, lead)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, title=excluded.title, notes=excluded.notes,
+                local_date=excluded.local_date, wall_time=excluded.wall_time, end_time=excluded.end_time,
+                zone=excluded.zone, lead=excluded.lead",
+            params![entry.id.as_bytes(), kind, entry.title, entry.notes, entry.date.to_string(),
+                entry.time.to_string(), entry.end.map(|time| time.to_string()), entry.zone, entry.lead],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_planner_entry(&mut self, id: Uuid) -> Result<()> {
+        self.0.execute("DELETE FROM planner_entry WHERE id = ?1", [id.as_bytes()])?;
+        Ok(())
     }
 
     pub fn schedules(&self) -> Result<Vec<Schedule>> {

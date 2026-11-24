@@ -7,6 +7,7 @@ mod browser_setup;
 mod grace_launch;
 mod scheduling;
 mod reading;
+mod planner;
 #[cfg(target_os = "macos")]
 mod focus_launch_identity;
 
@@ -53,6 +54,10 @@ fn main() {
         scheduling::preview_schedule,
         scheduling::save_schedule,
         scheduling::delete_schedule,
+        planner::planner_day,
+        planner::planner_validate,
+        planner::planner_save,
+        planner::planner_delete,
         commands::scan_browsers,
         commands::start_browser_installation,
         commands::remove_browser_installation,
@@ -82,8 +87,10 @@ fn main() {
                     .is_some_and(|expected| expected.origin() == url.origin());
                 bundled || dev
             });
+            let command = invoke.message.command();
             if !matches!(label, "main" | "sessions") || !allowed_origin ||
-                (invoke.message.command() == "start_grace" && label != "sessions") {
+                (command == "start_grace" && label != "sessions") ||
+                (command.starts_with("planner_") && label != "main") {
                 invoke.resolver.reject("This window is not authorized to run that command.");
                 return true;
             }
