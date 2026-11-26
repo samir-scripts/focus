@@ -172,7 +172,15 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 9 { return Err(Error::Database); }
+        if version(&db)? == 9 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 9 {
+                tx.execute_batch(include_str!("../migrations/010.sql"))?;
+                tx.pragma_update(None, "user_version", 10)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 10 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
@@ -401,6 +409,7 @@ impl Db {
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if version < 3 && requires_v3(&tx)? { return Err(Error::VersionMismatch); }
         if version < 5 && requires_v5(&tx)? { return Err(Error::VersionMismatch); }
+        if version < 6 && requires_v6(&tx)? { return Err(Error::VersionMismatch); }
         let revision = policy(&tx)?.0;
         let snapshot = if after == Some(revision) { None } else {
             Some((site_policies(&tx, version)?, accessibility(&tx)?))
@@ -554,6 +563,7 @@ impl Db {
         if (protocol == 1 && requires_update(&tx)?) || (protocol < 3 && requires_v3(&tx)?) { return Err(Error::VersionMismatch); }
         if protocol < 4 && requires_chromium_block(&tx, id)? { return Err(Error::VersionMismatch); }
         if protocol < 5 && requires_v5(&tx)? { return Err(Error::VersionMismatch); }
+        if protocol < 6 && requires_v6(&tx)? { return Err(Error::VersionMismatch); }
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let mut check = tx.prepare("SELECT EXISTS(SELECT 1 FROM site_origin WHERE hostname=?1)")?;
@@ -591,6 +601,8 @@ impl Db {
                 ("reddit", [("reddit.hide-recommendations", hide_recommendations), ("reddit.hide-all-home", hide_all_home)]),
             Youtube { hide_shorts, hide_home_recommendations } =>
                 (model::YOUTUBE, [(model::HIDE_SHORTS, hide_shorts), ("youtube.hide-home-recommendations", hide_home_recommendations)]),
+            Instagram { hide_suggested_home, hide_reels_discovery } =>
+                ("instagram", [("instagram.hide-suggested-home", hide_suggested_home), ("instagram.hide-reels-discovery", hide_reels_discovery)]),
         };
         let tx = self.0.transaction_with_behavior(Immediate)?;
         if policy(&tx)?.0 != expected_revision { return Err(Error::Stale); }
@@ -625,6 +637,7 @@ impl Db {
             let update_required = requires_update(&tx)?;
             let v3_required = requires_v3(&tx)?;
             let v5_required = requires_v5(&tx)?;
+            let v6_required = requires_v6(&tx)?;
             let block = has_block_policy(&tx)?;
             let entry_unsupported = !self.1 && has_entry_policy(&tx)?;
             let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins,r.protocol
@@ -637,7 +650,7 @@ impl Db {
                     id: r.get(0)?, label: r.get(1)?, browser, online: r.get(3)?, ack_revision: r.get(4)?,
                     protocol: r.get(6)?,
                     update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)
-                        || (v < 3 && v3_required) || (v < 4 && block && !gecko) || (v < 5 && v5_required)),
+                        || (v < 3 && v3_required) || (v < 4 && block && !gecko) || (v < 5 && v5_required) || (v < 6 && v6_required)),
                     origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
                         .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
                 })
@@ -743,6 +756,10 @@ fn requires_v3(conn: &Connection) -> Result<bool> {
 fn requires_v5(conn: &Connection) -> Result<bool> {
     Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_rule WHERE enabled AND rule_id<>?1)",
         [model::HIDE_SHORTS], |r| r.get(0))?)
+}
+
+fn requires_v6(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_rule WHERE enabled AND site_id='instagram')", [], |r| r.get(0))?)
 }
 
 fn requires_update(conn: &Connection) -> Result<bool> {

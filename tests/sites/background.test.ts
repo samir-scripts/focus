@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { VERSION } from '../../apps/extension/src/protocol';
 
 const setupUrl = 'chrome-extension://fixture/setup.html';
 const credential = { profileId: '9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90', token: 'f'.repeat(64), browser: 'chromium', label: 'Fixture' };
@@ -42,7 +43,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   });
   // Reload the real worker after installing the per-test browser API boundary.
   await import('../../apps/extension/src/background');
-  function send(op: string, { body = {}, version = 5 }: Incoming = {}) {
+  function send(op: string, { body = {}, version = VERSION }: Incoming = {}) {
     const request = sent.find((entry) => entry.op === op);
     if (!request) throw new Error(`Missing pending ${op} request`);
     inbox.emit({ v: version, id: request.id, ok: true, body });
@@ -175,7 +176,7 @@ it('opens a catalog destination once after acknowledgement, rejecting stale, exp
   await bridge.waitFor('applied'); bridge.send('applied');
   await vi.waitFor(() => expect(stored.status).toBe('Connected'));
   const expiresAt = Math.floor(Date.now() / 1000) + 6;
-  const make = (last: number) => ({ v: 5, event: 'browser_open', requestId: `9dde51fb-a37a-4e76-9d7f-4cdfb02ddb9${last}`, siteId: 'youtube', revision: 1, expiresAt });
+  const make = (last: number) => ({ v: VERSION, event: 'browser_open', requestId: `9dde51fb-a37a-4e76-9d7f-4cdfb02ddb9${last}`, siteId: 'youtube', revision: 1, expiresAt });
   const open = make(0);
   bridge.inbox.emit(open);
   await bridge.waitFor('browser_open_result');

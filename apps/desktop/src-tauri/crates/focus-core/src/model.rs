@@ -34,6 +34,7 @@ pub enum ContentRules {
     X { hide_for_you: bool, open_following: bool },
     Reddit { hide_recommendations: bool, hide_all_home: bool },
     Youtube { hide_shorts: bool, hide_home_recommendations: bool },
+    Instagram { hide_suggested_home: bool, hide_reels_discovery: bool },
 }
 
 pub static SITES: LazyLock<Vec<Site<'static>>> = LazyLock::new(|| {

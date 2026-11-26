@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::io::{self, Read, Write};
 use uuid::Uuid;
 
-pub const VERSION: u16 = 5;
+pub const VERSION: u16 = 6;
 pub const MAX_BYTES: usize = 64 * 1024;
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 

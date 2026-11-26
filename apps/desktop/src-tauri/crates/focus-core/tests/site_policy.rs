@@ -227,3 +227,58 @@ fn selective_rules_are_atomic_and_require_v5_only_when_active() {
     assert_eq!(db.policy().unwrap(), (2, true));
     assert!(db.snapshot(None, 4).is_ok());
 }
+
+#[test]
+fn instagram_defaults_are_visible_only_to_v6_clients() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Db::open(&temp.path().join("focus.sqlite3")).unwrap();
+    for version in [5, 6] {
+        let (revision, snapshot) = db.snapshot(None, version).unwrap();
+        let site = snapshot.unwrap().0.into_iter().find(|site| site.id == "instagram").unwrap();
+        assert_eq!(revision, 0);
+        if version == 5 {
+            assert!(site.rules.is_empty());
+        } else {
+            assert_eq!(site.rules.get("instagram.hide-suggested-home"), Some(&false));
+            assert_eq!(site.rules.get("instagram.hide-reels-discovery"), Some(&false));
+        }
+    }
+}
+
+#[test]
+fn instagram_choices_require_v6_until_both_are_disabled() {
+    use focus_core::model::{Browser, ContentRules};
+    use serde_json::json;
+    let temp = tempfile::tempdir().unwrap();
+    let mut db = Db::open(&temp.path().join("focus.sqlite3")).unwrap();
+    let id = "9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90";
+    let token = "a".repeat(64);
+    db.begin_pair(id, Browser::Chrome, "Local", &token).unwrap();
+    db.decide_pair(&db.state().unwrap().pending[0].id, true, None).unwrap();
+    db.hello(id, false, &token, "v5", 5).unwrap();
+    db.applied(id, "v5", 0, &[]).unwrap();
+    let choices = |suggested, reels| -> ContentRules {
+        serde_json::from_value(json!({"site":"instagram","hideSuggestedHome":suggested,"hideReelsDiscovery":reels})).unwrap()
+    };
+    for (index, (suggested, reels)) in [(true, false), (false, true), (true, true), (false, false)].into_iter().enumerate() {
+        let before = index as u64;
+        db.set_content_rules(before, choices(suggested, reels)).unwrap();
+        assert_eq!(db.set_content_rules(before, choices(false, false)), Err(Error::Stale));
+        let revision = before + 1;
+        let blocked = suggested || reels;
+        assert_eq!(matches!(db.snapshot(None, 5), Err(Error::VersionMismatch)), blocked);
+        let profile = db.state().unwrap().profiles.remove(0);
+        assert_eq!(profile.update_required, blocked);
+        assert_eq!(profile.ack_revision, Some(0));
+        if blocked {
+            assert_eq!(db.applied(id, "v5", revision, &[]), Err(Error::VersionMismatch));
+        }
+        let (current, snapshot) = db.snapshot(None, 6).unwrap();
+        let site = snapshot.unwrap().0.into_iter().find(|site| site.id == "instagram").unwrap();
+        assert_eq!(current, revision);
+        assert_eq!(site.rules.get("instagram.hide-suggested-home"), Some(&suggested));
+        assert_eq!(site.rules.get("instagram.hide-reels-discovery"), Some(&reels));
+    }
+    db.hello(id, false, &token, "v6", 6).unwrap();
+    db.applied(id, "v6", 4, &[]).unwrap();
+}
