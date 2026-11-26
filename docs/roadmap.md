@@ -83,6 +83,7 @@ Use the [local day planner implementation plan and approved proofs](design/produ
 ## Original remaining slices
 
 - **4 — Site adapters.** Nine fixture-backed adapters with protected neighbors, reversal and relevant late-DOM or SPA coverage.
+  - **4A — Selective feed controls.** Implement X, Reddit and YouTube Home controls and recognizable before/after previews. Use the [approved proofs and 4A implementation plan](design/content/4a-selective-feeds-plan.md) and qualify `selective-feed` on the same archives as `shared-rule` and `entry`.
 - **5 — Statistics.** Shared opt-in local time tracking and statistics. Show only actual data and keep browsing history and telemetry on-device.
 - **6 — Installation and promotion.** Qualify native installers and signed Firefox restart, verify exact candidate builds and attest those artifacts before promotion. Follow [branch protection and promotion](../AGENTS.md#branch-protection-and-promotion).
 
