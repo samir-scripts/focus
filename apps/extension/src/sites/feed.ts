@@ -1,3 +1,8 @@
+import type { XMode } from './x';
+import type { RedditMode } from './reddit';
+
+export type FeedPolicy = { enabled?: boolean; x?: XMode; reddit?: RedditMode };
+
 const marker = 'data-focus-feed-hidden';
 
 export function watchFeed(doc: Document, attributes: string[], collect: (next: Set<Element>) => void) {

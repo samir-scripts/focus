@@ -18,11 +18,12 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   vi.resetModules();
   const inbox = event<[unknown]>();
   const messages = event<[object, object, (reply: unknown) => void]>();
+  const removed = event<[]>();
   const sent: Request[] = [];
   const port = { onMessage: inbox, onDisconnect: event<[]>(), postMessage: (request: Request) => sent.push(request), disconnect() {} };
   vi.stubGlobal('chrome', {
     runtime: { id: 'fixture', onMessage: messages, connectNative: () => port, getURL: () => 'chrome-extension://fixture/' },
-    permissions: { getAll: (done: (response: object) => void) => done({ origins: grants }), onAdded: event<[]>(), onRemoved: event<[]>() },
+    permissions: { getAll: (done: (response: object) => void) => done({ origins: grants }), onAdded: event<[]>(), onRemoved: removed },
     storage: { local: {
       get: (_keys: string[], done: (response: object) => void) => done({ ...stored }),
       set: (values: object, done: () => void) => { Object.assign(stored, values); done(); },
@@ -45,7 +46,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   async function waitFor(op: string) {
     await vi.waitFor(() => expect(sent.some((request) => request.op === op)).toBe(true));
   }
-  return { send, waitFor, messages };
+  return { send, waitFor, messages, removed };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -121,4 +122,24 @@ it('dispatches X Following only to a granted canonical, top-level document', asy
     expect(state(url)).not.toHaveProperty('x');
   }
   expect(state('https://x.com/home', 1)).not.toHaveProperty('x');
+});
+
+it('dispatches Reddit recommendations only to www.reddit.com, and clears on permission loss', async () => {
+  const saved = { ...snapshot(1, false), sites: [{
+    id: 'reddit', label: 'Reddit', hosts: ['reddit.com', 'www.reddit.com', 'old.reddit.com'],
+    entry: { mode: 'allow' }, grayscale: false, rules: { 'reddit.hide-recommendations': true },
+  }] };
+  const grants = ['https://www.reddit.com/*', 'https://old.reddit.com/*'];
+  const bridge = await start({ profile: credential, policy: saved }, grants);
+  await bridge.waitFor('hello');
+  const state = (url: string) => {
+    let result: unknown;
+    bridge.messages.emit({ type: 'focus-content-state' }, { url, frameId: 0, tab: {} }, (value) => { result = value; });
+    return result;
+  };
+  expect(state('https://www.reddit.com/')).toMatchObject({ reddit: 'recommendations' });
+  expect(state('https://old.reddit.com/')).not.toHaveProperty('reddit');
+  grants.shift();
+  bridge.removed.emit();
+  await vi.waitFor(() => expect(state('https://www.reddit.com/')).not.toHaveProperty('reddit'));
 });

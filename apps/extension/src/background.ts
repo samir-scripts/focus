@@ -2,8 +2,7 @@ import { catalog } from './sites/catalog';
 import { grantedOrigins, siteOrigins } from './permissions';
 import { validSnapshot, validPolicySnapshot, VERSION, type Snapshot } from './protocol';
 import { SiteEntry } from './site-entry';
-import { exactDocumentOrigin } from './sites/feed';
-import type { XMode } from './sites/x';
+import { exactDocumentOrigin, type FeedPolicy } from './sites/feed';
 
 declare const chrome: any;
 const api = chrome;
@@ -15,9 +14,8 @@ const contentCSS = ['youtube.css', 'grayscale.css', 'feed.css'];
 type Profile = { profileId: string; browser: string; label: string; token: string };
 let profile: Profile | undefined;
 let policy: Snapshot | undefined;
-let activeOrigins = new Set<string>();
+let activeContent = new Map<string, FeedPolicy>();
 let grayOrigins = new Set<string>();
-let xMode: XMode | undefined;
 let incompatible = false;
 let port: any;
 let ready: Promise<void>;
@@ -89,10 +87,8 @@ async function clearPairing(message: string) {
   await setStatus(message);
 }
 function contentPolicy(origin: string | undefined) {
-  const enabled = origin !== undefined && activeOrigins.has(origin) && new URL(origin).hostname !== 'x.com';
-  const grayscale = origin !== undefined && grayOrigins.has(origin);
-  if (origin && activeOrigins.has(origin) && new URL(origin).hostname === 'x.com') return { enabled, grayscale, x: xMode };
-  return { enabled, grayscale };
+  const feed = origin === undefined ? undefined : activeContent.get(origin);
+  return { enabled: false, grayscale: origin !== undefined && grayOrigins.has(origin), ...feed };
 }
 async function reconcile() {
   const permissions = await call(api.permissions, 'getAll');
@@ -101,17 +97,23 @@ async function reconcile() {
   if (!entry && current?.sites.some((site) => site.entry.mode !== 'allow')) throw new Error('version_mismatch');
   await entry?.reconcile(current, grants);
   const enabled = !!profile && !!policy?.sites.find((site) => site.id === 'youtube')?.rules['youtube.hide-shorts'];
-  const filterOrigins = siteOrigins('youtube').filter((origin) => !origin.includes('://youtu.be/') && grants.includes(origin));
-  const rules = current?.sites.find((site) => site.id === 'x')?.rules;
-  xMode = rules?.['x.open-following'] ? 'following' : rules?.['x.hide-for-you'] ? 'hide' : undefined;
-  const active = enabled ? filterOrigins : [];
-  if (xMode) active.push(...grants.filter((origin) => new URL(origin).hostname === 'x.com'));
-  const previouslyActive = new Set([...activeOrigins, ...grayOrigins]);
-  activeOrigins = new Set(active);
+  const x = current?.sites.find((site) => site.id === 'x')?.rules;
+  const reddit = current?.sites.find((site) => site.id === 'reddit')?.rules;
+  const xMode = x?.['x.open-following'] ? 'following' : x?.['x.hide-for-you'] ? 'hide' : undefined;
+  const redditMode = reddit?.['reddit.hide-all-home'] ? 'all' : reddit?.['reddit.hide-recommendations'] ? 'recommendations' : undefined;
+  const youtubeOrigins = enabled ? siteOrigins('youtube').filter((origin) => !origin.includes('://youtu.be/')) : [];
+  const previouslyActive = new Set([...activeContent.keys(), ...grayOrigins]);
+  activeContent = new Map();
+  for (const origin of grants) {
+    const { hostname } = new URL(origin);
+    if (hostname === 'x.com' && xMode) activeContent.set(origin, { x: xMode });
+    if (hostname === 'www.reddit.com' && redditMode) activeContent.set(origin, { reddit: redditMode });
+    if (youtubeOrigins.includes(origin)) activeContent.set(origin, { enabled: true });
+  }
   grayOrigins = new Set(profile ? (policy?.sites ?? []).flatMap((site) => 'grayscale' in site && site.grayscale
     ? grants.filter((origin) => site.hosts.includes(new URL(origin).hostname))
     : []) : []);
-  const matchesAny = [...new Set([...active, ...grayOrigins])];
+  const matchesAny = [...new Set([...activeContent.keys(), ...grayOrigins])];
   const registered = await call(api.scripting, 'getRegisteredContentScripts', { ids: [scriptId] });
   if (registered.length) await call(api.scripting, 'unregisterContentScripts', { ids: [scriptId] });
   if (matchesAny.length) await call(api.scripting, 'registerContentScripts', [{ id: scriptId, matches: matchesAny, css: contentCSS, js: ['content.js'], runAt: 'document_start', allFrames: false, persistAcrossSessions: true }]);
@@ -119,7 +121,7 @@ async function reconcile() {
   for (const tab of tabs) {
     if (!tab.id || tab.incognito) continue;
     const origin = exactDocumentOrigin(tab.url);
-    const matches = origin !== undefined && activeOrigins.has(origin);
+    const matches = origin !== undefined && activeContent.has(origin);
     const grayscale = origin !== undefined && grayOrigins.has(origin);
     const target = { tabId: tab.id };
     try {
@@ -254,7 +256,7 @@ api.permissions.onAdded.addListener(() => queue(refreshGrants));
 api.permissions.onRemoved.addListener(() => queue(refreshGrants));
 api.webNavigation?.onHistoryStateUpdated?.addListener(({ tabId, frameId, url }: { tabId: number; frameId: number; url: string }) => {
   const origin = frameId === 0 ? exactDocumentOrigin(url) : undefined;
-  if (origin && activeOrigins.has(origin)) {
+  if (origin && activeContent.has(origin)) {
     void call(api.tabs, 'sendMessage', tabId, { type: 'focus-route-change' }, { frameId: 0 }).catch(() => {});
   }
 });

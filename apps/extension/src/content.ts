@@ -1,7 +1,9 @@
 import { startShortsFilter } from './sites/youtube';
 import { startXFilter, type XMode } from './sites/x';
+import { startRedditFilter, type RedditMode } from './sites/reddit';
+import type { FeedPolicy } from './sites/feed';
 
-type ContentPolicy = { enabled?: boolean; grayscale?: boolean; x?: XMode };
+type ContentPolicy = FeedPolicy & { grayscale?: boolean };
 
 declare const chrome: any;
 const scope = globalThis as typeof globalThis & { __focusRules?: true };
@@ -10,6 +12,8 @@ if (!scope.__focusRules) {
   let stop: (() => void) | undefined;
   let xMode: XMode | undefined;
   let stopX: (() => void) | undefined;
+  let redditMode: RedditMode | undefined;
+  let stopReddit: (() => void) | undefined;
   let receivedPolicy = false;
   let grayscale = false;
   const reflectGrayscale = () => {
@@ -26,6 +30,11 @@ if (!scope.__focusRules) {
       stopX?.();
       xMode = policy?.x;
       stopX = xMode ? startXFilter(document, xMode) : undefined;
+    }
+    if (redditMode !== policy?.reddit) {
+      stopReddit?.();
+      redditMode = policy?.reddit;
+      stopReddit = redditMode ? startRedditFilter(document, redditMode) : undefined;
     }
     grayscale = policy?.grayscale === true;
     reflectGrayscale();
