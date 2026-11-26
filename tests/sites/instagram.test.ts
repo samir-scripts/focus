@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"https://www.instagram.com/"}
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import * as content from '../../apps/extension/src/sites/instagram';
 
 const marker = 'data-focus-feed-hidden';
@@ -93,4 +93,83 @@ it.each(['/reel/shared/', '/reels/shared'])('protects the current reel in a mixe
   stop = content.startInstagramFilter(document, { suggested: false, reels: true });
   for (const id of ['mixed', 'unlinked', 'link-only']) expect(hidden(id), id).toBe(false);
   expect(hidden('separate')).toBe(true);
+});
+
+it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed', 'unrelated', 'traverse', 'bfcache'])(
+  'requires fresh discovery provenance for a canonicalized viewer (%s)', (entry) => {
+    const navigation = new EventTarget();
+    const advance = (path: string, navigationType = 'push') => {
+      const from = { url: document.URL };
+      history.pushState({}, '', path);
+      navigation.dispatchEvent(Object.assign(new Event('currententrychange'), { from, navigationType }));
+    };
+    route(entry === 'shared' ? '/reel/shared/' : entry === 'spa' ? '/' : '/reels/');
+    const state = content.trackInstagramDiscovery(document, navigation);
+    try {
+      if (entry !== 'late-enable' && entry !== 'initial-response') state.applyPolicy(true, true);
+      if (entry === 'spa') advance('/reels/');
+      if (entry !== 'shared') advance('/reels/shared/', 'replace');
+      if (entry === 'initial-response') state.applyPolicy(true, true);
+      if (entry === 'late-enable') state.applyPolicy(true, false);
+      if (entry === 'removed') {
+        state.applyPolicy(false, false);
+        state.applyPolicy(true, false);
+      }
+      if (entry === 'unrelated') { advance('/explore/'); advance('/reels/shared/'); }
+      if (entry === 'traverse') advance('/reels/shared/', 'traverse');
+      document.body.innerHTML = `<main>
+        <div id="viewer"><div><video></video></div><div><video></video></div></div>
+        <div id="controls"><button>Comments</button><button>Share</button></div>
+      </main>`;
+      stop = content.startInstagramFilter(document, { suggested: false, reels: true }, state);
+      const ownsViewer = ['direct', 'initial-response', 'spa', 'bfcache'].includes(entry);
+      expect(hidden('viewer')).toBe(ownsViewer);
+      if (entry === 'bfcache') {
+        window.dispatchEvent(new Event('pagehide'));
+        expect(hidden('viewer')).toBe(false);
+        document.dispatchEvent(new Event('focus-route-change'));
+        expect(hidden('viewer')).toBe(false);
+      }
+      expect(hidden('controls')).toBe(false);
+    } finally {
+      state.stop();
+    }
+  },
+);
+
+it.each([true, false])('uses the first authoritative broadcast over a stale initial response (%s)', async (enabled) => {
+  const navigation = new EventTarget();
+  const reels = { instagram: { suggested: false, reels: true } };
+  let receive!: (message: object, sender: object, respond: (value: object) => void) => void;
+  let respondToInitial!: (policy: object) => void;
+  const send = (policy: object) => receive({ type: 'focus-policy', ...policy }, {}, () => {});
+  route('/reels/');
+  document.body.innerHTML = `<main><div id="viewer"><video></video></div><div><button>Share</button></div></main>`;
+  vi.resetModules();
+  vi.stubGlobal('__focusRules', undefined);
+  vi.stubGlobal('navigation', navigation);
+  vi.stubGlobal('chrome', { runtime: {
+    onMessage: { addListener: (listener: typeof receive) => { receive = listener; } },
+    sendMessage: (_message: object, callback: typeof respondToInitial) => { respondToInitial = callback; },
+  } });
+  const ready = vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading');
+  try {
+    // Evaluate the document-start entry point after setting up the browser APIs.
+    await import('../../apps/extension/src/content');
+    const from = { url: document.URL };
+    history.replaceState({}, '', '/reels/shared/');
+    navigation.dispatchEvent(Object.assign(new Event('currententrychange'), { from, navigationType: 'replace' }));
+    send(enabled ? reels : {});
+    respondToInitial(enabled ? {} : reels);
+    expect(hidden('viewer')).toBe(enabled);
+    send({});
+    expect(hidden('viewer')).toBe(false);
+    send(reels);
+    expect(hidden('viewer')).toBe(false);
+  } finally {
+    if (receive) send({});
+    window.dispatchEvent(new Event('pagehide'));
+    ready.mockRestore();
+    vi.unstubAllGlobals();
+  }
 });

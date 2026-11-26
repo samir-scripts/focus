@@ -5,6 +5,68 @@ export type InstagramRules = { suggested: boolean; reels: boolean };
 const discovery = '/reels';
 const individual = /^\/reels?\/([\w-]+)\/?$/;
 
+function instagramUrl(url: URL) {
+  return url.protocol === 'https:' && !url.port && (url.hostname === 'www.instagram.com' || url.hostname === 'instagram.com');
+}
+
+type DiscoveryProvenance = {
+  applyPolicy: (enabled: boolean, firstResponse: boolean) => void;
+  owns: (url: URL) => boolean;
+  stop: () => void;
+};
+
+// Evidence is local to one document and one transition, never inferred from delayed
+// background reconciliation or from an individual-shaped destination alone.
+export function trackInstagramDiscovery(doc: Document, navigation = doc.readyState === 'loading'
+  ? (doc.defaultView as (Window & { navigation?: EventTarget }) | null)?.navigation
+  : undefined): DiscoveryProvenance {
+  const initial = new URL(doc.URL);
+  const isEntry = (url: URL) => /^\/reels\/?$/.test(url.pathname) && !url.search && !url.hash;
+  const observing = !!navigation && instagramUrl(initial);
+  let pending = observing && isEntry(initial) ? initial.href : undefined;
+  let canonical: string | undefined;
+  let active = false;
+  const reset = () => { pending = undefined; canonical = undefined; };
+  const leaveDocument = () => {
+    reset();
+    doc.dispatchEvent(new Event('focus-route-change'));
+  };
+  const changed = (event: Event) => {
+    const { from, navigationType } = event as Event & { from?: { url?: string }; navigationType?: string };
+    const forward = navigationType === 'push' || navigationType === 'replace';
+    if (forward && from?.url === doc.URL) return;
+    const current = new URL(doc.URL);
+    if (forward && from?.url && new URL(from.url).origin === initial.origin && current.origin === initial.origin) {
+      if (pending === from.url && individual.test(current.pathname) && !current.search && !current.hash) {
+        reset();
+        canonical = current.href;
+      } else {
+        reset();
+        if (active && isEntry(current)) pending = current.href;
+      }
+    } else {
+      reset();
+    }
+    doc.dispatchEvent(new Event('focus-route-change'));
+  };
+  if (observing) {
+    navigation?.addEventListener('currententrychange', changed);
+    doc.defaultView?.addEventListener('pagehide', leaveDocument);
+  }
+  return {
+    applyPolicy(enabled, firstResponse) {
+      if (!enabled || (!firstResponse && canonical && !active)) reset();
+      active = enabled;
+    },
+    owns: (url) => canonical === url.href,
+    stop() {
+      reset();
+      navigation?.removeEventListener('currententrychange', changed);
+      doc.defaultView?.removeEventListener('pagehide', leaveDocument);
+    },
+  };
+}
+
 const railPaths = new Set(['', '/explore', '/direct/inbox', discovery]);
 const contentBoundary = 'main, article, aside, [role="main"], [role="article"], [role="complementary"], [role="dialog"]';
 
@@ -28,11 +90,30 @@ function isRailShortcut(link: HTMLAnchorElement, origin: string) {
   return false;
 }
 
+function discoveryViewer(doc: Document, origin: string, currentReel: string | undefined) {
+  const mains = doc.querySelectorAll('main');
+  if (mains.length !== 1 || mains[0].childElementCount !== 2) return;
+  let viewer: Element | undefined;
+  for (const branch of mains[0].children) {
+    if (branch.tagName !== 'DIV') return;
+    if (!branch.querySelector('video')) {
+      if (!branch.querySelector('button, [role="button"]') || branch.querySelector('audio, iframe')) return;
+      continue;
+    }
+    if (viewer || branch.querySelector('video[controls], audio, iframe, article, nav, aside, [role="dialog"]')) return;
+    for (const link of branch.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      if (link.origin === origin && individual.exec(link.pathname)?.[1] === currentReel) return;
+    }
+    viewer = branch;
+  }
+  return viewer;
+}
+
 // Avoid generated classes and never infer a recommendation from the linked media alone.
-export function startInstagramFilter(doc: Document, rules: InstagramRules) {
-  return watchFeed(doc, ['href', 'aria-label', 'aria-labelledby', 'role'], (next) => {
+export function startInstagramFilter(doc: Document, rules: InstagramRules, provenance?: DiscoveryProvenance) {
+  return watchFeed(doc, ['href', 'aria-label', 'aria-labelledby', 'role', 'controls'], (next) => {
     const url = new URL(doc.URL);
-    if (url.protocol !== 'https:' || url.port || !['www.instagram.com', 'instagram.com'].includes(url.hostname)) return;
+    if (!instagramUrl(url)) return;
     const path = url.pathname.replace(/\/$/, '');
     const currentReel = individual.exec(path)?.[1];
     const home = path === '' && url.search === '';
@@ -48,6 +129,10 @@ export function startInstagramFilter(doc: Document, rules: InstagramRules) {
       }
     }
     if (!rules.reels) return;
+    if (provenance?.owns(url)) {
+      const viewer = discoveryViewer(doc, url.origin, currentReel);
+      if (viewer) next.add(viewer);
+    }
     if (path === discovery) {
       for (const feed of doc.querySelectorAll('main section[aria-label="Reels"], main [role="feed"][aria-label="Reels"]')) {
         next.add(feed);

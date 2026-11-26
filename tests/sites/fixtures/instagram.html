@@ -29,11 +29,26 @@
 <button id="reuse" type="button">Reuse item as followed</button>
 <button id="to-feed" type="button">Open Reels feed</button>
 <button id="to-shared" type="button">Open shared reel</button>
+<button id="to-viewer" type="button">Open discovery viewer</button>
+<button id="to-unrelated" type="button">Visit Explore then a shared reel</button>
 <script>
   document.querySelector('#late').onclick = () => document.querySelector('main').insertAdjacentHTML('beforeend',
     '<article id="late-post"><header>Suggested for you</header><p>Late post</p></article>');
   document.querySelector('#reuse').onclick = () => { document.querySelector('#late-post header').textContent = 'Following'; };
   document.querySelector('#to-feed').onclick = () => history.pushState({}, '', '/reels/');
   document.querySelector('#to-shared').onclick = () => history.pushState({}, '', '/reel/shared/');
+  const renderViewer = () => {
+    document.querySelector('main').innerHTML = `
+      <div id="viewer"><div><video></video></div><div><video></video></div>
+      <div id="viewer-controls"><button type="button">Comments</button><button type="button">Share</button></div>`;
+  };
+  const canonicalize = () => { history.replaceState(null, '', '/reels/sample/'); renderViewer(); };
+  document.querySelector('#to-viewer').onclick = () => { history.pushState(null, '', '/reels/'); canonicalize(); };
+  document.querySelector('#to-unrelated').onclick = () => {
+    history.pushState(null, '', '/explore/');
+    history.pushState(null, '', '/reels/sample/');
+  };
+  if (location.pathname === '/reels/') canonicalize();
+  else if (location.pathname === '/reels/sample/') renderViewer();
 </script>
 </html>

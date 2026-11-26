@@ -1,7 +1,7 @@
 import { startShortsFilter, startHomeRecommendationsFilter } from './sites/youtube';
 import { startXFilter, type XMode } from './sites/x';
 import { startRedditFilter, type RedditMode } from './sites/reddit';
-import { startInstagramFilter, type InstagramRules } from './sites/instagram';
+import { startInstagramFilter, trackInstagramDiscovery, type InstagramRules } from './sites/instagram';
 import type { FeedPolicy } from './sites/feed';
 
 type ContentPolicy = FeedPolicy & { grayscale?: boolean };
@@ -18,6 +18,7 @@ if (!scope.__focusRules) {
   let stopYouTubeHome: (() => void) | undefined;
   let instagram: InstagramRules | undefined;
   let stopInstagram: (() => void) | undefined;
+  const instagramDiscovery = trackInstagramDiscovery(document);
   let receivedPolicy = false;
   let grayscale = false;
   const reflectGrayscale = () => {
@@ -27,7 +28,8 @@ if (!scope.__focusRules) {
   };
   const rootObserver = !document.documentElement ? new MutationObserver(reflectGrayscale) : undefined;
   rootObserver?.observe(document, { childList: true });
-  const set = (policy?: ContentPolicy) => {
+  const set = (policy?: ContentPolicy, initial = false) => {
+    instagramDiscovery.applyPolicy(policy?.instagram?.reels === true, initial);
     if (policy?.enabled && !stop) stop = startShortsFilter(document);
     if (!policy?.enabled && stop) { stop(); stop = undefined; }
     if (policy?.youtubeHome && !stopYouTubeHome) stopYouTubeHome = startHomeRecommendationsFilter(document);
@@ -45,17 +47,23 @@ if (!scope.__focusRules) {
     if (instagram?.suggested !== policy?.instagram?.suggested || instagram?.reels !== policy?.instagram?.reels) {
       stopInstagram?.();
       instagram = policy?.instagram;
-      stopInstagram = instagram ? startInstagramFilter(document, instagram) : undefined;
+      stopInstagram = instagram ? startInstagramFilter(document, instagram, instagramDiscovery) : undefined;
     }
     grayscale = policy?.grayscale === true;
     reflectGrayscale();
   };
   chrome.runtime.onMessage.addListener((message: ContentPolicy & { type?: string }, _sender: unknown, respond: (value: object) => void) => {
-    if (message?.type === 'focus-policy') { receivedPolicy = true; set(message); respond({ ok: true }); }
+    if (message?.type === 'focus-policy') {
+      const initial = !receivedPolicy;
+      receivedPolicy = true;
+      set(message, initial);
+      respond({ ok: true });
+    }
     if (message?.type === 'focus-route-change') document.dispatchEvent(new Event('focus-route-change'));
   });
   chrome.runtime.sendMessage({ type: 'focus-content-state' }, (response: ContentPolicy | undefined) => {
     if (chrome.runtime.lastError || receivedPolicy) return;
-    set(response);
+    receivedPolicy = true;
+    set(response, true);
   });
 }
