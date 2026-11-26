@@ -9,6 +9,57 @@ afterEach(() => { stop?.(); stop = undefined; document.body.replaceChildren(); h
 const hidden = (id: string) => document.getElementById(id)!.hasAttribute(marker);
 const route = (path: string) => { history.pushState({}, '', path); document.dispatchEvent(new Event('focus-route-change')); };
 
+const authorRow = (links = '<a href="/sample/">Author</a><a href="/p/sample/">Post</a>', action = 'Follow') =>
+  `<div><div>${links}</div><div><div role="button">${action}</div></div></div>`;
+
+it('requires a tightly owned Home author Follow action and reverses on reuse and route changes', async () => {
+  stop = content.startInstagramFilter(document, { suggested: true, reels: true });
+  document.body.innerHTML = `<main>
+    <article id="owned">${authorRow()}</article>
+    <article id="duplicate">${authorRow('<a href="/sample/">Author</a><a href="/p/sample/">Post</a><a href="/p/sample">Time</a>')}</article>
+    <article id="caption"><p>Follow</p>${authorRow(undefined, 'Following')}</article>
+    <article id="mute">${authorRow(undefined, 'Mute')}</article>
+    <article id="followed">${authorRow(undefined, 'Following')}<div role="button">Follow</div></article>
+    <article id="paid">${authorRow()}<span>Sponsored</span></article>
+    <article id="repost">${authorRow()}<span>Reposted by</span><a href="/other/">Account</a></article>
+    <article id="marked-collaboration">${authorRow()}<span aria-label="Collaboration"></span></article>
+    <article id="disabled">${authorRow().replace('role="button"', 'role="button" aria-disabled="true"')}</article>
+    <article id="comment"><footer>${authorRow()}</footer></article>
+    <article id="menu-link">${authorRow('<a href="/explore/">Explore</a><a href="/p/sample/">Post</a>')}</article>
+    <article id="loose-row">${authorRow().replace('</div></div></div>', '</div></div><div></div></div>')}</article>
+    <article id="hidden-action">${authorRow().replace('role="button"', 'role="button" hidden')}</article>
+    <article id="suggested-account">${authorRow()}<span>Suggested for you</span></article>
+    <article id="legacy"><header>Suggested for you</header></article>
+    <article id="legacy-paid"><header>Suggested for you</header><span>Paid partnership</span></article>
+    <article id="legacy-repost"><header>Suggested for you</header><span>Reposted by</span></article>
+    <article id="legacy-collab"><header>Suggested for you</header><span aria-label="Collaboration"></span></article>
+    <article id="legacy-disabled"><header>Suggested for you</header>${authorRow().replace('role="button"', 'role="button" aria-disabled="true"')}</article>
+    <article id="legacy-hidden"><header>Suggested for you</header>${authorRow().replace('role="button"', 'role="button" hidden')}</article>
+    <article id="foreign">${authorRow('<a href="https://instagram.com/sample/">Author</a><a href="/p/sample/">Post</a>')}</article>
+    <article id="foreign-post">${authorRow('<a href="/sample/">Author</a><a href="https://instagram.com/p/sample/">Post</a>')}</article>
+    <article id="mixed">${authorRow('<a href="/sample/">Author</a><a href="/p/sample/">Post</a><a href="/p/other/">Other</a>')}</article>
+    <article id="people">${authorRow('<a href="/sample/">Author</a>')}</article>
+    <article id="collaboration">${authorRow('<a href="/sample/">Author</a><a href="/other/">Collaborator</a><a href="/p/sample/">Post</a>')}</article>
+    <article id="unowned"><a href="/p/sample/">Post</a>${authorRow('<a href="/sample/">Author</a>')}</article>
+    <section id="accounts">${authorRow()}</section>
+  </main>`;
+  await Promise.resolve();
+  expect([...document.querySelectorAll(`[${marker}]`)].map(node => node.id).sort()).toEqual(['duplicate', 'legacy', 'owned']);
+  const action = document.querySelector('#owned [role="button"]')!;
+  action.textContent = 'Following';
+  await Promise.resolve();
+  expect(hidden('owned')).toBe(false);
+  action.textContent = 'Follow';
+  for (const path of ['/direct/inbox/', '/explore/', '/sample/', '/p/sample/', '/?variant=following', '/?variant=favorites']) {
+    route(path);
+    expect(document.querySelector(`[${marker}]`), path).toBeNull();
+  }
+  route('/');
+  expect(hidden('owned')).toBe(true);
+  stop();
+  expect(document.querySelector(`[${marker}]`)).toBeNull();
+});
+
 it.each([[false, false], [true, false], [false, true], [true, true]])('filters independently (%s, %s)', (suggested, reels) => {
   document.body.innerHTML = `<div><div><span><div><a id="shortcut" href="/reels/">Reels</a></div></span></div>
   <div><a href="/">Home</a></div><div><a id="explore" href="/explore/">Explore</a></div>

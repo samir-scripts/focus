@@ -109,9 +109,61 @@ function discoveryViewer(doc: Document, origin: string, currentReel: string | un
   return viewer;
 }
 
+const profilePath = /^\/[\w.]+\/?$/;
+const postPath = /^\/(?:p|reels?)\/[\w-]+\/?$/;
+const nonProfile = /^\/(?:accounts|direct|explore|p|reels?|stories)$/i;
+const protectedLabel = /^(?:Sponsored|Paid partnership(?: with\b.*)?|Reposted(?: by\b.*)?|Collaboration|Following)$/i;
+const unavailableAction = '[hidden], [aria-hidden="true"], [aria-disabled="true"], [disabled], [inert]';
+
+function authorFollow(article: Element, origin: string) {
+  let owners = 0;
+  for (const action of article.querySelectorAll('div[role="button"]')) {
+    if (action.childElementCount || action.textContent?.trim() !== 'Follow' ||
+        action.closest('article, aside, footer, nav, [role="dialog"], [role="complementary"]') !== article) continue;
+
+    const wrapper = action.parentElement;
+    const row = wrapper?.parentElement;
+    if (!row?.matches('div:not([role])') || !wrapper?.matches('div:not([role])') ||
+        row.childElementCount !== 2 || row.querySelector('article, video, audio, iframe')) continue;
+
+    let profiles = 0;
+    let posts = 0;
+    let permalink: string | undefined;
+    for (const link of row.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      if (link.origin !== origin) { profiles = 0; break; }
+      const path = link.pathname.replace(/\/$/, '');
+      if (profilePath.test(path) && !nonProfile.test(path)) {
+        profiles++;
+      } else if (postPath.test(path) && (!permalink || path === permalink)) {
+        permalink = path;
+        posts++;
+      } else {
+        profiles = 0;
+        break;
+      }
+    }
+    if (profiles !== 1 || posts < 1 || posts > 2) continue;
+    if (action.closest(unavailableAction)) return 'protected';
+    owners++;
+  }
+  return owners === 1 ? 'owned' : undefined;
+}
+
+// Account-suggestion labels are ambiguous on the fallback; the semantic header is explicit.
+function hasProtectedLabel(article: Element, semanticHeader: boolean) {
+  for (const node of article.querySelectorAll('div, span, a, button, [aria-label]')) {
+    const label = node.getAttribute('aria-label')?.trim() ?? '';
+    const text = node.childElementCount ? '' : node.textContent?.trim() ?? '';
+    if (protectedLabel.test(label) || protectedLabel.test(text) ||
+        (!semanticHeader && (label === 'Suggested for you' || text === 'Suggested for you'))) return true;
+  }
+  return false;
+}
+
 // Avoid generated classes and never infer a recommendation from the linked media alone.
 export function startInstagramFilter(doc: Document, rules: InstagramRules, provenance?: DiscoveryProvenance) {
-  return watchFeed(doc, ['href', 'aria-label', 'aria-labelledby', 'role', 'controls'], (next) => {
+  return watchFeed(doc, ['href', 'aria-label', 'aria-labelledby', 'role', 'controls',
+    'hidden', 'aria-hidden', 'aria-disabled', 'disabled', 'inert'], (next) => {
     const url = new URL(doc.URL);
     if (!instagramUrl(url)) return;
     const path = url.pathname.replace(/\/$/, '');
@@ -124,8 +176,12 @@ export function startInstagramFilter(doc: Document, rules: InstagramRules, prove
       }
     }
     if (home && rules.suggested) {
-      for (const header of doc.querySelectorAll('main article > header')) {
-        if (header.textContent?.trim() === 'Suggested for you') next.add(header.parentElement!);
+      for (const article of doc.querySelectorAll('main article')) {
+        const semanticHeader = [...article.children].some(child =>
+          child.tagName === 'HEADER' && child.textContent?.trim() === 'Suggested for you');
+        const follow = authorFollow(article, url.origin);
+        if (follow !== 'protected' && (semanticHeader || follow === 'owned') &&
+            !hasProtectedLabel(article, semanticHeader)) next.add(article);
       }
     }
     if (!rules.reels) return;

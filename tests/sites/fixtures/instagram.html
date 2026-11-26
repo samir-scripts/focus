@@ -12,6 +12,9 @@
   <section id="stories" aria-label="Stories">Stories</section>
   <article id="followed"><header>Following</header><p>Followed post</p><a id="ordinary-reels" href="/reels/">Reels</a></article>
   <article id="suggested"><header>Suggested for you</header><p>Suggested post</p></article>
+  <article id="owned"><div><div><a href="/sample/">Author</a><a href="/p/sample/">Post</a></div><div><div role="button">Follow</div></div></div><p>Recommended post</p></article>
+  <article id="paid"><div><div><a href="/sample/">Author</a><a href="/p/sample/">Post</a></div><div><div role="button">Follow</div></div></div><span>Sponsored</span></article>
+  <section id="people"><a href="/sample/">Account</a><div role="button">Follow</div></section>
   <article id="ambiguous"><header>Suggested</header><p>Ambiguous post</p></article>
   <section id="shelf" aria-label="Suggested reels"><a href="/reel/other/">Suggested reel</a></section>
   <section id="feed" aria-label="Reels">Standalone Reels feed</section>
@@ -32,9 +35,13 @@
 <button id="to-viewer" type="button">Open discovery viewer</button>
 <button id="to-unrelated" type="button">Visit Explore then a shared reel</button>
 <script>
-  document.querySelector('#late').onclick = () => document.querySelector('main').insertAdjacentHTML('beforeend',
-    '<article id="late-post"><header>Suggested for you</header><p>Late post</p></article>');
-  document.querySelector('#reuse').onclick = () => { document.querySelector('#late-post header').textContent = 'Following'; };
+  document.querySelector('#late').onclick = () => {
+    const post = document.createElement('article');
+    post.id = 'late-post';
+    post.innerHTML = document.querySelector('#owned').innerHTML;
+    document.querySelector('main').append(post);
+  };
+  document.querySelector('#reuse').onclick = () => { document.querySelector('#late-post [role="button"]').textContent = 'Following'; };
   document.querySelector('#to-feed').onclick = () => history.pushState({}, '', '/reels/');
   document.querySelector('#to-shared').onclick = () => history.pushState({}, '', '/reel/shared/');
   const renderViewer = () => {

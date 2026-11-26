@@ -100,8 +100,8 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     for (const [suggested, reels] of [[false, false], [true, false], [false, true], [true, true]]) {
       await instagram(suggested, reels);
       for (const [, browser] of engines) await show(browser, {
-        '#suggested': !suggested, '#shelf': !reels, '#shortcut': !reels,
-        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true, '#ordinary-reels': true,
+        '#suggested': !suggested, '#owned': !suggested, '#shelf': !reels, '#shortcut': !reels,
+        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true, '#ordinary-reels': true, '#paid': true, '#people': true,
       });
     }
     for (const [, browser] of engines) {
@@ -115,7 +115,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await click(browser, '#to-shared');
       await show(browser, { '#feed': true, '#player video': true, '#comments': true, '#share': true, '#mixed-reels video': true, '#shelf': false });
       await navigate(browser, '/direct/inbox/', host);
-      await show(browser, { '#suggested': true, '#shelf': true });
+      await show(browser, { '#suggested': true, '#owned': true, '#shelf': true });
       await navigate(browser, '/reels/', host);
       await show(browser, { '#viewer': false, '#viewer-controls': true });
       await click(browser, '#to-unrelated');
@@ -135,8 +135,9 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     const tab = chrome.context.pages().at(-1);
     await tab.waitForURL(`https://${host}/`);
     await tab.close();
+    await show(chrome, { '#owned': false });
     await removeOrigin(chrome, origin);
-    await show(chrome, { '#suggested': true, '#shelf': true, '#shortcut': true });
+    await show(chrome, { '#suggested': true, '#owned': true, '#shelf': true, '#shortcut': true });
     await eventually('Instagram grant was revoked', async () => !(await state()).profiles.find(p => p.id === profiles.get('chromium')).origins.includes(origin));
     await assert.rejects(() => admin('browser-open', profiles.get('chromium'), 'instagram', String(revision)));
   });
