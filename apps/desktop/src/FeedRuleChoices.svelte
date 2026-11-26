@@ -39,5 +39,19 @@
   input { margin: 0; width: 15px; height: 15px; align-self: start; margin-top: 2px; flex: none; accent-color: var(--accent); }
   input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   small { color: var(--muted); font-size: 12px; }
+  @media (forced-colors: none) {
+    input {
+      appearance: none; display: grid; place-items: center;
+      border: 1px solid var(--ink); background: var(--surface);
+    }
+    input[type='radio'] { border-radius: 50%; }
+    input:checked { background: var(--ink); }
+    input:checked::after { content: ''; display: block; background: var(--surface); }
+    input[type='checkbox']:checked::after {
+      width: 10px; height: 9px; clip-path: polygon(0 45%, 18% 27%, 39% 51%, 81% 4%, 100% 22%, 39% 92%);
+    }
+    input[type='radio']:checked::after { width: 6px; height: 6px; border-radius: 50%; }
+    input:disabled { opacity: .55; }
+  }
   @media (max-width: 635px) { small { display: block; } }
 </style>
