@@ -63,7 +63,8 @@ it('requires a tightly owned Home author Follow action and reverses on reuse and
 it.each([[false, false], [true, false], [false, true], [true, true]])('filters independently (%s, %s)', (suggested, reels) => {
   document.body.innerHTML = `<div><div><span><div><a id="shortcut" href="/reels/">Reels</a></div></span></div>
   <div><a href="/">Home</a></div><div><a id="explore" href="/explore/">Explore</a></div>
-  <div><a href="/direct/inbox/">Messages</a></div></div>
+  <div><a id="messages" href="/direct/inbox/">Messages</a></div>
+  <div><a id="home-copy" href="/">Home</a></div><div><a href="/">Home</a></div><div></div></div>
   <main><section id="stories" aria-label="Stories"></section>
   <article id="followed"><header>Following</header><p>Suggested for you</p></article>
   <article id="suggested"><header><span>Suggested for you</span></header></article>
@@ -74,7 +75,7 @@ it.each([[false, false], [true, false], [false, true], [true, true]])('filters i
   expect(hidden('suggested')).toBe(suggested);
   expect(hidden('shortcut')).toBe(reels);
   expect(hidden('shelf')).toBe(reels);
-  for (const id of ['explore', 'stories', 'followed', 'unknown', 'ambiguous']) expect(hidden(id), id).toBe(false);
+  for (const id of ['explore', 'messages', 'home-copy', 'stories', 'followed', 'unknown', 'ambiguous']) expect(hidden(id), id).toBe(false);
   stop();
   expect(document.querySelector(`[${marker}]`)).toBeNull();
 });
@@ -95,12 +96,16 @@ it('marks only an unambiguous rail shortcut as its grouping changes', async () =
   expect(hidden('shortcut')).toBe(true);
   for (const id of ['ordinary', 'incomplete', 'foreign']) expect(hidden(id), id).toBe(false);
   const rail = document.getElementById('rail')!;
-  const duplicate = document.createElement('a');
-  duplicate.href = '/reels/';
-  rail.append(duplicate);
-  await Promise.resolve();
-  expect(document.querySelector(`[${marker}]`)).toBeNull();
-  duplicate.remove();
+  for (const href of ['/reels/', '/explore/', '/direct/inbox/', '/?variant=following', '/#home', 'https://instagram.com/']) {
+    const duplicate = document.createElement('a');
+    duplicate.href = href;
+    rail.append(duplicate);
+    await Promise.resolve();
+    expect(hidden('shortcut'), href).toBe(false);
+    duplicate.remove();
+    await Promise.resolve();
+    expect(hidden('shortcut'), href).toBe(true);
+  }
   const messages = document.getElementById('messages')!;
   messages.setAttribute('href', '/direct/inbox/other/');
   await Promise.resolve();

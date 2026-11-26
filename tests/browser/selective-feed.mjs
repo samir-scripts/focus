@@ -101,7 +101,8 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await instagram(suggested, reels);
       for (const [, browser] of engines) await show(browser, {
         '#suggested': !suggested, '#owned': !suggested, '#shelf': !reels, '#shortcut': !reels,
-        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true, '#ordinary-reels': true, '#paid': true, '#people': true,
+        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true, '#messages': true, '#home-copy': true,
+        '#ordinary-reels': true, '#paid': true, '#people': true,
       });
     }
     for (const [, browser] of engines) {

@@ -81,7 +81,7 @@ function isRailShortcut(link: HTMLAnchorElement, origin: string) {
     for (const sibling of group.querySelectorAll<HTMLAnchorElement>('a[href]')) {
       const path = sibling.pathname.replace(/\/$/, '');
       if (!railPaths.has(path)) continue;
-      if (sibling.origin !== origin || sibling.search || sibling.hash || paths.has(path)) return false;
+      if (sibling.origin !== origin || sibling.search || sibling.hash || (path !== '' && paths.has(path))) return false;
       paths.add(path);
     }
     // Don't widen to an outer group if the first plausible group was incomplete.
