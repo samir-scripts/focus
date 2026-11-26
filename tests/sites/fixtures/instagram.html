@@ -57,9 +57,11 @@
       </div>
       <div id="viewer-controls"><button type="button">Comments</button><button type="button">Share</button></div>`;
   };
+  const replaceViewerMetadata = () => history.replaceState({ viewer: true }, '', location.href);
   const canonicalize = () => {
     history.replaceState({ discovery: true }, '', location.href);
     history.replaceState(null, '', '/reels/sample/');
+    replaceViewerMetadata();
     renderViewer();
   };
   document.querySelector('#to-viewer').onclick = () => { history.pushState(null, '', '/reels/'); canonicalize(); };
@@ -68,6 +70,9 @@
     history.pushState(null, '', '/reels/sample/');
   };
   if (location.pathname === '/reels/') canonicalize();
-  else if (location.pathname === '/reels/sample/') renderViewer();
+  else if (location.pathname === '/reels/sample/') {
+    replaceViewerMetadata();
+    renderViewer();
+  }
 </script>
 </html>

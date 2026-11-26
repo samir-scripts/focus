@@ -157,7 +157,8 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
     const navigation = new EventTarget();
     const advance = (path: string, navigationType = 'push') => {
       const from = { url: document.URL };
-      history.pushState({}, '', path);
+      if (navigationType === 'replace') history.replaceState({ metadata: true }, '', path);
+      else history.pushState({}, '', path);
       navigation.dispatchEvent(Object.assign(new Event('currententrychange'), { from, navigationType }));
     };
     route(entry === 'shared' ? '/reels/shared/' : entry === 'spa' ? '/' : '/reels/');
@@ -168,6 +169,7 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
       if (entry === 'initial-response') advance('/reels/', 'replace');
       if (entry === 'pending-push') advance('/reels/');
       if (entry !== 'shared') advance('/reels/shared/', 'replace');
+      if (entry === 'initial-response' || entry === 'shared') advance('/reels/shared/', 'replace');
       if (entry === 'initial-response') state.applyPolicy(true, true);
       if (entry === 'late-enable') state.applyPolicy(true, false);
       if (entry === 'removed') {
@@ -190,7 +192,7 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
       expect(hidden('viewer')).toBe(ownsViewer);
       if (sameUrl) {
         advance('/reels/shared/', entry === 'same-url-replace' ? 'replace' : 'push');
-        expect(hidden('viewer')).toBe(false);
+        expect(hidden('viewer')).toBe(entry === 'same-url-replace');
       }
       if (entry === 'bfcache') {
         window.dispatchEvent(new Event('pagehide'));

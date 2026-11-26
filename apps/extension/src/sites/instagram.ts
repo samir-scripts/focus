@@ -34,9 +34,10 @@ export function trackInstagramDiscovery(doc: Document, navigation = doc.readySta
   const changed = (event: Event) => {
     const { from, navigationType } = event as Event & { from?: { url?: string }; navigationType?: string };
     const forward = navigationType === 'push' || navigationType === 'replace';
-    // Instagram replaces metadata at the exact discovery URL before canonicalizing.
-    if (navigationType === 'replace' && pending === doc.URL && from?.url === pending) return;
-    const current = new URL(doc.URL);
+    // Same-entry metadata replacements neither create nor discard discovery ownership.
+    const href = doc.URL;
+    if (navigationType === 'replace' && from?.url === href && (pending === href || canonical === href)) return;
+    const current = new URL(href);
     if (forward && from?.url && new URL(from.url).origin === initial.origin && current.origin === initial.origin) {
       if (pending === from.url && individual.test(current.pathname) && !current.search && !current.hash) {
         reset();
