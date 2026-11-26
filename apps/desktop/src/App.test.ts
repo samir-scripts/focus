@@ -231,9 +231,10 @@ describe('desktop shell', () => {
     const open = Promise.withResolvers<void>();
     const profile = { id: 'home', label: 'Home profile', browser: 'chrome' as const,
       online: true, protocol: 5, ackRevision: 3, origins: ['https://www.youtube.com/*'] };
+    let workOrigins = profile.origins;
     render(App, { browserBridge: {
       state: async () => ({ revision: 3, hideShorts: false, accessibility: { holdSeconds: 15, twoStepConfirmation: false },
-        sites: [], pending: [], open: null, profiles: [profile, { ...profile, id: 'work', label: 'Work profile' },
+        sites: [], pending: [], open: null, profiles: [profile, { ...profile, id: 'work', label: 'Work profile', origins: workOrigins },
           { ...profile, id: 'old', label: 'Old profile', protocol: 4 }] }),
       openPairedBrowser: async (...args: unknown[]) => { results.push(args); await open.promise; },
       scan: async () => ({ supported: true, targets: [] }), install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
@@ -249,6 +250,19 @@ describe('desktop shell', () => {
     expect(screen.queryByText('Opened in Work profile.')).toBeNull();
     open.resolve();
     expect(await screen.findByText('Opened in Work profile.')).toBeTruthy();
+
+    workOrigins = [];
+    await waitFor(() => expect(screen.queryByRole('option', { name: /Work profile/ })).toBeNull(), { timeout: 2000 });
+    const recovery = screen.getByRole<HTMLButtonElement>('button', { name: 'Open in paired browser' });
+    expect(recovery.disabled).toBe(true);
+    await fireEvent.click(recovery);
+    expect(results).toEqual([['work', 'youtube', 3]]);
+    const remaining = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Browser profile' });
+    expect(remaining.value).toBe('');
+    await fireEvent.change(remaining, { target: { value: 'home' } });
+    expect(recovery.disabled).toBe(false);
+    await fireEvent.click(recovery);
+    expect(results).toEqual([['work', 'youtube', 3], ['home', 'youtube', 3]]);
   });
 
   it('edits site entry before pairing and shows Pause controls only while paused', async () => {

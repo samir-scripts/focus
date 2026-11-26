@@ -9,7 +9,7 @@
     profile.protocol === VERSION && profile.ackRevision === browserState.revision &&
     profile.origins.includes(`${new URL(home).origin}/*`)) : []);
   let selected = $state('');
-  let target = $derived(eligible.find((profile) => profile.id === selected) ?? eligible[0]);
+  let target = $derived(selected ? eligible.find((profile) => profile.id === selected) : eligible[0]);
   let busy = $state(false);
   let result = $state('');
   async function open() {
@@ -30,14 +30,15 @@
 
 {#if eligible.length || busy || result}
   <div class="paired-action">
-    {#if eligible.length > 1}
+    {#if eligible.length > 1 || (eligible.length && !target)}
       <label>Browser profile
-        <select value={target?.id} disabled={busy} onchange={(event) => { selected = event.currentTarget.value; }}>
+        <select value={target?.id ?? ''} disabled={busy} onchange={(event) => { selected = event.currentTarget.value; }}>
+          {#if !target}<option value="" disabled>Choose a browser profile</option>{/if}
           {#each eligible as profile (profile.id)}<option value={profile.id}>{profile.label} · {browsers[profile.browser]}</option>{/each}
         </select>
       </label>
     {/if}
-    {#if eligible.length || busy}<button type="button" disabled={busy || saving} onclick={open}>Open in paired browser</button>{/if}
+    {#if eligible.length || busy}<button type="button" disabled={!target || busy || saving} onclick={open}>Open in paired browser</button>{/if}
     <span role="status">{result}</span>
   </div>
 {/if}
