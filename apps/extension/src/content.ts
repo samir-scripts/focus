@@ -1,6 +1,7 @@
 import { startShortsFilter, startHomeRecommendationsFilter } from './sites/youtube';
 import { startXFilter, type XMode } from './sites/x';
 import { startRedditFilter, type RedditMode } from './sites/reddit';
+import { startInstagramFilter, type InstagramRules } from './sites/instagram';
 import type { FeedPolicy } from './sites/feed';
 
 type ContentPolicy = FeedPolicy & { grayscale?: boolean };
@@ -15,6 +16,8 @@ if (!scope.__focusRules) {
   let redditMode: RedditMode | undefined;
   let stopReddit: (() => void) | undefined;
   let stopYouTubeHome: (() => void) | undefined;
+  let instagram: InstagramRules | undefined;
+  let stopInstagram: (() => void) | undefined;
   let receivedPolicy = false;
   let grayscale = false;
   const reflectGrayscale = () => {
@@ -38,6 +41,11 @@ if (!scope.__focusRules) {
       stopReddit?.();
       redditMode = policy?.reddit;
       stopReddit = redditMode ? startRedditFilter(document, redditMode) : undefined;
+    }
+    if (instagram?.suggested !== policy?.instagram?.suggested || instagram?.reels !== policy?.instagram?.reels) {
+      stopInstagram?.();
+      instagram = policy?.instagram;
+      stopInstagram = instagram ? startInstagramFilter(document, instagram) : undefined;
     }
     grayscale = policy?.grayscale === true;
     reflectGrayscale();

@@ -129,6 +129,27 @@ it('dispatches X Following only to a granted canonical, top-level document', asy
   expect(state('https://x.com/home', 1)).not.toHaveProperty('x');
 });
 
+it('stops projecting Instagram rules after exact access is removed', async () => {
+  const grants = ['https://www.instagram.com/*'];
+  const saved = { ...snapshot(1, false), sites: [{
+    id: 'instagram', label: 'Instagram', hosts: ['instagram.com', 'www.instagram.com'],
+    entry: { mode: 'allow' }, grayscale: false,
+    rules: { 'instagram.hide-suggested-home': true, 'instagram.hide-reels-discovery': false },
+  }] };
+  const bridge = await start({ profile: credential, policy: saved }, grants);
+  await bridge.waitFor('hello');
+  const state = (url: string) => {
+    let result: unknown;
+    bridge.messages.emit({ type: 'focus-content-state' }, { url, frameId: 0, tab: {} }, (value) => { result = value; });
+    return result;
+  };
+  expect(state('https://www.instagram.com/')).toMatchObject({ instagram: { suggested: true, reels: false } });
+  expect(state('https://instagram.com/')).not.toHaveProperty('instagram');
+  grants.length = 0;
+  bridge.removed.emit();
+  await vi.waitFor(() => expect(state('https://www.instagram.com/')).not.toHaveProperty('instagram'));
+});
+
 it('dispatches Reddit recommendations only to www.reddit.com, and clears on permission loss', async () => {
   const saved = { ...snapshot(1, false), sites: [{
     id: 'reddit', label: 'Reddit', hosts: ['reddit.com', 'www.reddit.com', 'old.reddit.com'],
