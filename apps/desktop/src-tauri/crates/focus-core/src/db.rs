@@ -685,16 +685,17 @@ impl Db {
     }
 
     pub fn enqueue_browser_open(&mut self, profile: &str, site: &str, revision: u64) -> Result<String> {
-        let home = model::SITES.iter().find(|candidate| candidate.id == site).and_then(|site| site.home).ok_or(Error::Invalid)?;
+        let destination = model::SITES.iter().find(|candidate| candidate.id == site).ok_or(Error::Invalid)?;
+        let home = destination.home.ok_or(Error::Invalid)?;
         let end = home[8..].find('/').map_or(home.len(), |index| 8 + index);
         let origin = format!("{}/*", &home[..end]);
         let tx = self.0.transaction_with_behavior(Immediate)?;
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let now = model::now();
         let session: String = tx.query_row("SELECT r.session_id FROM profile_runtime r JOIN profile p ON p.id=r.profile_id
-            WHERE p.id=?1 AND NOT p.revoked AND r.expires_at>?2 AND r.protocol>=5 AND r.ack_revision=?3
+            WHERE p.id=?1 AND NOT p.revoked AND r.expires_at>?2 AND r.protocol>=?5 AND r.ack_revision=?3
             AND EXISTS(SELECT 1 FROM json_each(r.origins) WHERE value=?4)",
-            params![profile, now, revision, origin], |r| r.get(0)).optional()?.ok_or(Error::Unauthorized)?;
+            params![profile, now, revision, origin, destination.home_since.unwrap_or(5)], |r| r.get(0)).optional()?.ok_or(Error::Unauthorized)?;
         tx.execute("DELETE FROM paired_open WHERE expires_at<=?1", [now])?;
         let id = Uuid::new_v4().to_string();
         tx.execute("INSERT INTO paired_open(id, profile_id, session_id, site_id, revision, expires_at) VALUES(?1,?2,?3,?4,?5,?6)",

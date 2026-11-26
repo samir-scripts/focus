@@ -20,15 +20,15 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     });
   }
   for (const [name, browser] of engines) {
-    await check(`${name}: grant the three canonical destinations through the extension`, async () => {
-      for (const label of ['YouTube', 'X / Twitter', 'Reddit']) await setupAction(browser, 'select', label);
+    await check(`${name}: grant the four canonical destinations through the extension`, async () => {
+      for (const label of ['YouTube', 'X / Twitter', 'Reddit', 'Instagram']) await setupAction(browser, 'select', label);
       await grant(browser);
       const profile = profiles.get(name);
       await eventually('canonical grants acknowledged', async () => {
         const current = await state();
         const p = current.profiles.find(p => p.id === profile);
-        return p?.protocol === 5 && p.ackRevision === current.revision &&
-          ['https://x.com/*', 'https://www.reddit.com/*', 'https://www.youtube.com/*'].every(origin => p.origins.includes(origin));
+        return p?.protocol === 6 && p.ackRevision === current.revision &&
+          ['https://x.com/*', 'https://www.reddit.com/*', 'https://www.youtube.com/*', 'https://www.instagram.com/*'].every(origin => p.origins.includes(origin));
       });
     });
   }
@@ -88,6 +88,43 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
         await navigate(browser, path); await show(browser, { '#recommended': true, '#subscribed': true, '#playback': true });
       }
     }
+  });
+  await check('Instagram: independent choices, reused DOM, protected reel and exact grant reversal', async () => {
+    const host = 'www.instagram.com';
+    const origin = `https://${host}/*`;
+    const instagram = (hideSuggestedHome, hideReelsDiscovery) => edit({ site: 'instagram', hideSuggestedHome, hideReelsDiscovery });
+    for (const [, browser] of engines) await navigate(browser, '/', host);
+    for (const [suggested, reels] of [[false, false], [true, false], [false, true], [true, true]]) {
+      await instagram(suggested, reels);
+      for (const [, browser] of engines) await show(browser, {
+        '#suggested': !suggested, '#shelf': !reels, '#shortcut': !reels,
+        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true,
+      });
+    }
+    for (const [, browser] of engines) {
+      await click(browser, '#late');
+      await show(browser, { '#late-post': false });
+      await click(browser, '#reuse');
+      await show(browser, { '#late-post': true });
+      await click(browser, '#to-feed');
+      await show(browser, { '#feed': false, '#player': true });
+      await click(browser, '#to-shared');
+      await show(browser, { '#feed': true, '#player video': true, '#player button': true, '#shelf': false });
+      await navigate(browser, '/direct/inbox/', host);
+      await show(browser, { '#suggested': true, '#shelf': true });
+      await navigate(browser, '/', host);
+    }
+    const chrome = engines.find(([name]) => name === 'chromium')[1];
+    const revision = (await state()).revision;
+    const intent = (await admin('browser-open', profiles.get('chromium'), 'instagram', String(revision))).trim();
+    await eventually('Instagram Home opened in the selected profile', async () => (await admin('browser-open-state', intent)).trim() === 'true');
+    const tab = chrome.context.pages().at(-1);
+    await tab.waitForURL(`https://${host}/`);
+    await tab.close();
+    await removeOrigin(chrome, origin);
+    await show(chrome, { '#suggested': true, '#shelf': true, '#shortcut': true });
+    await eventually('Instagram grant was revoked', async () => !(await state()).profiles.find(p => p.id === profiles.get('chromium')).origins.includes(origin));
+    await assert.rejects(() => admin('browser-open', profiles.get('chromium'), 'instagram', String(revision)));
   });
   await check('Open in paired browser: only the selected profile opens one catalog tab', async () => {
     const revision = (await state()).revision;

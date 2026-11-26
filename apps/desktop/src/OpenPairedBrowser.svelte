@@ -1,15 +1,22 @@
 <script lang="ts">
   import { catalog } from '../../extension/src/sites/catalog';
-  import { VERSION } from '../../extension/src/protocol';
   import { browsers, type BrowserBridge, type BrowserState } from './browser';
 
   let { bridge, state: browserState, siteId, saving }: { bridge: BrowserBridge; state: BrowserState; siteId: string; saving: boolean } = $props();
-  let home = $derived(catalog.find((site) => site.id === siteId)?.home);
-  let eligible = $derived(home ? browserState.profiles.filter((profile) => profile.online && !profile.updateRequired &&
-    profile.protocol === VERSION && profile.ackRevision === browserState.revision &&
-    profile.origins.includes(`${new URL(home).origin}/*`)) : []);
+  let destination = $derived(catalog.find((site) => site.id === siteId));
+  let origin = $derived(destination?.home ? `${new URL(destination.home).origin}/*` : undefined);
+  let allowed = $derived(origin ? browserState.profiles.filter((profile) => profile.online && !profile.updateRequired &&
+    (profile.protocol ?? 0) >= (destination?.homeSince ?? 5) && profile.origins.includes(origin!)) : []);
+  let eligible = $derived(allowed.filter((profile) => profile.ackRevision === browserState.revision));
   let selected = $state('');
-  let target = $derived(selected ? eligible.find((profile) => profile.id === selected) : eligible[0]);
+  let mustChoose = $state(false);
+  let target = $derived(selected ? eligible.find((profile) => profile.id === selected) : mustChoose ? undefined : eligible[0]);
+  $effect(() => {
+    if (selected && !allowed.some((profile) => profile.id === selected)) {
+      selected = '';
+      mustChoose = true;
+    } else if (!selected && !mustChoose && target) selected = target.id;
+  });
   let busy = $state(false);
   let result = $state('');
   async function open() {

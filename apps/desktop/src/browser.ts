@@ -9,7 +9,8 @@ export type Browser = keyof typeof browsers;
 export type ContentRules =
   | { site: 'x'; hideForYou: boolean; openFollowing: boolean }
   | { site: 'reddit'; hideRecommendations: boolean; hideAllHome: boolean }
-  | { site: 'youtube'; hideShorts: boolean; hideHomeRecommendations: boolean };
+  | { site: 'youtube'; hideShorts: boolean; hideHomeRecommendations: boolean }
+  | { site: 'instagram'; hideSuggestedHome: boolean; hideReelsDiscovery: boolean };
 export type Pair = { id: string; label: string; browser: Browser };
 export type Profile = Pair & { online: boolean; protocol?: number | null; updateRequired?: boolean; ackRevision: number | null; origins: string[] };
 export type InstallCapability = 'store' | 'managed' | 'managedPending' | 'managedCleanup' | 'managedOrphan' | 'missingArtifact' |

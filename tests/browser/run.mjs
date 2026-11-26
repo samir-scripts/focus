@@ -598,6 +598,7 @@ try {
   proxy = await startFixtureProxy(fixturePath, temp, selective ? {
     'x.com': join(root, 'tests/sites/fixtures/x.html'),
     'www.reddit.com': join(root, 'tests/sites/fixtures/reddit.html'),
+    'www.instagram.com': join(root, 'tests/sites/fixtures/instagram.html'),
   } : {});
   if (!firefoxOnly) chrome = await chromiumStart();
   if (!chromiumOnly) fox = await firefoxStart();

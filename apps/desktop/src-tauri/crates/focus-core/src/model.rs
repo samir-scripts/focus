@@ -16,6 +16,8 @@ pub struct Site<'a> {
     pub label: &'a str,
     pub hosts: Vec<&'a str>,
     pub home: Option<&'a str>,
+    #[serde(rename = "homeSince")]
+    pub home_since: Option<u16>,
     pub rules: Vec<ContentRule<'a>>,
 }
 
