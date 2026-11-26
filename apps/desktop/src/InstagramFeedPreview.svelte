@@ -12,14 +12,14 @@
     : view === 'Home' && rules.hideReelsDiscovery ? 'Reels discovery hidden' : 'Same as before');
 </script>
 
-{#snippet post(title: string, detail: string)}
-  <div class="row"><span class="print"></span><span>{title}<small>{detail}</small></span></div>
+{#snippet post(title: string, detail: string, suggested = false)}
+  <div class="row"><span class="print" class:suggested aria-hidden="true"></span><span>{title}<small>{detail}</small></span></div>
 {/snippet}
 
 {#snippet feed(apply: boolean)}
   {@const reels = apply && rules.hideReelsDiscovery}
   <div class="feed" class:grayscale={apply && grayscale}>
-    <div class="sample-nav"><SiteMark id="instagram" size={15} /><strong>Instagram</strong><span>Home</span>{#if !reels}<span>Reels</span>{/if}<span>Messages</span></div>
+    <div class="sample-nav"><SiteMark id="instagram" size={15} /><strong>Instagram</strong><span>Home</span>{#if !reels}<span>Reels</span>{/if}<span class="messages">Messages</span></div>
     {#if view === 'Reels feed' && reels}
       <p class="empty">Reels feed hidden</p>
     {:else if view !== 'Home'}
@@ -31,7 +31,7 @@
     {:else}
       <div class="stories"><i></i><i></i><i></i><span>Stories</span></div>
       {@render post('Weekend hike', 'Account you follow')}
-      {#if !apply || !rules.hideSuggestedHome}{@render post('Street photography', 'Suggested for you')}{/if}
+      {#if !apply || !rules.hideSuggestedHome}{@render post('Street photography', 'Suggested for you', true)}{/if}
       {#if !reels}<div class="row"><span class="thumbs" aria-hidden="true"><i>▶</i><i>▶</i><i>▶</i></span><span>Recommended Reels</span></div>{/if}
     {/if}
   </div>
@@ -70,14 +70,28 @@
   .grayscale { filter: grayscale(1); }
   .sample-nav, .row, .stories, .empty { padding: 7px; border-bottom: 1px solid var(--divider); }
   .sample-nav { flex-wrap: wrap; }
+  .messages { margin-inline-start: auto; }
   .row:last-child, .empty { border-bottom: 0; }
   small { display: block; }
   .stories i { width: 14px; height: 14px; border: 1px solid var(--accent); border-radius: 50%; background: var(--rail); }
   .print, .poster, .thumbs i { display: grid; place-items: center; background: var(--rail); border: 1px solid var(--edge); flex: none; font-style: normal; }
-  .print { width: 34px; height: 26px; }
+  .print {
+    position: relative; overflow: hidden; width: 34px; height: 26px; border-radius: 2px;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  }
+  .print::before {
+    content: ''; position: absolute; inset: 0;
+    background: color-mix(in srgb, var(--ink) 63%, var(--surface));
+    clip-path: polygon(0% 72%, 24% 29%, 43% 69%, 62% 38%, 100% 80%, 100% 100%, 0% 100%);
+  }
+  .print.suggested::before { clip-path: polygon(0% 79%, 33% 31%, 56% 65%, 73% 28%, 100% 51%, 100% 100%, 0% 100%); }
   .poster { width: 58px; aspect-ratio: 3 / 4; }
   .thumbs { gap: 3px; }
   .thumbs i { width: 18px; height: 24px; font-size: 8px; }
   @media (max-width: 635px) { .comparison { grid-template-columns: minmax(0, 1fr); } }
-  @media (forced-colors: active) { button[aria-pressed='true'] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; } }
+  @media (forced-colors: active) {
+    button[aria-pressed='true'] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }
+    .print { forced-color-adjust: none; background: Canvas; border-color: GrayText; }
+    .print::before { background: CanvasText; }
+  }
 </style>
