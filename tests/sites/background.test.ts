@@ -143,3 +143,21 @@ it('dispatches Reddit recommendations only to www.reddit.com, and clears on perm
   bridge.removed.emit();
   await vi.waitFor(() => expect(state('https://www.reddit.com/')).not.toHaveProperty('reddit'));
 });
+
+it('keeps existing Shorts aliases while applying the Home rule only on the granted canonical origin', async () => {
+  const saved = snapshot(1, true);
+  const policy = { ...saved, sites: saved.sites.map((site) => ({ ...site,
+    rules: { ...site.rules, 'youtube.hide-home-recommendations': true },
+  })) };
+  const bridge = await start({ profile: credential, policy }, ['https://www.youtube.com/*', 'https://m.youtube.com/*']);
+  await bridge.waitFor('hello');
+  const state = (url: string) => {
+    let result: unknown;
+    bridge.messages.emit({ type: 'focus-content-state' }, { url, frameId: 0, tab: {} }, (value) => { result = value; });
+    return result;
+  };
+  expect(state('https://www.youtube.com/')).toMatchObject({ enabled: true, youtubeHome: true });
+  expect(state('https://m.youtube.com/')).toMatchObject({ enabled: true });
+  expect(state('https://m.youtube.com/')).not.toHaveProperty('youtubeHome');
+  expect(state('https://youtube.com/')).toMatchObject({ enabled: false });
+});

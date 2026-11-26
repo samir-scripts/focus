@@ -1,3 +1,5 @@
+import { watchFeed } from './feed';
+
 // Selectors are original, limited to explicit YouTube Shorts renderer and link structures.
 const navigation = 'ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer, ytm-pivot-bar-item-renderer';
 const shelves = 'ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], ytm-reel-shelf-renderer';
@@ -89,16 +91,35 @@ export function startShortsFilter(doc: Document): () => void {
   });
   observer.observe(doc.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['href', 'is-shorts'] });
   doc.addEventListener('yt-navigate-finish', routeChanged);
+  doc.addEventListener('focus-route-change', routeChanged);
   doc.defaultView?.addEventListener('yt-navigate-finish', routeChanged);
   doc.defaultView?.addEventListener('popstate', routeChanged);
   routeChanged();
   return () => {
     stopped = true; observer.disconnect();
     doc.removeEventListener('yt-navigate-finish', routeChanged);
+    doc.removeEventListener('focus-route-change', routeChanged);
     doc.defaultView?.removeEventListener('yt-navigate-finish', routeChanged);
     doc.defaultView?.removeEventListener('popstate', routeChanged);
     for (const element of marked) element.removeAttribute(marker);
     doc.documentElement.removeAttribute('data-focus-shorts-active');
     doc.documentElement.removeAttribute('data-focus-shorts-discovery');
   };
+}
+
+// Original selectors adapted from the Slice 4A YouTube Home grid proof.
+export function startHomeRecommendationsFilter(doc: Document) {
+  return watchFeed(doc, ['page-subtype', 'id', 'href', 'subscribed', 'aria-label', 'is-shorts'], (next) => {
+    const location = doc.defaultView?.location;
+    if (location?.hostname !== 'www.youtube.com' || location.port || location.pathname !== '/') return;
+    const grids = doc.querySelectorAll('ytd-browse[page-subtype="home"] ytd-rich-grid-renderer');
+    if (grids.length !== 1) return;
+    for (const card of grids[0].querySelectorAll(':scope > #contents > ytd-rich-item-renderer')) {
+      if (!card.querySelector('a[href^="/watch?"], a[href^="https://www.youtube.com/watch?"]')) continue;
+      if (card.querySelector('ytd-rich-shelf-renderer[is-shorts], ytd-reel-shelf-renderer, ytd-reel-item-renderer, a[href^="/shorts/"]')) continue;
+      if (card.closest('[aria-label*="subscription" i]') ||
+          card.querySelector('[aria-label*="subscribed" i], ytd-subscribe-button-renderer[subscribed]')) continue;
+      next.add(card);
+    }
+  }, 'yt-navigate-finish');
 }

@@ -37,6 +37,7 @@ Exploratory Chrome for Testing 156 proof, not production qualification. X hid th
 
 - X: [Adapter](../../../apps/extension/src/sites/x.ts) and [fixtures](../../../tests/sites/x.test.ts) use original, account-free selectors based on X Home observed for the proof. No third-party filter list or page content is bundled.
 - Reddit: [Adapter](../../../apps/extension/src/sites/reddit.ts) uses original selectors from the observed Home layout. The [synthetic fixture](../../../tests/sites/reddit.test.ts) supplies populated Following and mixed Home that the exploratory account could not qualify.
+- YouTube: [Adapter](../../../apps/extension/src/sites/youtube.ts) uses original Home card selectors from the observed desktop grid and preserves the existing original Shorts selectors. [Home fixtures](../../../tests/sites/youtube-home.test.ts) distinguish recommendations, subscriptions, protected routes and Shorts discovery.
 
 ## Candidate gate
 

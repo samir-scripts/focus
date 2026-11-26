@@ -97,6 +97,7 @@ async function reconcile() {
   if (!entry && current?.sites.some((site) => site.entry.mode !== 'allow')) throw new Error('version_mismatch');
   await entry?.reconcile(current, grants);
   const enabled = !!profile && !!policy?.sites.find((site) => site.id === 'youtube')?.rules['youtube.hide-shorts'];
+  const youtubeHome = current?.sites.find((site) => site.id === 'youtube')?.rules['youtube.hide-home-recommendations'] === true;
   const x = current?.sites.find((site) => site.id === 'x')?.rules;
   const reddit = current?.sites.find((site) => site.id === 'reddit')?.rules;
   const xMode = x?.['x.open-following'] ? 'following' : x?.['x.hide-for-you'] ? 'hide' : undefined;
@@ -108,7 +109,9 @@ async function reconcile() {
     const { hostname } = new URL(origin);
     if (hostname === 'x.com' && xMode) activeContent.set(origin, { x: xMode });
     if (hostname === 'www.reddit.com' && redditMode) activeContent.set(origin, { reddit: redditMode });
-    if (youtubeOrigins.includes(origin)) activeContent.set(origin, { enabled: true });
+    const shorts = youtubeOrigins.includes(origin);
+    const home = hostname === 'www.youtube.com' && youtubeHome;
+    if (home || shorts) activeContent.set(origin, { enabled: shorts, ...(home ? { youtubeHome: true } : {}) });
   }
   grayOrigins = new Set(profile ? (policy?.sites ?? []).flatMap((site) => 'grayscale' in site && site.grayscale
     ? grants.filter((origin) => site.hosts.includes(new URL(origin).hostname))

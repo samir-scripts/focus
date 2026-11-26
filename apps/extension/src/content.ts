@@ -1,4 +1,4 @@
-import { startShortsFilter } from './sites/youtube';
+import { startShortsFilter, startHomeRecommendationsFilter } from './sites/youtube';
 import { startXFilter, type XMode } from './sites/x';
 import { startRedditFilter, type RedditMode } from './sites/reddit';
 import type { FeedPolicy } from './sites/feed';
@@ -14,6 +14,7 @@ if (!scope.__focusRules) {
   let stopX: (() => void) | undefined;
   let redditMode: RedditMode | undefined;
   let stopReddit: (() => void) | undefined;
+  let stopYouTubeHome: (() => void) | undefined;
   let receivedPolicy = false;
   let grayscale = false;
   const reflectGrayscale = () => {
@@ -26,6 +27,8 @@ if (!scope.__focusRules) {
   const set = (policy?: ContentPolicy) => {
     if (policy?.enabled && !stop) stop = startShortsFilter(document);
     if (!policy?.enabled && stop) { stop(); stop = undefined; }
+    if (policy?.youtubeHome && !stopYouTubeHome) stopYouTubeHome = startHomeRecommendationsFilter(document);
+    if (!policy?.youtubeHome && stopYouTubeHome) { stopYouTubeHome(); stopYouTubeHome = undefined; }
     if (xMode !== policy?.x) {
       stopX?.();
       xMode = policy?.x;
