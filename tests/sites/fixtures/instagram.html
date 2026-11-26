@@ -36,6 +36,7 @@
 <button id="to-feed" type="button">Open Reels feed</button>
 <button id="to-shared" type="button">Open shared reel</button>
 <button id="to-viewer" type="button">Open discovery viewer</button>
+<button id="push-viewer" type="button">Open another reel in a new history slot</button>
 <button id="to-unrelated" type="button">Visit Explore then a shared reel</button>
 <script>
   document.querySelector('#late').onclick = () => {
@@ -58,13 +59,19 @@
       <div id="viewer-controls"><button type="button">Comments</button><button type="button">Share</button></div>`;
   };
   const replaceViewerMetadata = () => history.replaceState({ viewer: true }, '', location.href);
+  const replaceViewerReel = () => {
+    history.replaceState(null, '', '/reels/second/');
+    document.querySelector('#viewer-current').href = '/reels/second/';
+  };
   const canonicalize = () => {
     history.replaceState({ discovery: true }, '', location.href);
     history.replaceState(null, '', '/reels/sample/');
     replaceViewerMetadata();
     renderViewer();
+    replaceViewerReel();
   };
   document.querySelector('#to-viewer').onclick = () => { history.pushState(null, '', '/reels/'); canonicalize(); };
+  document.querySelector('#push-viewer').onclick = () => history.pushState(null, '', '/reels/third/');
   document.querySelector('#to-unrelated').onclick = () => {
     history.pushState(null, '', '/explore/');
     history.pushState(null, '', '/reels/sample/');
@@ -73,6 +80,7 @@
   else if (location.pathname === '/reels/sample/') {
     replaceViewerMetadata();
     renderViewer();
+    replaceViewerReel();
   }
 </script>
 </html>

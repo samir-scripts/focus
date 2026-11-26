@@ -152,11 +152,14 @@ it.each(['/reel/shared/', '/reels/shared'])('protects the current reel in a mixe
 });
 
 it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed', 'unrelated', 'traverse', 'bfcache',
-  'same-url-push', 'same-url-replace', 'pending-push', 'controlled', 'mixed'])(
+  'same-url-push', 'same-url-replace', 'second-id-replace', 'second-id-push', 'second-id-traverse',
+  'different-slot', 'unknown-slot', 'stale-from', 'sensitive-replace', 'pending-push', 'controlled', 'mixed'])(
   'requires fresh discovery provenance for a canonicalized viewer (%s)', (entry) => {
-    const navigation = new EventTarget();
-    const advance = (path: string, navigationType = 'push') => {
-      const from = { url: document.URL };
+    let slot = 0;
+    const navigation = Object.assign(new EventTarget(), { currentEntry: { key: '0' } });
+    const advance = (path: string, navigationType = 'push', key?: string, fromUrl = document.URL) => {
+      const from = { url: fromUrl, key: navigation.currentEntry.key };
+      navigation.currentEntry = { key: key ?? (navigationType === 'replace' ? from.key : String(++slot)) };
       if (navigationType === 'replace') history.replaceState({ metadata: true }, '', path);
       else history.pushState({}, '', path);
       navigation.dispatchEvent(Object.assign(new Event('currententrychange'), { from, navigationType }));
@@ -170,6 +173,7 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
       if (entry === 'pending-push') advance('/reels/');
       if (entry !== 'shared') advance('/reels/shared/', 'replace');
       if (entry === 'initial-response' || entry === 'shared') advance('/reels/shared/', 'replace');
+      if (entry === 'shared') advance('/reels/second/', 'replace');
       if (entry === 'initial-response') state.applyPolicy(true, true);
       if (entry === 'late-enable') state.applyPolicy(true, false);
       if (entry === 'removed') {
@@ -188,11 +192,24 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
       </main>`;
       stop = content.startInstagramFilter(document, { suggested: false, reels: true }, state);
       const sameUrl = entry === 'same-url-push' || entry === 'same-url-replace';
-      const ownsViewer = sameUrl || ['direct', 'initial-response', 'spa', 'bfcache'].includes(entry);
+      const replacement = ['second-id-replace', 'second-id-push', 'second-id-traverse', 'different-slot',
+        'unknown-slot', 'stale-from', 'sensitive-replace'].includes(entry);
+      const ownsViewer = sameUrl || replacement || ['direct', 'initial-response', 'spa', 'bfcache'].includes(entry);
       expect(hidden('viewer')).toBe(ownsViewer);
       if (sameUrl) {
         advance('/reels/shared/', entry === 'same-url-replace' ? 'replace' : 'push');
         expect(hidden('viewer')).toBe(entry === 'same-url-replace');
+      }
+      if (replacement) {
+        const type = entry === 'second-id-push' ? 'push' : entry === 'second-id-traverse' ? 'traverse' : 'replace';
+        const key = entry === 'different-slot' ? 'other' : entry === 'unknown-slot' ? '' : undefined;
+        const from = entry === 'stale-from' ? new URL('/reels/stale/', document.URL).href : document.URL;
+        advance(entry === 'sensitive-replace' ? '/direct/inbox/' : '/reels/second/', type, key, from);
+        expect(hidden('viewer')).toBe(entry === 'second-id-replace');
+        if (entry !== 'second-id-replace') {
+          advance('/reels/third/', 'replace');
+          expect(hidden('viewer')).toBe(false);
+        }
       }
       if (entry === 'bfcache') {
         window.dispatchEvent(new Event('pagehide'));

@@ -15,16 +15,18 @@ type DiscoveryProvenance = {
   stop: () => void;
 };
 
-// Evidence is local to one document and one transition, never inferred from delayed
-// background reconciliation or from an individual-shaped destination alone.
+type NavigationSlots = EventTarget & { readonly currentEntry?: { readonly key: string } | null };
+
+// Ownership starts with document-local discovery evidence and can follow replacements
+// only within the history slot in which that discovery was canonicalized.
 export function trackInstagramDiscovery(doc: Document, navigation = doc.readyState === 'loading'
-  ? (doc.defaultView as (Window & { navigation?: EventTarget }) | null)?.navigation
+  ? (doc.defaultView as (Window & { navigation?: NavigationSlots }) | null)?.navigation
   : undefined): DiscoveryProvenance {
   const initial = new URL(doc.URL);
   const isEntry = (url: URL) => /^\/reels\/?$/.test(url.pathname) && !url.search && !url.hash;
   const observing = !!navigation && instagramUrl(initial);
   let pending = observing && isEntry(initial) ? initial.href : undefined;
-  let canonical: string | undefined;
+  let canonical: { href: string; key: string | undefined } | undefined;
   let active = false;
   const reset = () => { pending = undefined; canonical = undefined; };
   const leaveDocument = () => {
@@ -32,16 +34,23 @@ export function trackInstagramDiscovery(doc: Document, navigation = doc.readySta
     doc.dispatchEvent(new Event('focus-route-change'));
   };
   const changed = (event: Event) => {
-    const { from, navigationType } = event as Event & { from?: { url?: string }; navigationType?: string };
+    const { from, navigationType } = event as Event & { from?: { url?: string; key?: string }; navigationType?: string };
     const forward = navigationType === 'push' || navigationType === 'replace';
-    // Same-entry metadata replacements neither create nor discard discovery ownership.
     const href = doc.URL;
-    if (navigationType === 'replace' && from?.url === href && (pending === href || canonical === href)) return;
+    const key = navigation?.currentEntry?.key;
+    // Preserve pending discovery across an exact-URL metadata replacement.
+    if (navigationType === 'replace' && from?.url === href && pending === href) return;
     const current = new URL(href);
     if (forward && from?.url && new URL(from.url).origin === initial.origin && current.origin === initial.origin) {
-      if (pending === from.url && individual.test(current.pathname) && !current.search && !current.hash) {
+      const isIndividual = individual.test(current.pathname) && !current.search && !current.hash;
+      // NavigationHistoryEntry.key identifies the slot and survives replace (unlike id).
+      if (isIndividual && navigationType === 'replace' && canonical?.href === from.url
+        && key && key === from.key && key === canonical.key) {
+        if (canonical.href === current.href) return;
+        canonical.href = current.href;
+      } else if (pending === from.url && isIndividual) {
         reset();
-        canonical = current.href;
+        canonical = { href: current.href, key };
       } else {
         reset();
         if (active && from.url !== current.href && isEntry(current)) pending = current.href;
@@ -60,7 +69,7 @@ export function trackInstagramDiscovery(doc: Document, navigation = doc.readySta
       if (!enabled || (!firstResponse && canonical && !active)) reset();
       active = enabled;
     },
-    owns: (url) => canonical === url.href,
+    owns: (url) => canonical?.href === url.href,
     stop() {
       reset();
       navigation?.removeEventListener('currententrychange', changed);

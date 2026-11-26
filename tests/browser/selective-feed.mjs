@@ -127,6 +127,8 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await show(browser, { '#shortcut': false });
       await click(browser, '#to-viewer');
       await show(browser, { '#viewer': false, '#viewer-controls': true });
+      await click(browser, '#push-viewer');
+      await show(browser, { '#viewer-current': true, '#viewer-video-1': true, '#viewer-video-2': true, '#viewer-controls': true });
       await navigate(browser, '/', host);
     }
     const chrome = engines.find(([name]) => name === 'chromium')[1];
