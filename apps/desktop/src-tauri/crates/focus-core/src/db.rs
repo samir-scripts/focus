@@ -156,7 +156,15 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 7 { return Err(Error::Database); }
+        if version(&db)? == 7 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 7 {
+                tx.execute_batch(include_str!("../migrations/008.sql"))?;
+                tx.pragma_update(None, "user_version", 8)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 8 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
@@ -376,7 +384,7 @@ impl Db {
 
     pub fn legacy_policy(&self) -> Result<(u64, bool)> {
         let tx = self.0.unchecked_transaction()?;
-        if requires_update(&tx)? || requires_v3(&tx)? { return Err(Error::VersionMismatch); }
+        if requires_update(&tx)? || requires_v3(&tx)? || requires_v5(&tx)? { return Err(Error::VersionMismatch); }
         policy(&tx)
     }
 
@@ -384,8 +392,11 @@ impl Db {
         let tx = self.0.unchecked_transaction()?;
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if version < 3 && requires_v3(&tx)? { return Err(Error::VersionMismatch); }
+        if version < 5 && requires_v5(&tx)? { return Err(Error::VersionMismatch); }
         let revision = policy(&tx)?.0;
-        let snapshot = if after == Some(revision) { None } else { Some((site_policies(&tx)?, accessibility(&tx)?)) };
+        let snapshot = if after == Some(revision) { None } else {
+            Some((site_policies(&tx, version)?, accessibility(&tx)?))
+        };
         Ok((revision, snapshot))
     }
 
@@ -534,6 +545,7 @@ impl Db {
         let protocol: u16 = tx.query_row("SELECT protocol FROM profile_runtime WHERE profile_id=?1", [id], |r| r.get(0))?;
         if (protocol == 1 && requires_update(&tx)?) || (protocol < 3 && requires_v3(&tx)?) { return Err(Error::VersionMismatch); }
         if protocol < 4 && requires_chromium_block(&tx, id)? { return Err(Error::VersionMismatch); }
+        if protocol < 5 && requires_v5(&tx)? { return Err(Error::VersionMismatch); }
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let mut check = tx.prepare("SELECT EXISTS(SELECT 1 FROM site_origin WHERE hostname=?1)")?;
@@ -560,6 +572,30 @@ impl Db {
         Ok(())
     }
 
+    pub fn set_content_rules(&mut self, expected_revision: u64, rules: model::ContentRules) -> Result<()> {
+        use model::ContentRules::*;
+        let (site, flags) = match rules {
+            X { hide_for_you: true, open_following: true } |
+            Reddit { hide_recommendations: true, hide_all_home: true } => return Err(Error::Invalid),
+            X { hide_for_you, open_following } =>
+                ("x", [("x.hide-for-you", hide_for_you), ("x.open-following", open_following)]),
+            Reddit { hide_recommendations, hide_all_home } =>
+                ("reddit", [("reddit.hide-recommendations", hide_recommendations), ("reddit.hide-all-home", hide_all_home)]),
+            Youtube { hide_shorts, hide_home_recommendations } =>
+                (model::YOUTUBE, [(model::HIDE_SHORTS, hide_shorts), ("youtube.hide-home-recommendations", hide_home_recommendations)]),
+        };
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        if policy(&tx)?.0 != expected_revision { return Err(Error::Stale); }
+        let mut changed = 0;
+        for (id, enabled) in flags {
+            changed += tx.execute("UPDATE site_rule SET enabled=?3 WHERE site_id=?1 AND rule_id=?2 AND enabled<>?3",
+                params![site, id, enabled])?;
+        }
+        if changed != 0 { bump(&tx, site)?; }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn revoke(&mut self, id: &str) -> Result<()> {
         let tx = self.0.transaction_with_behavior(Immediate)?;
         tx.execute("UPDATE profile SET revoked=1 WHERE id=?1", [id])?;
@@ -580,6 +616,7 @@ impl Db {
         let profiles = {
             let update_required = requires_update(&tx)?;
             let v3_required = requires_v3(&tx)?;
+            let v5_required = requires_v5(&tx)?;
             let block = has_block_policy(&tx)?;
             let entry_unsupported = !self.1 && has_entry_policy(&tx)?;
             let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins,r.protocol
@@ -591,14 +628,14 @@ impl Db {
                 Ok(ProfileStatus {
                     id: r.get(0)?, label: r.get(1)?, browser, online: r.get(3)?, ack_revision: r.get(4)?,
                     update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)
-                        || (v < 3 && v3_required) || (v < 4 && block && !gecko)),
+                        || (v < 3 && v3_required) || (v < 4 && block && !gecko) || (v < 5 && v5_required)),
                     origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
                         .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
                 })
             })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
-        let sites = site_policies(&tx)?;
+        let sites = site_policies(&tx, crate::protocol::VERSION)?;
         let accessibility = accessibility(&tx)?;
         tx.commit()?;
         Ok(DesktopState { revision, hide_shorts, accessibility, pending, profiles, sites, entry_available: self.1 })
@@ -643,6 +680,11 @@ fn requires_v3(conn: &Connection) -> Result<bool> {
     ) FROM meta WHERE singleton=1", [], |r| r.get(0))?)
 }
 
+fn requires_v5(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_rule WHERE enabled AND rule_id<>?1)",
+        [model::HIDE_SHORTS], |r| r.get(0))?)
+}
+
 fn requires_update(conn: &Connection) -> Result<bool> {
     Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_policy WHERE grayscale=1 OR json_extract(entry,'$.mode')<>'allow'
         OR site_id LIKE 'custom:%')", [], |r| r.get(0))?)
@@ -674,7 +716,7 @@ fn site_exists(conn: &Connection, site: &str) -> Result<bool> {
     Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site WHERE id=?1)", [site], |row| row.get(0))?)
 }
 
-fn site_policies(conn: &Connection) -> Result<Vec<SitePolicy>> {
+fn site_policies(conn: &Connection, version: u16) -> Result<Vec<SitePolicy>> {
     let mut statement = conn.prepare("
         SELECT s.id, s.label, p.grayscale, p.entry,
             (SELECT json_group_array(hostname) FROM (SELECT hostname FROM site_origin WHERE site_id=s.id ORDER BY rowid)),
@@ -685,11 +727,22 @@ fn site_policies(conn: &Connection) -> Result<Vec<SitePolicy>> {
     while let Some(row) = rows.next()? {
         let json = |index| match row.get_ref(index)? { ValueRef::Text(value) => Ok(value), _ => Err(Error::Database) };
         let rules: std::collections::BTreeMap<String, u8> = serde_json::from_slice(json(5)?).map_err(|_| Error::Database)?;
+        let id: String = row.get(0)?;
+        let catalog = model::SITES.iter().find(|site| site.id == id);
+        let mut validated = std::collections::BTreeMap::new();
+        let mut enabled = 0;
+        for (key, value) in rules {
+            let rule = catalog.and_then(|site| site.rules.iter().find(|rule| rule.id == key)).ok_or(Error::Database)?;
+            if value > 1 { return Err(Error::Database); }
+            enabled += value as usize;
+            if rule.since <= version { validated.insert(key, value == 1); }
+        }
+        if matches!(id.as_str(), "x" | "reddit") && enabled > 1 { return Err(Error::Database); }
         sites.push(SitePolicy {
-            id: row.get(0)?, label: row.get(1)?, grayscale: row.get(2)?,
+            id, label: row.get(1)?, grayscale: row.get(2)?,
             entry: serde_json::from_slice(json(3)?).map_err(|_| Error::Database)?,
             hosts: serde_json::from_slice(json(4)?).map_err(|_| Error::Database)?,
-            rules: rules.into_iter().map(|(id, value)| (id, value != 0)).collect(),
+            rules: validated,
         });
     }
     Ok(sites)

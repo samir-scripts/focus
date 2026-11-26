@@ -639,7 +639,10 @@
                     <input type="checkbox" checked={browserState.hideShorts} disabled={editingRule} onchange={(event) => {
                       const enabled = event.currentTarget.checked;
                       event.currentTarget.checked = browserState?.hideShorts ?? false;
-                      void savePolicy((bridge, revision) => bridge.setHideShorts(revision, enabled));
+                      void savePolicy((bridge, revision) => bridge.setContentRules(revision, {
+                        site: 'youtube', hideShorts: enabled,
+                        hideHomeRecommendations: currentPolicy?.rules['youtube.hide-home-recommendations'] === true,
+                      }));
                     }} />
                     <span class="choice-mark" aria-hidden="true"></span>
                     <span>{site.rules[0].label}</span>

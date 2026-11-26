@@ -15,6 +15,24 @@ pub struct Site<'a> {
     pub id: &'a str,
     pub label: &'a str,
     pub hosts: Vec<&'a str>,
+    pub rules: Vec<ContentRule<'a>>,
+}
+
+#[derive(Deserialize)]
+pub struct ContentRule<'a> {
+    pub id: &'a str,
+    #[serde(default = "first_wire_version")]
+    pub since: u16,
+}
+
+fn first_wire_version() -> u16 { 1 }
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(tag = "site", rename_all = "lowercase", rename_all_fields = "camelCase", deny_unknown_fields)]
+pub enum ContentRules {
+    X { hide_for_you: bool, open_following: bool },
+    Reddit { hide_recommendations: bool, hide_all_home: bool },
+    Youtube { hide_shorts: bool, hide_home_recommendations: bool },
 }
 
 pub static SITES: LazyLock<Vec<Site<'static>>> = LazyLock::new(|| {

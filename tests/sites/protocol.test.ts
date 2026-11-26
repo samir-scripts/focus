@@ -31,4 +31,15 @@ describe('protocol snapshot compatibility', () => {
     expect(validPolicySnapshot({ ...policy, accessibility: { ...policy.accessibility, twoStepConfirmation: 'false' } })).toBe(false);
     expect(validPolicySnapshot({ ...policy, accessibility: { ...policy.accessibility, extra: true } })).toBe(false);
   });
+  it('accepts independent YouTube choices and rejects rules assigned to the wrong site', () => {
+    const site = { id: 'youtube', label: 'YouTube', hosts: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
+      grayscale: false, entry: { mode: 'allow' }, rules: { 'youtube.hide-shorts': true, 'youtube.hide-home-recommendations': true } };
+    const policy = { revision: 8, sites: [site], accessibility: { holdSeconds: 15, twoStepConfirmation: false } };
+    expect(validPolicySnapshot(policy)).toBe(true);
+    expect(validPolicySnapshot({ ...policy, sites: [{ ...site, rules: { 'x.hide-for-you': false } }] })).toBe(false);
+  });
+  it('rejects conflicting X rules', () => {
+    expect(validSnapshot({ revision: 8, sites: [{ id: 'x', label: 'X / Twitter', hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
+      grayscale: false, entry: { mode: 'allow' }, rules: { 'x.hide-for-you': true, 'x.open-following': true } }] })).toBe(false);
+  });
 });

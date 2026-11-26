@@ -73,7 +73,7 @@ fn main() {
         commands::scan_browsers,
         commands::start_browser_installation,
         commands::remove_browser_installation,
-        commands::set_hide_shorts,
+        commands::set_content_rules,
         commands::set_grayscale,
         commands::set_entry,
         commands::set_accessibility,

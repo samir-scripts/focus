@@ -6,6 +6,10 @@ export const browsers = {
   chrome: 'Chrome', chromium: 'Chromium', brave: 'Brave', firefox: 'Firefox', zen: 'Zen',
 } as const;
 export type Browser = keyof typeof browsers;
+export type ContentRules =
+  | { site: 'x'; hideForYou: boolean; openFollowing: boolean }
+  | { site: 'reddit'; hideRecommendations: boolean; hideAllHome: boolean }
+  | { site: 'youtube'; hideShorts: boolean; hideHomeRecommendations: boolean };
 export type Pair = { id: string; label: string; browser: Browser };
 export type Profile = Pair & { online: boolean; updateRequired?: boolean; ackRevision: number | null; origins: string[] };
 export type InstallCapability = 'store' | 'managed' | 'managedPending' | 'managedCleanup' | 'managedOrphan' | 'missingArtifact' |
@@ -36,7 +40,7 @@ export interface BrowserBridge {
   scan: () => Promise<BrowserScan>;
   install: (targetId: string) => Promise<InstallOutcome>;
   removeInstallation: (targetId: string) => Promise<InstallOutcome>;
-  setHideShorts: (expectedRevision: number, enabled: boolean) => Promise<void>;
+  setContentRules: (expectedRevision: number, rules: ContentRules) => Promise<void>;
   setGrayscale: (expectedRevision: number, siteId: string, enabled: boolean) => Promise<void>;
   setEntry: (expectedRevision: number, siteId: string, entry: EntryPolicy) => Promise<void>;
   setAccessibility: (expectedRevision: number, accessibility: Accessibility) => Promise<void>;
@@ -50,7 +54,7 @@ export const nativeBrowserBridge: BrowserBridge = {
   scan: () => invoke('scan_browsers'),
   install: (targetId) => invoke('start_browser_installation', { targetId }),
   removeInstallation: (targetId) => invoke('remove_browser_installation', { targetId }),
-  setHideShorts: (expectedRevision, enabled) => invoke('set_hide_shorts', { expectedRevision, enabled }),
+  setContentRules: (expectedRevision, rules) => invoke('set_content_rules', { expectedRevision, rules }),
   setGrayscale: (expectedRevision, siteId, enabled) => invoke('set_grayscale', { expectedRevision, siteId, enabled }),
   setEntry: (expectedRevision, siteId, entry) => invoke('set_entry', { expectedRevision, siteId, entry }),
   setAccessibility: (expectedRevision, accessibility) => invoke('set_accessibility', { expectedRevision, accessibility }),

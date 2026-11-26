@@ -1,8 +1,8 @@
 [
-  {"id":"youtube","label":"YouTube","hosts":["youtube.com","www.youtube.com","m.youtube.com","youtu.be"],"rules":[{"id":"youtube.hide-shorts","label":"Hide Shorts shelves and discovery"}]},
-  {"id":"reddit","label":"Reddit","hosts":["reddit.com","www.reddit.com","old.reddit.com"],"rules":[]},
+  {"id":"youtube","label":"YouTube","hosts":["youtube.com","www.youtube.com","m.youtube.com","youtu.be"],"rules":[{"id":"youtube.hide-shorts","label":"Hide Shorts shelves and discovery"},{"id":"youtube.hide-home-recommendations","label":"Hide Home recommendations","since":5}]},
+  {"id":"reddit","label":"Reddit","hosts":["reddit.com","www.reddit.com","old.reddit.com"],"rules":[{"id":"reddit.hide-recommendations","label":"Hide recommendations","since":5},{"id":"reddit.hide-all-home","label":"Hide all Home feeds","since":5}]},
   {"id":"instagram","label":"Instagram","hosts":["instagram.com","www.instagram.com"],"rules":[]},
-  {"id":"x","label":"X / Twitter","hosts":["x.com","www.x.com","twitter.com","www.twitter.com"],"rules":[]},
+  {"id":"x","label":"X / Twitter","hosts":["x.com","www.x.com","twitter.com","www.twitter.com"],"rules":[{"id":"x.hide-for-you","label":"Hide For you","since":5},{"id":"x.open-following","label":"Open Following instead","since":5}]},
   {"id":"facebook","label":"Facebook","hosts":["facebook.com","www.facebook.com"],"rules":[]},
   {"id":"tiktok","label":"TikTok","hosts":["tiktok.com","www.tiktok.com"],"rules":[]},
   {"id":"linkedin","label":"LinkedIn","hosts":["linkedin.com","www.linkedin.com"],"rules":[]},

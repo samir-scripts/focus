@@ -185,3 +185,45 @@ fn chromium_block_requires_v4_before_acknowledgement() {
     assert_eq!(current.message(&request(4, "applied", json!({"revision":1,"origins":[]})), &mut db, || Ok(()))["ok"], true);
     assert!(!db.as_ref().unwrap().state().unwrap().profiles[0].update_required);
 }
+
+#[test]
+fn selective_rules_are_atomic_and_require_v5_only_when_active() {
+    use focus_core::{model::{Browser, ContentRules}, protocol::Session};
+    use serde_json::json;
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("focus.sqlite3");
+    let mut db = Db::open(&path).unwrap();
+    let id = "9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90";
+    let token = "a".repeat(64);
+    db.begin_pair(id, Browser::Chrome, "Local", &token).unwrap();
+    db.decide_pair(&db.state().unwrap().pending[0].id, true, None).unwrap();
+    let mut db = Ok(db);
+    let mut old = Session::new(false);
+    let mut current = Session::new(false);
+    let request = |session: &mut Session, db: &mut Result<Db, Error>, v, op, body| {
+        session.message(&serde_json::to_vec(&json!({"v":v,"id":"1","op":op,"body":body})).unwrap(), db, || Ok(()))
+    };
+    let hello = || json!({"profileId":id,"token":token});
+    assert_eq!(request(&mut old, &mut db, 4, "hello", hello())["ok"], true);
+    let snapshot = request(&mut old, &mut db, 4, "snapshot", json!({"afterRevision":null}));
+    assert_eq!(snapshot["body"]["sites"][0]["rules"], json!({"youtube.hide-shorts":false}));
+    assert_eq!(request(&mut old, &mut db, 4, "applied", json!({"revision":0,"origins":[]}))["ok"], true);
+    let store = db.as_mut().unwrap();
+    assert_eq!(store.set_content_rules(0, ContentRules::X { hide_for_you: true, open_following: true }), Err(Error::Invalid));
+    assert_eq!(store.set_content_rules(0, ContentRules::Reddit { hide_recommendations: true, hide_all_home: true }), Err(Error::Invalid));
+    store.set_content_rules(0, ContentRules::Youtube { hide_shorts: true, hide_home_recommendations: true }).unwrap();
+    assert_eq!(store.set_content_rules(0, ContentRules::Youtube { hide_shorts: false, hide_home_recommendations: false }), Err(Error::Stale));
+    assert_eq!(request(&mut old, &mut db, 4, "snapshot", json!({"afterRevision":0}))["error"]["code"], "version_mismatch");
+    assert_eq!(request(&mut old, &mut db, 4, "applied", json!({"revision":1,"origins":[]}))["error"]["code"], "version_mismatch");
+    let profile = db.as_ref().unwrap().state().unwrap().profiles.remove(0);
+    assert_eq!(profile.ack_revision, Some(0));
+    assert!(profile.update_required);
+    assert_eq!(request(&mut current, &mut db, 5, "hello", hello())["ok"], true);
+    let snapshot = request(&mut current, &mut db, 5, "snapshot", json!({"afterRevision":null}));
+    assert_eq!(snapshot["body"]["sites"][0]["rules"], json!({"youtube.hide-shorts":true,"youtube.hide-home-recommendations":true}));
+    assert_eq!(request(&mut current, &mut db, 5, "applied", json!({"revision":1,"origins":["https://www.youtube.com/*"]}))["ok"], true);
+    let mut db = Db::open(&path).unwrap();
+    db.set_content_rules(1, ContentRules::Youtube { hide_shorts: true, hide_home_recommendations: false }).unwrap();
+    assert_eq!(db.policy().unwrap(), (2, true));
+    assert!(db.snapshot(None, 4).is_ok());
+}

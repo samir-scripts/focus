@@ -1,6 +1,6 @@
 import { catalog } from './sites/catalog';
 
-export const VERSION = 4;
+export const VERSION = 5;
 export type EntryPolicy = { mode: 'allow' } | { mode: 'block' } |
   { mode: 'pause'; seconds: number; finish: 'manual' | 'auto'; frequency: 'visit' | 'page' };
 export type SitePolicy = {
@@ -51,8 +51,10 @@ export function validSnapshot(value: unknown): value is Snapshot {
   return value.sites.every((entry: unknown) => {
     if (!record(entry) || typeof entry.id !== 'string' || !record(entry.rules) || ids.has(entry.id)) return false;
     ids.add(entry.id);
-    if (!Object.entries(entry.rules).every(([id, enabled]) => entry.id === 'youtube' && id === 'youtube.hide-shorts' && typeof enabled === 'boolean')) return false;
+    const rules = Object.entries(entry.rules);
     const known = catalog.find((site) => site.id === entry.id);
+    if (!rules.every(([id, enabled]) => typeof enabled === 'boolean' && known?.rules.some((rule) => rule.id === id))) return false;
+    if ((entry.id === 'x' || entry.id === 'reddit') && rules.filter(([, enabled]) => enabled).length > 1) return false;
     if (keys(entry, 'id', 'rules')) return !!known; // Only for migrating an acknowledged v1 cache.
     if (!keys(entry, 'id', 'label', 'hosts', 'grayscale', 'entry', 'rules') || typeof entry.grayscale !== 'boolean'
       || !validEntry(entry.entry) || !Array.isArray(entry.hosts)) return false;

@@ -1,5 +1,5 @@
 use crate::browser_setup;
-use focus_core::{db::{Db, Error, Result}, model::{Accessibility, DesktopState, EntryPolicy, OpenIntent}, protocol};
+use focus_core::{db::{Db, Error, Result}, model::{Accessibility, ContentRules, DesktopState, EntryPolicy, OpenIntent}, protocol};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -40,8 +40,8 @@ async fn browser_change(target_id: String, remove: bool) -> Result<browser_setup
 }
 
 #[tauri::command]
-pub async fn set_hide_shorts(expected_revision: u64, enabled: bool) -> std::result::Result<(), &'static str> {
-    database(move |db| db.set_hide_shorts(expected_revision, enabled)).await
+pub async fn set_content_rules(expected_revision: u64, rules: ContentRules) -> Result<(), &'static str> {
+    database(move |db| db.set_content_rules(expected_revision, rules)).await
 }
 
 #[tauri::command]

@@ -149,9 +149,10 @@ describe('desktop shell', () => {
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled',
       removeInstallation: async () => 'cancelled',
-      setHideShorts: async (expected: number, next: boolean) => {
+      setContentRules: async (expected, next) => {
         expect(expected).toBe(revision);
-        enabled = next;
+        expect(next.site).toBe('youtube');
+        enabled = next.site === 'youtube' && next.hideShorts;
         revision += 1;
       },
       setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
@@ -177,7 +178,7 @@ describe('desktop shell', () => {
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled',
       removeInstallation: async () => 'cancelled',
-      setHideShorts: async () => {},
+      setContentRules: async () => {},
       setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
       decidePair: async () => {},
       revoke: async () => {},
@@ -202,7 +203,7 @@ describe('desktop shell', () => {
           grayscale: false, rules: { 'youtube.hide-shorts': false }, entry }] }),
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
-      setHideShorts: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
+      setContentRules: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
       setEntry: async (expected: number, id: string, next: EntryPolicy) => {
         expect([expected, id]).toEqual([revision, 'youtube']);
         entry = next;
@@ -228,7 +229,7 @@ describe('desktop shell', () => {
         sites: [], pending: [], profiles: [], open: null }),
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
-      setHideShorts: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
+      setContentRules: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
       setEntry: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
     } });
     await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
@@ -247,7 +248,7 @@ describe('desktop shell', () => {
       state: async () => ({ revision, hideShorts: false, accessibility, sites: [], pending: [], profiles: [], open: null }),
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
-      setHideShorts: async () => {}, setGrayscale: async () => {}, setEntry: async () => {}, designateSite: async () => '',
+      setContentRules: async () => {}, setGrayscale: async () => {}, setEntry: async () => {}, designateSite: async () => '',
       setAccessibility: async (expected: number, next: Accessibility) => { saved.push([expected, next]); accessibility = next; revision++; },
       decidePair: async () => {}, revoke: async () => {},
     } });
