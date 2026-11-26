@@ -46,3 +46,16 @@ it('reconciles late and reused labels and preserves individual reel playback', a
     expect(document.querySelector(`[${marker}]`), path).toBeNull();
   }
 });
+
+it.each(['/reel/shared/', '/reels/shared'])('protects the current reel in a mixed recommendation region at %s', (path) => {
+  route(path);
+  document.body.innerHTML = `<main>
+    <section id="mixed" aria-label="Suggested reels"><article><a href="/reels/shared/?source=message">Current</a><video controls></video></article><a href="/reel/other/">Next</a></section>
+    <section id="unlinked" aria-label="Suggested reels"><video controls></video><a href="/reel/other/">Next</a></section>
+    <section id="link-only" aria-label="Suggested reels"><a href="/reel/shared">Current</a><a href="/reel/other/">Next</a></section>
+    <section id="separate" aria-label="Suggested reels"><a href="/reel/next/">Separate recommendation</a></section>
+  </main>`;
+  stop = content.startInstagramFilter(document, { suggested: false, reels: true });
+  for (const id of ['mixed', 'unlinked', 'link-only']) expect(hidden(id), id).toBe(false);
+  expect(hidden('separate')).toBe(true);
+});

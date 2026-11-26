@@ -109,7 +109,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await click(browser, '#to-feed');
       await show(browser, { '#feed': false, '#player': true });
       await click(browser, '#to-shared');
-      await show(browser, { '#feed': true, '#player video': true, '#player button': true, '#shelf': false });
+      await show(browser, { '#feed': true, '#player video': true, '#player button': true, '#mixed-reels video': true, '#shelf': false });
       await navigate(browser, '/direct/inbox/', host);
       await show(browser, { '#suggested': true, '#shelf': true });
       await navigate(browser, '/', host);
