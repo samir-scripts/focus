@@ -14,7 +14,7 @@ function bridge(overrides: Partial<BrowserBridge>): BrowserBridge {
     scan: async () => ({ supported: true, targets: [] }),
     install: async () => 'storeOpened',
     removeInstallation: async () => 'policyRemoved',
-    setHideShorts: async () => {}, decidePair: async () => {}, revoke: async () => {},
+    setContentRules: async () => {}, decidePair: async () => {}, revoke: async () => {},
     setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
     ...overrides,
   };

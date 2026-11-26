@@ -168,6 +168,35 @@ describe('desktop shell', () => {
     expect(rule.checked).toBe(true);
   });
 
+  it('previews a pending feed choice without changing Before and rolls back to the latest saved rules', async () => {
+    let revision = 0;
+    let rules = { 'youtube.hide-shorts': false, 'youtube.hide-home-recommendations': false };
+    const pending = Promise.withResolvers<void>();
+    render(App, { browserBridge: {
+      state: async () => ({ revision, hideShorts: rules['youtube.hide-shorts'],
+        accessibility: { holdSeconds: 15, twoStepConfirmation: false }, pending: [], profiles: [], open: null,
+        sites: [{ id: 'youtube', label: 'YouTube', hosts: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
+          grayscale: false, entry: { mode: 'allow' }, rules }] }),
+      scan: async () => ({ supported: true, targets: [] }), install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
+      setContentRules: async () => pending.promise,
+      setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
+      designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
+    } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
+    const before = await screen.findByRole('region', { name: 'Before' });
+    const after = screen.getByRole('region', { name: 'With rules' });
+    const baseline = before.innerHTML;
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Hide Home recommendations' }));
+    expect(within(after).getByText('Recommendations hidden · Shorts stay')).toBeTruthy();
+    expect(before.innerHTML).toBe(baseline);
+    rules = { ...rules, 'youtube.hide-shorts': true };
+    revision++;
+    pending.reject('stale_revision');
+    await within(after).findByText('Shorts hidden · Recommendations stay');
+    expect(before.innerHTML).toBe(baseline);
+    expect(screen.getByText('Rules changed. Review the current setting and try again.')).toBeTruthy();
+  });
+
   it('shows the missing schemes and aliases instead of claiming partial grants are applied', async () => {
     render(App, { browserBridge: {
       state: async () => ({

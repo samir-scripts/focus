@@ -10,8 +10,10 @@
   import BrowserSettings from './BrowserSettings.svelte';
   import SettingsPrint from './SettingsPrint.svelte';
   import PairBrowser from './PairBrowser.svelte';
-  import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState } from './browser';
+  import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState, type ContentRules } from './browser';
   import SiteEntryEditor from './SiteEntryEditor.svelte';
+  import FeedPreview from './FeedPreview.svelte';
+  import FeedRuleChoices from './FeedRuleChoices.svelte';
   import { normalizeHost } from '../../extension/src/protocol';
   import { graceMessage, startGraceSession, type GraceOutcome } from './grace';
   import graceMark from './assets/grace-mark.svg';
@@ -79,6 +81,20 @@
     .map((entry) => ({ id: entry.id, label: entry.label, hosts: entry.hosts, hostname: entry.hosts[0], rules: [] }))]);
   let site = $derived(sites.find((entry) => entry.id === siteId) ?? curatedSites[0]);
   let currentPolicy = $derived(browserState?.sites.find((entry) => entry.id === siteId));
+  let pendingContent = $state.raw<ContentRules>();
+  let feedPulse = $state(0);
+  let feedPulseCount = 0;
+  let feedRules = $derived.by((): ContentRules | undefined => {
+    if (pendingContent && pendingContent.site === siteId) return pendingContent;
+    const rules = currentPolicy?.rules;
+    switch (siteId) {
+      case 'x': return { site: 'x', hideForYou: rules?.['x.hide-for-you'] === true, openFollowing: rules?.['x.open-following'] === true };
+      case 'reddit': return { site: 'reddit', hideRecommendations: rules?.['reddit.hide-recommendations'] === true,
+        hideAllHome: rules?.['reddit.hide-all-home'] === true };
+      case 'youtube': return { site: 'youtube', hideShorts: browserState?.hideShorts === true,
+        hideHomeRecommendations: rules?.['youtube.hide-home-recommendations'] === true };
+    }
+  });
   let adding = $state(false);
   let hostInput = $state('');
   let hostField: HTMLInputElement | undefined = $state();
@@ -175,6 +191,14 @@
       await refresh();
       editingRule = false;
     }
+  }
+
+  async function saveFeed(rules: ContentRules, pointer: boolean) {
+    if (!browserBridge || !browserState || editingRule) return;
+    pendingContent = rules;
+    feedPulse = pointer && !appearance.tonerPaused && !windowHidden ? ++feedPulseCount : 0;
+    await savePolicy((bridge, revision) => bridge.setContentRules(revision, rules));
+    pendingContent = undefined;
   }
 
   async function saveAccessibility(event: SubmitEvent) {
@@ -619,7 +643,7 @@
               {@const policy = currentPolicy}
               <SiteEntryEditor entry={policy.entry} busy={editingRule} save={(entry) => savePolicy((bridge, revision) => bridge.setEntry(revision, policy.id, entry))} />
             {/if}
-            {#if browserState && (currentPolicy || site.id === 'youtube')}
+            {#if browserState && (currentPolicy || feedRules)}
               <section class="details rule-row">
                 <h2>Content rules</h2>
                 {#if currentPolicy}
@@ -634,22 +658,16 @@
                     <span>Grayscale</span>
                   </label>
                 {/if}
-                {#if site.id === 'youtube'}
-                  <label class="preference">
-                    <input type="checkbox" checked={browserState.hideShorts} disabled={editingRule} onchange={(event) => {
-                      const enabled = event.currentTarget.checked;
-                      event.currentTarget.checked = browserState?.hideShorts ?? false;
-                      void savePolicy((bridge, revision) => bridge.setContentRules(revision, {
-                        site: 'youtube', hideShorts: enabled,
-                        hideHomeRecommendations: currentPolicy?.rules['youtube.hide-home-recommendations'] === true,
-                      }));
-                    }} />
-                    <span class="choice-mark" aria-hidden="true"></span>
-                    <span>{site.rules[0].label}</span>
-                  </label>
+                {#if feedRules}
+                  {#key feedRules.site}
+                    <FeedRuleChoices rules={feedRules} busy={editingRule} save={saveFeed} />
+                  {/key}
                 {/if}
                 <p>Rules apply only in browser profiles with access to the exact address.</p>
               </section>
+            {/if}
+            {#if browserState && feedRules}
+              <FeedPreview rules={feedRules} pulse={feedPulse} />
             {/if}
           {:else if page === 'Statistics'}
             <header class="page-heading" class:reveal={revealPage}>
@@ -932,18 +950,22 @@
   li button:is(:hover, :active) .site-mark { color: var(--on-accent); }
   li button[aria-pressed='true'] {
     background: var(--selected);
-    box-shadow: inset 2px 0 var(--accent);
     font-weight: 700;
   }
 
-  button:is(:hover, :active), nav button[aria-current]:is(:hover, :active),
-  li button[aria-pressed='true']:is(:hover, :active), .appearances label:is(:hover, :active) {
+  button:is(:hover, :active), nav button[aria-current]:is(:hover, :active), .appearances label:is(:hover, :active) {
     background: var(--accent);
     color: var(--on-accent);
   }
+  li button[aria-pressed='true']:is(:hover, :active) {
+    background: var(--selected);
+    color: var(--ink);
+  }
+  li button[aria-pressed='true']:is(:hover, :active) .site-mark { color: inherit; }
   nav button:is(:hover, :active):focus-visible, li button:is(:hover, :active):focus-visible {
     outline-color: var(--on-accent);
   }
+  li button[aria-pressed='true']:focus-visible { outline-color: var(--accent); }
 
   .library { display: flex; flex-direction: column; padding-block: 16px; border-inline-end: 1px solid var(--divider); background: var(--rail); --toner-origin: -117px -48px; }
   .library h2 { margin: 0; padding: 0 14px 4px; font-size: 15px; color: var(--ink); }
@@ -1236,7 +1258,13 @@
 
   @media (forced-colors: active) {
     .impression { display: none; }
-    li button[aria-pressed='true'] { border-inline-start: 2px solid Highlight; box-shadow: none; }
+    li button[aria-pressed='true'], li button[aria-pressed='true']:is(:hover, :active) {
+      forced-color-adjust: none;
+      background: Highlight;
+      color: HighlightText;
+    }
+    li button[aria-pressed='true'] .site-mark { color: inherit; }
+    li button[aria-pressed='true']:focus-visible { outline-color: HighlightText; }
   }
 
   @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
