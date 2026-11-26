@@ -1167,7 +1167,10 @@
   .browser-error { position: relative; color: var(--error); }
   .rule-row { border-block-start: 1px solid var(--divider); padding-block-start: 12px; }
   .rule-heading { position: relative; display: flex; align-items: center; gap: 8px; }
-  .rule-info { width: 22px; height: 22px; border: 1px solid var(--edge); border-radius: 50%; padding: 0; font: inherit; }
+  .rule-info {
+    display: inline-grid; place-items: center; width: 22px; height: 22px;
+    border: 1px solid var(--edge); border-radius: 50%; padding: 0; font: inherit; line-height: 1;
+  }
   .rule-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .rule-heading [role='tooltip'] {
     position: absolute; z-index: 2; inset-block-start: 100%; inset-inline-start: 0;
