@@ -118,11 +118,11 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await navigate(browser, '/direct/inbox/', host);
       await show(browser, { '#suggested': true, '#owned': true, '#shelf': true });
       await navigate(browser, '/reels/', host);
-      await show(browser, { '#viewer': false, '#viewer-controls': true });
+      await show(browser, { '#viewer': false, '#viewer-current': false, '#viewer-controls': true });
       await click(browser, '#to-unrelated');
       await show(browser, { '#viewer-video-1': true, '#viewer-video-2': true, '#viewer-controls': true });
       await navigate(browser, '/reels/sample/', host);
-      await show(browser, { '#viewer-video-1': true, '#viewer-video-2': true, '#viewer-controls': true });
+      await show(browser, { '#viewer-current': true, '#viewer-video-1': true, '#viewer-video-2': true, '#viewer-controls': true });
       await navigate(browser, '/', host);
       await show(browser, { '#shortcut': false });
       await click(browser, '#to-viewer');

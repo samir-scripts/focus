@@ -151,7 +151,8 @@ it.each(['/reel/shared/', '/reels/shared'])('protects the current reel in a mixe
   expect(hidden('separate')).toBe(true);
 });
 
-it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed', 'unrelated', 'traverse', 'bfcache'])(
+it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed', 'unrelated', 'traverse', 'bfcache',
+  'same-url-push', 'same-url-replace', 'controlled', 'mixed'])(
   'requires fresh discovery provenance for a canonicalized viewer (%s)', (entry) => {
     const navigation = new EventTarget();
     const advance = (path: string, navigationType = 'push') => {
@@ -159,7 +160,7 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
       history.pushState({}, '', path);
       navigation.dispatchEvent(Object.assign(new Event('currententrychange'), { from, navigationType }));
     };
-    route(entry === 'shared' ? '/reel/shared/' : entry === 'spa' ? '/' : '/reels/');
+    route(entry === 'shared' ? '/reels/shared/' : entry === 'spa' ? '/' : '/reels/');
     const state = content.trackInstagramDiscovery(document, navigation);
     try {
       if (entry !== 'late-enable' && entry !== 'initial-response') state.applyPolicy(true, true);
@@ -174,12 +175,21 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
       if (entry === 'unrelated') { advance('/explore/'); advance('/reels/shared/'); }
       if (entry === 'traverse') advance('/reels/shared/', 'traverse');
       document.body.innerHTML = `<main>
-        <div id="viewer"><div><video></video></div><div><video></video></div></div>
-        <div id="controls"><button>Comments</button><button>Share</button></div>
+        <div id="viewer">
+          <a href="/reels/shared/">Current reel</a>
+          <div><video ${entry === 'controlled' ? 'controls' : ''}></video></div>
+          ${'<div><video></video></div>'.repeat(6)}
+        </div>
+        <div id="controls"><button>Comments</button><button>Share</button>${entry === 'mixed' ? '<video></video>' : ''}</div>
       </main>`;
       stop = content.startInstagramFilter(document, { suggested: false, reels: true }, state);
-      const ownsViewer = ['direct', 'initial-response', 'spa', 'bfcache'].includes(entry);
+      const sameUrl = entry === 'same-url-push' || entry === 'same-url-replace';
+      const ownsViewer = sameUrl || ['direct', 'initial-response', 'spa', 'bfcache'].includes(entry);
       expect(hidden('viewer')).toBe(ownsViewer);
+      if (sameUrl) {
+        advance('/reels/shared/', entry === 'same-url-replace' ? 'replace' : 'push');
+        expect(hidden('viewer')).toBe(false);
+      }
       if (entry === 'bfcache') {
         window.dispatchEvent(new Event('pagehide'));
         expect(hidden('viewer')).toBe(false);

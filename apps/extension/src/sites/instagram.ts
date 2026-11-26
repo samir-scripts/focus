@@ -34,7 +34,7 @@ export function trackInstagramDiscovery(doc: Document, navigation = doc.readySta
   const changed = (event: Event) => {
     const { from, navigationType } = event as Event & { from?: { url?: string }; navigationType?: string };
     const forward = navigationType === 'push' || navigationType === 'replace';
-    if (forward && from?.url === doc.URL) return;
+    // Push and replace can change the entry without changing its URL.
     const current = new URL(doc.URL);
     if (forward && from?.url && new URL(from.url).origin === initial.origin && current.origin === initial.origin) {
       if (pending === from.url && individual.test(current.pathname) && !current.search && !current.hash) {
@@ -90,7 +90,7 @@ function isRailShortcut(link: HTMLAnchorElement, origin: string) {
   return false;
 }
 
-function discoveryViewer(doc: Document, origin: string, currentReel: string | undefined) {
+function discoveryViewer(doc: Document) {
   const mains = doc.querySelectorAll('main');
   if (mains.length !== 1 || mains[0].childElementCount !== 2) return;
   let viewer: Element | undefined;
@@ -101,9 +101,6 @@ function discoveryViewer(doc: Document, origin: string, currentReel: string | un
       continue;
     }
     if (viewer || branch.querySelector('video[controls], audio, iframe, article, nav, aside, [role="dialog"]')) return;
-    for (const link of branch.querySelectorAll<HTMLAnchorElement>('a[href]')) {
-      if (link.origin === origin && individual.exec(link.pathname)?.[1] === currentReel) return;
-    }
     viewer = branch;
   }
   return viewer;
@@ -186,7 +183,7 @@ export function startInstagramFilter(doc: Document, rules: InstagramRules, prove
     }
     if (!rules.reels) return;
     if (provenance?.owns(url)) {
-      const viewer = discoveryViewer(doc, url.origin, currentReel);
+      const viewer = discoveryViewer(doc);
       if (viewer) next.add(viewer);
     }
     if (path === discovery) {

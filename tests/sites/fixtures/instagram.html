@@ -50,8 +50,10 @@
   const renderViewer = () => {
     document.querySelector('main').innerHTML = `
       <div id="viewer">
+        <a id="viewer-current" href="/reels/sample/">Current reel</a>
         <div><video id="viewer-video-1"></video></div>
         <div><video id="viewer-video-2"></video></div>
+        ${'<div><video></video></div>'.repeat(5)}
       </div>
       <div id="viewer-controls"><button type="button">Comments</button><button type="button">Share</button></div>`;
   };
