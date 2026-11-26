@@ -34,7 +34,8 @@ export function trackInstagramDiscovery(doc: Document, navigation = doc.readySta
   const changed = (event: Event) => {
     const { from, navigationType } = event as Event & { from?: { url?: string }; navigationType?: string };
     const forward = navigationType === 'push' || navigationType === 'replace';
-    // Push and replace can change the entry without changing its URL.
+    // Instagram replaces metadata at the exact discovery URL before canonicalizing.
+    if (navigationType === 'replace' && pending === doc.URL && from?.url === pending) return;
     const current = new URL(doc.URL);
     if (forward && from?.url && new URL(from.url).origin === initial.origin && current.origin === initial.origin) {
       if (pending === from.url && individual.test(current.pathname) && !current.search && !current.hash) {
@@ -42,7 +43,7 @@ export function trackInstagramDiscovery(doc: Document, navigation = doc.readySta
         canonical = current.href;
       } else {
         reset();
-        if (active && isEntry(current)) pending = current.href;
+        if (active && from.url !== current.href && isEntry(current)) pending = current.href;
       }
     } else {
       reset();

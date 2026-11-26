@@ -152,7 +152,7 @@ it.each(['/reel/shared/', '/reels/shared'])('protects the current reel in a mixe
 });
 
 it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed', 'unrelated', 'traverse', 'bfcache',
-  'same-url-push', 'same-url-replace', 'controlled', 'mixed'])(
+  'same-url-push', 'same-url-replace', 'pending-push', 'controlled', 'mixed'])(
   'requires fresh discovery provenance for a canonicalized viewer (%s)', (entry) => {
     const navigation = new EventTarget();
     const advance = (path: string, navigationType = 'push') => {
@@ -165,6 +165,8 @@ it.each(['direct', 'initial-response', 'spa', 'shared', 'late-enable', 'removed'
     try {
       if (entry !== 'late-enable' && entry !== 'initial-response') state.applyPolicy(true, true);
       if (entry === 'spa') advance('/reels/');
+      if (entry === 'initial-response') advance('/reels/', 'replace');
+      if (entry === 'pending-push') advance('/reels/');
       if (entry !== 'shared') advance('/reels/shared/', 'replace');
       if (entry === 'initial-response') state.applyPolicy(true, true);
       if (entry === 'late-enable') state.applyPolicy(true, false);
