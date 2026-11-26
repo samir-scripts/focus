@@ -14,8 +14,11 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     else { await browser.driver.switchTo().window(browser.page); await (await browser.driver.findElement(By.css(selector))).click(); }
   }
   async function show(browser, expected) {
-    await eventually('fixture visibility', async () => {
-      for (const [selector, shown] of Object.entries(expected)) if (await visible(browser, selector) !== shown) return false;
+    const engine = engines.find(([, candidate]) => candidate === browser)[0];
+    const expectations = Object.entries(expected);
+    const label = expectations.map(([selector, shown]) => `${selector} ${shown ? 'visible' : 'hidden'}`).join(', ');
+    await eventually(`${engine}: fixture visibility (${label})`, async () => {
+      for (const [selector, shown] of expectations) if (await visible(browser, selector) !== shown) return false;
       return true;
     });
   }

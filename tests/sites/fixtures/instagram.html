@@ -39,7 +39,7 @@
   document.querySelector('#to-shared').onclick = () => history.pushState({}, '', '/reel/shared/');
   const renderViewer = () => {
     document.querySelector('main').innerHTML = `
-      <div id="viewer"><div><video></video></div><div><video></video></div>
+      <div id="viewer"><div><video></video></div><div><video></video></div></div>
       <div id="viewer-controls"><button type="button">Comments</button><button type="button">Share</button></div>`;
   };
   const canonicalize = () => { history.replaceState(null, '', '/reels/sample/'); renderViewer(); };
