@@ -10,7 +10,9 @@ const hidden = (id: string) => document.getElementById(id)!.hasAttribute(marker)
 const route = (path: string) => { history.pushState({}, '', path); document.dispatchEvent(new Event('focus-route-change')); };
 
 it.each([[false, false], [true, false], [false, true], [true, true]])('filters independently (%s, %s)', (suggested, reels) => {
-  document.body.innerHTML = `<nav><a id="shortcut" href="/reels/">Reels</a><a id="explore" href="/explore/">Explore</a></nav>
+  document.body.innerHTML = `<div><div><span><div><a id="shortcut" href="/reels/">Reels</a></div></span></div>
+  <div><a href="/">Home</a></div><div><a id="explore" href="/explore/">Explore</a></div>
+  <div><a href="/direct/inbox/">Messages</a></div></div>
   <main><section id="stories" aria-label="Stories"></section>
   <article id="followed"><header>Following</header><p>Suggested for you</p></article>
   <article id="suggested"><header><span>Suggested for you</span></header></article>
@@ -24,6 +26,39 @@ it.each([[false, false], [true, false], [false, true], [true, true]])('filters i
   for (const id of ['explore', 'stories', 'followed', 'unknown', 'ambiguous']) expect(hidden(id), id).toBe(false);
   stop();
   expect(document.querySelector(`[${marker}]`)).toBeNull();
+});
+
+it('marks only an unambiguous rail shortcut as its grouping changes', async () => {
+  stop = content.startInstagramFilter(document, { suggested: false, reels: true });
+  document.body.innerHTML = `<div id="rail">
+    <div><a href="/">Home</a></div><div><a href="/explore/">Explore</a></div>
+    <div><a id="messages" href="/direct/inbox/">Messages</a></div>
+    <div><a id="shortcut" href="/reels/">Reels</a></div>
+  </div>
+  <main><article><a id="ordinary" href="/reels/">Reels</a></article></main>
+  <div><a href="/">Home</a><a href="/explore/">Explore</a>
+    <a href="https://instagram.com/direct/inbox/">Messages</a><a id="incomplete" href="/reels/">Reels</a></div>
+  <div><a href="/">Home</a><a href="/explore/">Explore</a><a href="/direct/inbox/">Messages</a>
+    <a id="foreign" href="https://instagram.com/reels/">Reels</a></div>`;
+  await Promise.resolve();
+  expect(hidden('shortcut')).toBe(true);
+  for (const id of ['ordinary', 'incomplete', 'foreign']) expect(hidden(id), id).toBe(false);
+  const rail = document.getElementById('rail')!;
+  const duplicate = document.createElement('a');
+  duplicate.href = '/reels/';
+  rail.append(duplicate);
+  await Promise.resolve();
+  expect(document.querySelector(`[${marker}]`)).toBeNull();
+  duplicate.remove();
+  const messages = document.getElementById('messages')!;
+  messages.setAttribute('href', '/direct/inbox/other/');
+  await Promise.resolve();
+  expect(hidden('shortcut')).toBe(false);
+  messages.setAttribute('href', '/direct/inbox/');
+  route('/explore/');
+  expect(hidden('shortcut')).toBe(true);
+  stop();
+  expect(hidden('shortcut')).toBe(false);
 });
 
 it('reconciles late and reused labels and preserves individual reel playback', async () => {

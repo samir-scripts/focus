@@ -5,7 +5,29 @@ export type InstagramRules = { suggested: boolean; reels: boolean };
 const discovery = '/reels';
 const individual = /^\/reels?\/([\w-]+)\/?$/;
 
-// Original semantic selectors; signed-in production markup has not been qualified.
+const railPaths = new Set(['', '/explore', '/direct/inbox', discovery]);
+const contentBoundary = 'main, article, aside, [role="main"], [role="article"], [role="complementary"], [role="dialog"]';
+
+function isRailShortcut(link: HTMLAnchorElement, origin: string) {
+  if (link.closest(contentBoundary)) return false;
+  // The observed rail has three wrappers around the link and seven sibling entries.
+  let group = link.parentElement;
+  for (let depth = 0; group && depth < 4; depth++, group = group.parentElement) {
+    if (!group.matches('div, nav, [role="navigation"]') || group.childElementCount < 4) continue;
+    if (group.childElementCount > 8 || group.querySelector(`${contentBoundary}, video, audio, iframe`)) return false;
+    const paths = new Set<string>();
+    for (const sibling of group.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      const path = sibling.pathname.replace(/\/$/, '');
+      if (!railPaths.has(path)) continue;
+      if (sibling.origin !== origin || sibling.search || sibling.hash || paths.has(path)) return false;
+      paths.add(path);
+    }
+    // Don't widen to an outer group if the first plausible group was incomplete.
+    return paths.size === railPaths.size;
+  }
+  return false;
+}
+
 // Avoid generated classes and never infer a recommendation from the linked media alone.
 export function startInstagramFilter(doc: Document, rules: InstagramRules) {
   return watchFeed(doc, ['href', 'aria-label', 'aria-labelledby', 'role'], (next) => {
@@ -15,8 +37,9 @@ export function startInstagramFilter(doc: Document, rules: InstagramRules) {
     const currentReel = individual.exec(path)?.[1];
     const home = path === '' && url.search === '';
     if (rules.reels) {
-      for (const link of doc.querySelectorAll<HTMLAnchorElement>('nav a[href], [role="navigation"] a[href]')) {
-        if (link.origin === url.origin && link.pathname.replace(/\/$/, '') === discovery) next.add(link);
+      for (const link of doc.querySelectorAll<HTMLAnchorElement>('a[href$="/reels/"], a[href$="/reels"]')) {
+        if (link.origin === url.origin && !link.search && !link.hash &&
+            link.pathname.replace(/\/$/, '') === discovery && isRailShortcut(link, url.origin)) next.add(link);
       }
     }
     if (home && rules.suggested) {

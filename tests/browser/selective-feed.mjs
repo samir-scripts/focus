@@ -98,7 +98,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await instagram(suggested, reels);
       for (const [, browser] of engines) await show(browser, {
         '#suggested': !suggested, '#shelf': !reels, '#shortcut': !reels,
-        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true,
+        '#followed': true, '#stories': true, '#ambiguous': true, '#explore': true, '#ordinary-reels': true,
       });
     }
     for (const [, browser] of engines) {
@@ -108,6 +108,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await show(browser, { '#late-post': true });
       await click(browser, '#to-feed');
       await show(browser, { '#feed': false, '#player': true });
+      await show(browser, { '#shortcut': false, '#ordinary-reels': true });
       await click(browser, '#to-shared');
       await show(browser, { '#feed': true, '#player video': true, '#comments': true, '#share': true, '#mixed-reels video': true, '#shelf': false });
       await navigate(browser, '/direct/inbox/', host);
