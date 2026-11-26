@@ -42,11 +42,11 @@
   @media (forced-colors: none) {
     input {
       appearance: none; display: grid; place-items: center;
-      border: 1px solid var(--ink); background: var(--surface);
+      border: 1px solid var(--edge); background: var(--surface);
     }
     input[type='radio'] { border-radius: 50%; }
-    input:checked { background: var(--ink); }
-    input:checked::after { content: ''; display: block; background: var(--surface); }
+    input:checked { border-color: var(--accent); background: var(--accent); }
+    input:checked::after { content: ''; display: block; background: var(--on-accent); }
     input[type='checkbox']:checked::after {
       width: 10px; height: 9px; clip-path: polygon(0 45%, 18% 27%, 39% 51%, 81% 4%, 100% 22%, 39% 92%);
     }
