@@ -2,6 +2,8 @@ import { catalog } from './sites/catalog';
 import { grantedOrigins, siteOrigins } from './permissions';
 import { validSnapshot, validPolicySnapshot, VERSION, type Snapshot } from './protocol';
 import { SiteEntry } from './site-entry';
+import { exactDocumentOrigin } from './sites/feed';
+import type { XMode } from './sites/x';
 
 declare const chrome: any;
 const api = chrome;
@@ -9,11 +11,13 @@ declare const browser: typeof chrome | undefined;
 const web = typeof browser === 'undefined' ? api : browser;
 const host = 'com.focus_local.bridge';
 const scriptId = 'focus-youtube';
+const contentCSS = ['youtube.css', 'grayscale.css', 'feed.css'];
 type Profile = { profileId: string; browser: string; label: string; token: string };
 let profile: Profile | undefined;
 let policy: Snapshot | undefined;
 let activeOrigins = new Set<string>();
 let grayOrigins = new Set<string>();
+let xMode: XMode | undefined;
 let incompatible = false;
 let port: any;
 let ready: Promise<void>;
@@ -84,6 +88,12 @@ async function clearPairing(message: string) {
   await reconcile();
   await setStatus(message);
 }
+function contentPolicy(origin: string | undefined) {
+  const enabled = origin !== undefined && activeOrigins.has(origin) && new URL(origin).hostname !== 'x.com';
+  const grayscale = origin !== undefined && grayOrigins.has(origin);
+  if (origin && activeOrigins.has(origin) && new URL(origin).hostname === 'x.com') return { enabled, grayscale, x: xMode };
+  return { enabled, grayscale };
+}
 async function reconcile() {
   const permissions = await call(api.permissions, 'getAll');
   const grants = grantedOrigins(permissions.origins ?? []);
@@ -92,7 +102,10 @@ async function reconcile() {
   await entry?.reconcile(current, grants);
   const enabled = !!profile && !!policy?.sites.find((site) => site.id === 'youtube')?.rules['youtube.hide-shorts'];
   const filterOrigins = siteOrigins('youtube').filter((origin) => !origin.includes('://youtu.be/') && grants.includes(origin));
+  const rules = current?.sites.find((site) => site.id === 'x')?.rules;
+  xMode = rules?.['x.open-following'] ? 'following' : rules?.['x.hide-for-you'] ? 'hide' : undefined;
   const active = enabled ? filterOrigins : [];
+  if (xMode) active.push(...grants.filter((origin) => new URL(origin).hostname === 'x.com'));
   const previouslyActive = new Set([...activeOrigins, ...grayOrigins]);
   activeOrigins = new Set(active);
   grayOrigins = new Set(profile ? (policy?.sites ?? []).flatMap((site) => 'grayscale' in site && site.grayscale
@@ -101,23 +114,22 @@ async function reconcile() {
   const matchesAny = [...new Set([...active, ...grayOrigins])];
   const registered = await call(api.scripting, 'getRegisteredContentScripts', { ids: [scriptId] });
   if (registered.length) await call(api.scripting, 'unregisterContentScripts', { ids: [scriptId] });
-  if (matchesAny.length) await call(api.scripting, 'registerContentScripts', [{ id: scriptId, matches: matchesAny, css: ['youtube.css', 'grayscale.css'], js: ['content.js'], runAt: 'document_start', allFrames: false, persistAcrossSessions: true }]);
+  if (matchesAny.length) await call(api.scripting, 'registerContentScripts', [{ id: scriptId, matches: matchesAny, css: contentCSS, js: ['content.js'], runAt: 'document_start', allFrames: false, persistAcrossSessions: true }]);
   const tabs = await call(api.tabs, 'query', {});
   for (const tab of tabs) {
     if (!tab.id || tab.incognito) continue;
-    let origin: string | undefined;
-    try { const url = new URL(tab.url); origin = `${url.protocol}//${url.hostname}/*`; } catch { /* non-web tab */ }
+    const origin = exactDocumentOrigin(tab.url);
     const matches = origin !== undefined && activeOrigins.has(origin);
     const grayscale = origin !== undefined && grayOrigins.has(origin);
     const target = { tabId: tab.id };
     try {
       if (matches || grayscale) {
-        await call(api.scripting, 'insertCSS', { target, files: ['youtube.css', 'grayscale.css'] });
+        await call(api.scripting, 'insertCSS', { target, files: contentCSS });
         await call(api.scripting, 'executeScript', { target, files: ['content.js'] });
       }
-      await call(api.tabs, 'sendMessage', tab.id, { type: 'focus-policy', enabled: matches, grayscale });
+      await call(api.tabs, 'sendMessage', tab.id, { type: 'focus-policy', ...contentPolicy(origin) }, { frameId: 0 });
       if (!matches && !grayscale && origin && previouslyActive.has(origin) && grants.includes(origin)) {
-        await call(api.scripting, 'removeCSS', { target, files: ['youtube.css', 'grayscale.css'] });
+        await call(api.scripting, 'removeCSS', { target, files: contentCSS });
       }
     } catch (error) {
       if (!matches && !grayscale) continue;
@@ -217,16 +229,8 @@ async function begin(browser: string, label: string) {
 }
 api.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (value: any) => void) => {
   if (message?.type === 'focus-content-state') {
-    const url = sender.url;
-    let enabled = false;
-    let grayscale = false;
-    try {
-      const parsed = new URL(url);
-      const origin = `${parsed.protocol}//${parsed.hostname}/*`;
-      enabled = !sender.tab?.incognito && sender.frameId === 0 && activeOrigins.has(origin);
-      grayscale = !sender.tab?.incognito && sender.frameId === 0 && grayOrigins.has(origin);
-    } catch { /* not a web document */ }
-    sendResponse({ enabled, grayscale }); return;
+    const origin = !sender.tab?.incognito && sender.frameId === 0 ? exactDocumentOrigin(sender.url) : undefined;
+    sendResponse(contentPolicy(origin)); return;
   }
   if (sender.id !== api.runtime.id || !sender.url?.startsWith(api.runtime.getURL(''))) return;
   if (message?.type === 'entry-view' || message?.type === 'entry-continue' || message?.type === 'entry-back'
@@ -248,6 +252,12 @@ api.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (val
 });
 api.permissions.onAdded.addListener(() => queue(refreshGrants));
 api.permissions.onRemoved.addListener(() => queue(refreshGrants));
+api.webNavigation?.onHistoryStateUpdated?.addListener(({ tabId, frameId, url }: { tabId: number; frameId: number; url: string }) => {
+  const origin = frameId === 0 ? exactDocumentOrigin(url) : undefined;
+  if (origin && activeOrigins.has(origin)) {
+    void call(api.tabs, 'sendMessage', tabId, { type: 'focus-route-change' }, { frameId: 0 }).catch(() => {});
+  }
+});
 api.alarms.onAlarm.addListener((alarm: any) => { if (alarm.name === 'focus-reconnect') void connect(); });
 ready = (async () => {
   const stored = await call(api.storage.local, 'get', ['profile', 'policy']);

@@ -35,6 +35,8 @@ For each runtime checkpoint, write and observe a failing behavior test, implemen
 
 Exploratory Chrome for Testing 156 proof, not production qualification. X hid the observed For you timeline or selected native Following without hiding the composer; Following had no posts. Reddit hid 27 recognized items in the sampled For You view; recommendations-only retained the Following container and full mode hid it. Its empty Following account did not establish behavior with real Following posts or mixed layouts. YouTube observed 24 recommendations and two Shorts shelves, each independently cleared and both still cleared after more cards loaded. The sampled watch player and Pause control survived. A separate search pass preserved 19 regular results and the Shorts search tab while removing the sidebar shortcut. These observations do not qualify matched selectors across layouts or browsers, protected routes, protocol, fallback, paired profile opening or reversibility. Product previews are the approved illustrations, not live captures.
 
+- X: [Adapter](../../../apps/extension/src/sites/x.ts) and [fixtures](../../../tests/sites/x.test.ts) use original, account-free selectors based on X Home observed for the proof. No third-party filter list or page content is bundled.
+
 ## Candidate gate
 
 - [ ] Run `npm ci`, `npm run check`, `npm run test:unit`, `npm run build --workspace @focus/desktop`, and `cargo test --locked --workspace` from `apps/desktop/src-tauri` for Cargo.

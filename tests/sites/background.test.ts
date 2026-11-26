@@ -37,7 +37,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   });
   // Reload the real worker after installing the per-test browser API boundary.
   await import('../../apps/extension/src/background');
-  function send(op: string, { body = {}, version = 4 }: Incoming = {}) {
+  function send(op: string, { body = {}, version = 5 }: Incoming = {}) {
     const request = sent.find((entry) => entry.op === op);
     if (!request) throw new Error(`Missing pending ${op} request`);
     inbox.emit({ v: version, id: request.id, ok: true, body });
@@ -102,4 +102,23 @@ it('enables grayscale on the granted short-link alias without affecting adjacent
   expect(result).toEqual({ enabled: false, grayscale: true });
   bridge.messages.emit({ type: 'focus-content-state' }, { url: 'https://evil.youtu.be/watch', frameId: 0, tab: {} }, (value) => { result = value; });
   expect(result).toEqual({ enabled: false, grayscale: false });
+});
+
+it('dispatches X Following only to a granted canonical, top-level document', async () => {
+  const saved = { ...snapshot(1, false), sites: [{
+    id: 'x', label: 'X / Twitter', hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
+    entry: { mode: 'allow' }, grayscale: false, rules: { 'x.open-following': true },
+  }] };
+  const bridge = await start({ profile: credential, policy: saved }, ['https://x.com/*', 'https://www.x.com/*']);
+  await bridge.waitFor('hello');
+  const state = (url: string, frameId = 0) => {
+    let result: unknown;
+    bridge.messages.emit({ type: 'focus-content-state' }, { url, frameId, tab: {} }, (value) => { result = value; });
+    return result;
+  };
+  expect(state('https://x.com/home')).toMatchObject({ x: 'following' });
+  for (const url of ['http://x.com/home', 'https://www.x.com/home', 'https://x.com:8443/home']) {
+    expect(state(url)).not.toHaveProperty('x');
+  }
+  expect(state('https://x.com/home', 1)).not.toHaveProperty('x');
 });

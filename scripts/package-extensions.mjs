@@ -44,6 +44,7 @@ for (const browser of storeUpload ? ['chromium'] : ['chromium', 'firefox']) {
   await writeFile(resolve(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await bundle({ entryPoints: [resolve(extension, 'src/background.ts'), resolve(extension, 'src/content.ts')], outdir: dir, bundle: true, format: 'iife', platform: 'browser', target: ['chrome159', 'firefox160'], logLevel: 'warning' });
   await cp(resolve(extension, 'src/sites/youtube.css'), resolve(dir, 'youtube.css'));
+  await cp(resolve(extension, 'src/sites/feed.css'), resolve(dir, 'feed.css'));
   await cp(resolve(extension, 'src/grayscale.css'), resolve(dir, 'grayscale.css'));
   await rm(zip, { force: true });
   execFileSync('zip', ['-X', '-q', '-r', zip, '.'], { cwd: dir });
