@@ -6,6 +6,11 @@
 <a id="fixture-anchor" href="#comments">Go to comments</a>
 <button id="install-worker" type="button" onclick="navigator.serviceWorker.register('/fixture-worker.js').then(() => navigator.serviceWorker.ready).then(() => this.textContent = 'Worker ready')">Install fixture worker</button>
 <main>
+<ytd-browse page-subtype="home"><ytd-rich-grid-renderer><div id="contents">
+  <ytd-rich-item-renderer id="recommended"><a href="/watch?v=home">Home recommendation</a></ytd-rich-item-renderer>
+  <ytd-rich-item-renderer id="subscribed"><a href="/watch?v=subscribed">Subscribed video</a><ytd-subscribe-button-renderer subscribed></ytd-subscribe-button-renderer></ytd-rich-item-renderer>
+</div></ytd-rich-grid-renderer></ytd-browse>
+<button id="late-home" onclick="document.querySelector('#contents').insertAdjacentHTML('beforeend', '<ytd-rich-item-renderer id=late-card><a href=/watch?v=late>Late recommendation</a></ytd-rich-item-renderer>')">Load more</button>
 <ytd-rich-shelf-renderer id="shorts-shelf" is-shorts><a href="/shorts/one">Short</a></ytd-rich-shelf-renderer>
 <ytd-rich-item-renderer id="shorts-card"><ytd-reel-item-renderer><a href="/shorts/two">Short</a></ytd-reel-item-renderer></ytd-rich-item-renderer>
 <ytd-rich-item-renderer id="ordinary-video"><a href="/watch?v=one">Video</a></ytd-rich-item-renderer>

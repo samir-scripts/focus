@@ -74,6 +74,7 @@ cargo build --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --bin foc
 npm run package:extensions
 npm run test:browser -- --case shared-rule
 npm run test:browser -- --case entry
+npm run test:browser -- --case selective-feed
 ```
 
 The runner uses the exact ZIPs, private display and accessibility bus, isolated browser homes and a loopback-only HTTPS fixture proxy. Its generated certificate is trusted only for this run, using a key pin for Chromium and a temporary Firefox NSS profile. No certificate is installed in a system or personal trust store. No live sites are queried. Results and archive digests are in `artifacts/extensions/shared-rule-report.json` and `artifacts/extensions/entry-report.json`. A temporary Firefox add-on reinstall is not proof of durable signed-install persistence; that remains a later qualification gate. Treat a failing or incomplete entry scenario as unqualified; the engine-only preflight is not a packaged-product qualification.

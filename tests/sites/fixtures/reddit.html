@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Reddit Home fixture</title>
+<main id="main-content">
+  <faceplate-tabgroup><button id="for-you" aria-selected="true" role="tab">For You</button><button id="following" aria-selected="false" role="tab">Following</button></faceplate-tabgroup>
+  <shreddit-feed id="reddit-feed"><shreddit-post id="post" recommendation-source="sample">Suggested post</shreddit-post></shreddit-feed>
+  <aside id="reddit-neighbor">Communities, messages and search</aside>
+  <button id="next" onclick="history.pushState({}, '', '/r/all')">Open all</button>
+</main>
+<script>
+  const forYou = document.querySelector('#for-you');
+  const following = document.querySelector('#following');
+  const post = document.querySelector('#post');
+  for (const [tab, other] of [[forYou, following], [following, forYou]]) tab.onclick = () => {
+    tab.setAttribute('aria-selected', 'true'); other.setAttribute('aria-selected', 'false');
+    post.textContent = tab === following ? 'Post from followed community' : 'Suggested post';
+    post.toggleAttribute('recommendation-source', tab === forYou);
+  };
+  if (new URL(location.href).searchParams.has('mixed')) {
+    document.querySelector('faceplate-tabgroup').remove();
+    document.querySelector('#reddit-feed').insertAdjacentHTML('beforeend', '<shreddit-post id="followed">Followed community</shreddit-post>');
+  }
+</script>

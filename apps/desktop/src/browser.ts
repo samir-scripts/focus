@@ -11,7 +11,7 @@ export type ContentRules =
   | { site: 'reddit'; hideRecommendations: boolean; hideAllHome: boolean }
   | { site: 'youtube'; hideShorts: boolean; hideHomeRecommendations: boolean };
 export type Pair = { id: string; label: string; browser: Browser };
-export type Profile = Pair & { online: boolean; updateRequired?: boolean; ackRevision: number | null; origins: string[] };
+export type Profile = Pair & { online: boolean; protocol?: number | null; updateRequired?: boolean; ackRevision: number | null; origins: string[] };
 export type InstallCapability = 'store' | 'managed' | 'managedPending' | 'managedCleanup' | 'managedOrphan' | 'missingArtifact' |
   'invalidArtifact' | 'missingBridge' | 'missingAuthorization' | 'sharedTarget' |
   'managedElsewhere' | 'conflictingSetup' | 'missingPortal' | 'unverifiedChannel';
@@ -41,6 +41,7 @@ export interface BrowserBridge {
   install: (targetId: string) => Promise<InstallOutcome>;
   removeInstallation: (targetId: string) => Promise<InstallOutcome>;
   setContentRules: (expectedRevision: number, rules: ContentRules) => Promise<void>;
+  openPairedBrowser: (profileId: string, siteId: string, expectedRevision: number) => Promise<void>;
   setGrayscale: (expectedRevision: number, siteId: string, enabled: boolean) => Promise<void>;
   setEntry: (expectedRevision: number, siteId: string, entry: EntryPolicy) => Promise<void>;
   setAccessibility: (expectedRevision: number, accessibility: Accessibility) => Promise<void>;
@@ -55,6 +56,7 @@ export const nativeBrowserBridge: BrowserBridge = {
   install: (targetId) => invoke('start_browser_installation', { targetId }),
   removeInstallation: (targetId) => invoke('remove_browser_installation', { targetId }),
   setContentRules: (expectedRevision, rules) => invoke('set_content_rules', { expectedRevision, rules }),
+  openPairedBrowser: (profileId, siteId, expectedRevision) => invoke('open_paired_browser', { profileId, siteId, expectedRevision }),
   setGrayscale: (expectedRevision, siteId, enabled) => invoke('set_grayscale', { expectedRevision, siteId, enabled }),
   setEntry: (expectedRevision, siteId, entry) => invoke('set_entry', { expectedRevision, siteId, entry }),
   setAccessibility: (expectedRevision, accessibility) => invoke('set_accessibility', { expectedRevision, accessibility }),

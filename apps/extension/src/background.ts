@@ -17,6 +17,9 @@ let policy: Snapshot | undefined;
 let activeContent = new Map<string, FeedPolicy>();
 let grayOrigins = new Set<string>();
 let incompatible = false;
+let acknowledged: number | undefined;
+let announced: number | undefined;
+const openedRequests = new Map<string, number>();
 let port: any;
 let ready: Promise<void>;
 let nextId = 0;
@@ -172,7 +175,38 @@ async function sync() {
     await request('applied', { revision: policy.revision, origins: grants });
   }
   incompatible = false;
+  acknowledged = policy.revision;
   await setStatus('Connected');
+}
+
+async function openInBrowser(connection: typeof port, message: unknown) {
+  if (connection !== port || !message || typeof message !== 'object' ||
+      !('requestId' in message) || typeof message.requestId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(message.requestId) ||
+      !('siteId' in message) || !('revision' in message) || !('expiresAt' in message) ||
+      typeof message.expiresAt !== 'number' || !Number.isSafeInteger(message.expiresAt) ||
+      Object.keys(message).length !== 6) return;
+  const home = catalog.find((site) => site.id === message.siteId)?.home;
+  if (!home) return;
+  const now = Math.floor(Date.now() / 1000);
+  const { requestId, revision, expiresAt } = message;
+  for (const [id, expiry] of openedRequests) if (expiry <= now) openedRequests.delete(id);
+  if (openedRequests.has(requestId)) return;
+  if (expiresAt > now && expiresAt <= now + 8) openedRequests.set(requestId, expiresAt);
+  let opened = false;
+  if (expiresAt > now && expiresAt <= now + 8 && profile && !incompatible &&
+      revision === acknowledged && revision === announced) {
+    try {
+      const grants = grantedOrigins((await call(api.permissions, 'getAll')).origins ?? []);
+      const origin = exactDocumentOrigin(home);
+      if (connection === port && revision === announced && Date.now() < expiresAt * 1000 &&
+          origin && grants.includes(origin)) {
+        const tab = await call(api.tabs, 'create', { url: home });
+        opened = Number.isInteger(tab?.id);
+      }
+    } catch { /* The action is not retried, including an unknown tab creation outcome. */ }
+  }
+  if (connection === port) void request('browser_open_result', { requestId, opened }).catch(() => {});
 }
 async function connect() {
   if (!profile || connecting || port) return;
@@ -183,9 +217,13 @@ async function connect() {
     current.onMessage.addListener((message: any) => {
       if (current !== port) return;
       if (message?.v === VERSION && message.event === 'revoked') {
+        acknowledged = announced = undefined;
         queue(async () => { current.disconnect(); await clearPairing('Not connected'); });
       } else if (message?.v === VERSION && message.event === 'revision') {
+        announced = message.revision;
         queue(sync);
+      } else if (message?.v === VERSION && message.event === 'browser_open') {
+        queue(() => openInBrowser(current, message));
       } else {
         settleReply(message);
       }
@@ -193,11 +231,13 @@ async function connect() {
     current.onDisconnect.addListener(() => {
       if (port !== current) return;
       port = undefined;
+      acknowledged = announced = undefined;
       for (const wait of pending.values()) wait.reject(new Error('disconnected'));
       pending.clear();
       if (profile) { void setStatus('Disconnected'); retry(); }
     });
-    await request('hello', { profileId: profile.profileId, token: profile.token });
+    const hello = await request('hello', { profileId: profile.profileId, token: profile.token });
+    announced ??= hello.revision;
     await queue(sync);
   } catch (error) {
     const code = error instanceof Error ? error.message : 'disconnected';

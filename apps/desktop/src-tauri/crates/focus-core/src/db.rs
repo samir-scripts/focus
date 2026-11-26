@@ -1,4 +1,4 @@
-use crate::model::{self, Accessibility, Browser, DesktopState, EntryPolicy, OpenIntent, PairLabel, ProfileStatus, SitePolicy};
+use crate::model::{self, Accessibility, Browser, DesktopState, EntryPolicy, OpenIntent, PairedOpen, PairLabel, ProfileStatus, SitePolicy};
 use crate::planner::{Entry, Kind, Retention, RetentionPreview, RetentionUpdate};
 use chrono::NaiveDate;
 use crate::schedule::Schedule;
@@ -164,7 +164,15 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 8 { return Err(Error::Database); }
+        if version(&db)? == 8 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 8 {
+                tx.execute_batch(include_str!("../migrations/009.sql"))?;
+                tx.pragma_update(None, "user_version", 9)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 9 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
@@ -627,6 +635,7 @@ impl Db {
                 let gecko = matches!(browser.as_str(), "firefox" | "zen");
                 Ok(ProfileStatus {
                     id: r.get(0)?, label: r.get(1)?, browser, online: r.get(3)?, ack_revision: r.get(4)?,
+                    protocol: r.get(6)?,
                     update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)
                         || (v < 3 && v3_required) || (v < 4 && block && !gecko) || (v < 5 && v5_required)),
                     origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
@@ -660,6 +669,57 @@ impl Db {
         }).optional()?;
         tx.commit()?;
         Ok(result.filter(|(_, expires)| *expires > model::now()).map(|(intent, _)| intent))
+    }
+
+    pub fn enqueue_browser_open(&mut self, profile: &str, site: &str, revision: u64) -> Result<String> {
+        let home = model::SITES.iter().find(|candidate| candidate.id == site).and_then(|site| site.home).ok_or(Error::Invalid)?;
+        let end = home[8..].find('/').map_or(home.len(), |index| 8 + index);
+        let origin = format!("{}/*", &home[..end]);
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        if policy(&tx)?.0 != revision { return Err(Error::Stale); }
+        let now = model::now();
+        let session: String = tx.query_row("SELECT r.session_id FROM profile_runtime r JOIN profile p ON p.id=r.profile_id
+            WHERE p.id=?1 AND NOT p.revoked AND r.expires_at>?2 AND r.protocol>=5 AND r.ack_revision=?3
+            AND EXISTS(SELECT 1 FROM json_each(r.origins) WHERE value=?4)",
+            params![profile, now, revision, origin], |r| r.get(0)).optional()?.ok_or(Error::Unauthorized)?;
+        tx.execute("DELETE FROM paired_open WHERE expires_at<=?1", [now])?;
+        let id = Uuid::new_v4().to_string();
+        tx.execute("INSERT INTO paired_open(id, profile_id, session_id, site_id, revision, expires_at) VALUES(?1,?2,?3,?4,?5,?6)",
+            params![id, profile, session, site, revision, now+8])?;
+        tx.commit()?;
+        Ok(id)
+    }
+
+    pub fn deliver_browser_open(&mut self, profile: &str, session: &str) -> Result<Option<PairedOpen>> {
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        check_session(&tx, profile, session)?;
+        let intent = tx.query_row("UPDATE paired_open SET delivered=1 WHERE id=(
+            SELECT id FROM paired_open WHERE profile_id=?1 AND session_id=?2 AND expires_at>?3 AND delivered=0
+              AND revision=(SELECT revision FROM meta WHERE singleton=1) ORDER BY rowid LIMIT 1
+            ) RETURNING id,site_id,revision,expires_at", params![profile, session, model::now()], |r| {
+            Ok(PairedOpen { request_id: r.get(0)?, site_id: r.get(1)?, revision: r.get(2)?, expires_at: r.get(3)? })
+        }).optional()?;
+        tx.commit()?;
+        Ok(intent)
+    }
+
+    pub fn report_browser_open(&mut self, profile: &str, session: &str, id: &str, opened: bool) -> Result<()> {
+        let tx = self.0.transaction_with_behavior(Immediate)?;
+        check_session(&tx, profile, session)?;
+        let changed = tx.execute("UPDATE paired_open SET opened=?4 WHERE profile_id=?1 AND session_id=?2 AND id=?3
+            AND delivered=1 AND expires_at>?5 AND opened IS NULL", params![profile, session, id, opened, model::now()])?;
+        if changed != 1 { return Err(Error::Invalid); }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn browser_open_state(&self, id: &str) -> Result<Option<bool>> {
+        let state = self.0.query_row("SELECT opened, expires_at>?2 AND revision=(SELECT revision FROM meta WHERE singleton=1)
+            AND EXISTS(SELECT 1 FROM profile_runtime r WHERE r.profile_id=o.profile_id AND r.session_id=o.session_id AND r.expires_at>?2)
+            FROM paired_open o WHERE id=?1", params![id, model::now()], |r| {
+            Ok((r.get::<_, Option<bool>>(0)?, r.get::<_, bool>(1)?))
+        }).optional()?;
+        Ok(match state { Some((opened, true)) => opened, Some((Some(true), false)) => Some(true), _ => Some(false) })
     }
 }
 

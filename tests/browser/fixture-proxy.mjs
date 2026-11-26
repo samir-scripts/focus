@@ -13,8 +13,10 @@ const execFileAsync = promisify(execFile);
 
 // HTTPS upgrades are normal for YouTube. Give only these disposable profiles
 // trust in the fixture and never dial the hostname supplied by a browser.
-export async function startFixtureProxy(fixturePath, directory) {
+export async function startFixtureProxy(fixturePath, directory, extraFixtures = {}) {
   const fixture = await readFile(fixturePath);
+  const extra = new Map(await Promise.all(Object.entries(extraFixtures).map(async ([name, path]) => [name, await readFile(path)])));
+  const fixtureHosts = [...hosts, ...extra.keys()];
   const firefoxProfile = join(directory, 'firefox-trust');
   await mkdir(firefoxProfile);
   const openssl = (...args) => execFileAsync('openssl', args, { cwd: directory, timeout: 30000 });
@@ -25,7 +27,7 @@ export async function startFixtureProxy(fixturePath, directory) {
     '-keyout', 'server.key', '-out', 'server.csr');
   await writeFile(join(directory, 'extensions.cnf'), [
     'basicConstraints=critical,CA:FALSE', 'extendedKeyUsage=serverAuth',
-    'subjectAltName=' + hosts.map(host => 'DNS:' + host).join(','), '',
+    'subjectAltName=' + fixtureHosts.map(host => 'DNS:' + host).join(','), '',
   ].join('\n'));
   await openssl('x509', '-req', '-in', 'server.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
     '-CAcreateserial', '-days', '2', '-extfile', 'extensions.cnf', '-out', 'server.pem');
@@ -40,7 +42,7 @@ export async function startFixtureProxy(fixturePath, directory) {
   function serve(request, response) {
     let url;
     try { url = new URL(request.url, 'https://' + request.headers.host); } catch { /* deny malformed requests */ }
-    if (!url || !hosts.includes(url.hostname) || !['GET', 'HEAD'].includes(request.method)) {
+    if (!url || !fixtureHosts.includes(url.hostname) || !['GET', 'HEAD'].includes(request.method)) {
       response.writeHead(403).end();
       return;
     }
@@ -68,7 +70,7 @@ export async function startFixtureProxy(fixturePath, directory) {
       response.writeHead(302, { Location: `https://www.youtube.com/watch${url.search}`, 'Cache-Control': 'no-store' }).end();
       return;
     }
-    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(fixture);
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(extra.get(url.hostname) ?? fixture);
   }
   const tls = httpsServer({ key, cert }, serve);
   const proxy = httpServer(serve);
@@ -89,7 +91,7 @@ export async function startFixtureProxy(fixturePath, directory) {
   try {
     await listen(tls);
     proxy.on('connect', (request, client, head) => {
-      if (!hosts.some(host => request.url === host + ':443')) {
+      if (!fixtureHosts.some(host => request.url === host + ':443')) {
         client.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
         return;
       }

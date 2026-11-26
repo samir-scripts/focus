@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { startFixtureProxy } from './fixture-proxy.mjs';
 import { verifyPlayback } from './playback.mjs';
 import { runChromiumBlock } from './chromium-block.mjs';
+import { runSelectiveFeed } from './selective-feed.mjs';
 
 // This gate intentionally refuses macOS: neither browser's native-host lookup
 // has been shown to respect a disposable HOME there. Never probe a user path.
@@ -16,12 +17,13 @@ if (process.platform !== 'linux') {
   throw new Error('Browser gate prerequisite: Linux with isolated HOME and Xvfb; macOS native-host registration isolation is not verified.');
 }
 const args = process.argv.slice(2);
-const cases = ['shared-rule', 'entry', 'firefox-lifecycle', 'chromium-block'];
+const cases = ['shared-rule', 'entry', 'firefox-lifecycle', 'chromium-block', 'selective-feed'];
 if (args.length && !(args.length === 2 && args[0] === '--case' && cases.includes(args[1]))) {
   throw new Error(`Usage: run.mjs [--case ${cases.join('|')}]`);
 }
 const scenario = args[1] ?? 'shared-rule';
-const entry = scenario !== 'shared-rule';
+const selective = scenario === 'selective-feed';
+const entry = !selective && scenario !== 'shared-rule';
 const firefoxOnly = scenario === 'firefox-lifecycle';
 const chromiumOnly = scenario === 'chromium-block';
 
@@ -277,7 +279,7 @@ async function setupAction(browser, action, value) {
     if (action === 'label') await page.getByLabel('Profile label').fill(value);
     if (action === 'browser') await page.getByRole('combobox').selectOption(value);
     if (action === 'connect') await page.getByRole('button', { name: 'Connect to focus.' }).click();
-    if (action === 'select') await page.getByRole('checkbox', { name: 'YouTube' }).check();
+    if (action === 'select') await page.getByRole('checkbox', { name: value ?? 'YouTube', exact: true }).check();
     if (action === 'grant') await page.getByRole('button', { name: 'Grant access' }).click({ noWaitAfter: true });
     return;
   }
@@ -285,7 +287,7 @@ async function setupAction(browser, action, value) {
   await firefoxUi('click', 'page tab', 'focus. browser setup');
   if (action === 'label') await firefoxUi('fill', 'entry', 'Profile label', value);
   if (action === 'connect') await firefoxUi('click', 'push button', 'Connect to focus.');
-  if (action === 'select') await firefoxUi('check', 'check box', 'YouTube');
+  if (action === 'select') await firefoxUi('check', 'check box', value ?? 'YouTube');
   if (action === 'grant') await firefoxUi('click', 'push button', 'Grant access');
 }
 async function grant(browser, accept = true) {
@@ -593,7 +595,10 @@ try {
   await command(executable('web-ext'), ['lint', '--source-dir', join(temp, 'firefox'), '--no-input']);
   display = await startDisplay();
   bus = await startAccessBus();
-  proxy = await startFixtureProxy(fixturePath, temp);
+  proxy = await startFixtureProxy(fixturePath, temp, selective ? {
+    'x.com': join(root, 'tests/sites/fixtures/x.html'),
+    'www.reddit.com': join(root, 'tests/sites/fixtures/reddit.html'),
+  } : {});
   if (!firefoxOnly) chrome = await chromiumStart();
   if (!chromiumOnly) fox = await firefoxStart();
   const engines = [['chromium', chrome], ['firefox', fox]].filter(([, browser]) => browser);
@@ -609,7 +614,10 @@ try {
   });
   const chromeId = profiles.get('chromium');
   const foxId = profiles.get('firefox');
-  if (entry) {
+  if (selective) {
+    results.fixture = 'X, Reddit and YouTube Home documents from the private loopback HTTPS fixture; no live sites';
+    await runSelectiveFeed({ engines, profiles, admin, state, setupAction, grant, check, eventually, navigate, visible, removeOrigin, By });
+  } else if (entry) {
     for (const [name, browser] of engines) {
       await check(`${name}: grant access and measure Allow`, async () => {
         await setupAction(browser, 'select'); await grant(browser);

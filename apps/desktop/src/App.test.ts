@@ -149,6 +149,7 @@ describe('desktop shell', () => {
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled',
       removeInstallation: async () => 'cancelled',
+      openPairedBrowser: async () => {},
       setContentRules: async (expected, next) => {
         expect(expected).toBe(revision);
         expect(next.site).toBe('youtube');
@@ -179,6 +180,7 @@ describe('desktop shell', () => {
           grayscale: false, entry: { mode: 'allow' }, rules }] }),
       scan: async () => ({ supported: true, targets: [] }), install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
       setContentRules: async () => pending.promise,
+      openPairedBrowser: async () => {},
       setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
       designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
     } });
@@ -208,6 +210,7 @@ describe('desktop shell', () => {
       install: async () => 'cancelled',
       removeInstallation: async () => 'cancelled',
       setContentRules: async () => {},
+      openPairedBrowser: async () => {},
       setEntry: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
       decidePair: async () => {},
       revoke: async () => {},
@@ -223,6 +226,31 @@ describe('desktop shell', () => {
     expect(screen.queryByRole('checkbox', { name: /Hide Shorts/ })).toBeNull();
   });
 
+  it('opens only in the chosen eligible paired profile and waits for confirmation', async () => {
+    const results: unknown[] = [];
+    const open = Promise.withResolvers<void>();
+    const profile = { id: 'home', label: 'Home profile', browser: 'chrome' as const,
+      online: true, protocol: 5, ackRevision: 3, origins: ['https://www.youtube.com/*'] };
+    render(App, { browserBridge: {
+      state: async () => ({ revision: 3, hideShorts: false, accessibility: { holdSeconds: 15, twoStepConfirmation: false },
+        sites: [], pending: [], open: null, profiles: [profile, { ...profile, id: 'work', label: 'Work profile' },
+          { ...profile, id: 'old', label: 'Old profile', protocol: 4 }] }),
+      openPairedBrowser: async (...args: unknown[]) => { results.push(args); await open.promise; },
+      scan: async () => ({ supported: true, targets: [] }), install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
+      setContentRules: async () => {}, setEntry: async () => {}, setGrayscale: async () => {},
+      setAccessibility: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
+    } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
+    expect(screen.queryByRole('option', { name: /Old profile/ })).toBeNull();
+    const chooser = await screen.findByRole('combobox', { name: 'Browser profile' });
+    await fireEvent.change(chooser, { target: { value: 'work' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Open in paired browser' }));
+    expect(results).toEqual([['work', 'youtube', 3]]);
+    expect(screen.queryByText('Opened in Work profile.')).toBeNull();
+    open.resolve();
+    expect(await screen.findByText('Opened in Work profile.')).toBeTruthy();
+  });
+
   it('edits site entry before pairing and shows Pause controls only while paused', async () => {
     let entry: EntryPolicy = { mode: 'allow' };
     let revision = 0;
@@ -233,6 +261,7 @@ describe('desktop shell', () => {
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
       setContentRules: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {}, designateSite: async () => '',
+      openPairedBrowser: async () => {},
       setEntry: async (expected: number, id: string, next: EntryPolicy) => {
         expect([expected, id]).toEqual([revision, 'youtube']);
         entry = next;
@@ -259,6 +288,7 @@ describe('desktop shell', () => {
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
       setContentRules: async () => {}, setGrayscale: async () => {}, setAccessibility: async () => {},
+      openPairedBrowser: async () => {},
       setEntry: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
     } });
     await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
@@ -278,6 +308,7 @@ describe('desktop shell', () => {
       scan: async () => ({ supported: true, targets: [] }),
       install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
       setContentRules: async () => {}, setGrayscale: async () => {}, setEntry: async () => {}, designateSite: async () => '',
+      openPairedBrowser: async () => {},
       setAccessibility: async (expected: number, next: Accessibility) => { saved.push([expected, next]); accessibility = next; revision++; },
       decidePair: async () => {}, revoke: async () => {},
     } });

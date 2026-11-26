@@ -70,6 +70,10 @@ struct Applied { revision: u64, origins: Vec<String> }
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Open { site_id: Option<String> }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BrowserOpenResult { request_id: String, opened: bool }
+
 pub struct Session {
     gecko: bool,
     session: String,
@@ -166,6 +170,13 @@ impl Session {
                 open()?;
                 Ok(json!({}))
             }
+            "browser_open_result" if req.v >= 5 => {
+                let profile = self.profile.as_deref().ok_or(Error::Unauthorized)?;
+                let BrowserOpenResult { request_id, opened } = decode(body)?;
+                if !valid_profile(&request_id) { return Err(Error::Invalid); }
+                db.report_browser_open(profile, &self.session, &request_id, opened)?;
+                Ok(json!({}))
+            }
             _ => Err(Error::Invalid),
         }
     }
@@ -178,6 +189,10 @@ impl Session {
                 self.revision = revision;
                 Ok(Some(json!({"v":version,"event":"revision","revision":revision})))
             }
+            Ok(_) if version >= 5 => Ok(db.deliver_browser_open(profile, &self.session)?.map(|intent| json!({
+                "v":version,"event":"browser_open","requestId":intent.request_id,"siteId":intent.site_id,
+                "revision":intent.revision,"expiresAt":intent.expires_at,
+            }))),
             Ok(_) => Ok(None),
             Err(Error::Unpaired) => {
                 self.profile = None;

@@ -15,6 +15,7 @@ pub struct Site<'a> {
     pub id: &'a str,
     pub label: &'a str,
     pub hosts: Vec<&'a str>,
+    pub home: Option<&'a str>,
     pub rules: Vec<ContentRule<'a>>,
 }
 
@@ -144,6 +145,7 @@ pub struct ProfileStatus {
     pub label: String,
     pub browser: String,
     pub online: bool,
+    pub protocol: Option<u16>,
     pub update_required: bool,
     pub ack_revision: Option<u64>,
     pub origins: Vec<String>,
@@ -152,3 +154,12 @@ pub struct ProfileStatus {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenIntent { pub site_id: Option<String> }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairedOpen {
+    pub request_id: String,
+    pub site_id: String,
+    pub revision: u64,
+    pub expires_at: u64,
+}

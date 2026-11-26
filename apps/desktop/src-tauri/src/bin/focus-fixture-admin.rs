@@ -24,6 +24,21 @@ fn run() -> Result<(), &'static str> {
             let enabled = value.parse().map_err(|_| "invalid_enabled")?;
             db.set_hide_shorts(revision, enabled).map_err(|e| e.code())
         }
+        ["content", revision, rules] => db.set_content_rules(
+            revision.parse().map_err(|_| "invalid_revision")?,
+            serde_json::from_str(rules).map_err(|_| "invalid_content_rules")?,
+        ).map_err(|e| e.code()),
+        ["browser-open", profile, site, revision] if valid_profile(profile) => {
+            let id = db.enqueue_browser_open(profile, site, revision.parse().map_err(|_| "invalid_revision")?)
+                .map_err(|e| e.code())?;
+            println!("{id}");
+            Ok(())
+        }
+        ["browser-open-state", id] if valid_profile(id) => {
+            println!("{}", serde_json::to_string(&db.browser_open_state(id).map_err(|e| e.code())?)
+                .map_err(|_| "invalid_state")?);
+            Ok(())
+        }
         ["entry", revision, site, policy] => db.set_entry(
             revision.parse().map_err(|_| "invalid_revision")?, site,
             serde_json::from_str(policy).map_err(|_| "invalid_policy")?,

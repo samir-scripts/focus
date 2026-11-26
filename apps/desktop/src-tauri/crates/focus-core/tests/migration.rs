@@ -43,7 +43,7 @@ fn v1_upgrade_preserves_rule_and_pairing_without_granting_hosts() {
     assert!(!original.sites[0].grayscale);
     let schema = Connection::open(&path).unwrap();
     let version: u32 = schema.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap();
-    assert_eq!(version, 8);
+    assert_eq!(version, 9);
     assert!(db.schedules().unwrap().is_empty());
     assert_eq!(original.sites[0].rules.get("youtube.hide-home-recommendations"), Some(&false));
     let saved: (String, bool) = schema.query_row("SELECT entry, grayscale FROM site_policy WHERE site_id='youtube'", [], |row| {

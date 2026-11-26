@@ -45,6 +45,22 @@ pub async fn set_content_rules(expected_revision: u64, rules: ContentRules) -> R
 }
 
 #[tauri::command]
+pub async fn open_paired_browser(profile_id: String, site_id: String, expected_revision: u64) -> Result<(), &'static str> {
+    database(move |db| {
+        let id = db.enqueue_browser_open(&profile_id, &site_id, expected_revision)?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            match db.browser_open_state(&id)? {
+                Some(true) => return Ok(()),
+                Some(false) => return Err(Error::OpenFailed),
+                None if std::time::Instant::now() >= deadline => return Err(Error::OpenFailed),
+                None => std::thread::sleep(std::time::Duration::from_millis(150)),
+            }
+        }
+    }).await
+}
+
+#[tauri::command]
 pub async fn set_grayscale(expected_revision: u64, site_id: String, enabled: bool) -> Result<(), &'static str> {
     database(move |db| db.set_grayscale(expected_revision, &site_id, enabled)).await
 }

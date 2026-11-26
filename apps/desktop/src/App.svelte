@@ -14,6 +14,7 @@
   import SiteEntryEditor from './SiteEntryEditor.svelte';
   import FeedPreview from './FeedPreview.svelte';
   import FeedRuleChoices from './FeedRuleChoices.svelte';
+  import OpenPairedBrowser from './OpenPairedBrowser.svelte';
   import { normalizeHost } from '../../extension/src/protocol';
   import { graceMessage, startGraceSession, type GraceOutcome } from './grace';
   import graceMark from './assets/grace-mark.svg';
@@ -668,6 +669,11 @@
             {/if}
             {#if browserState && feedRules}
               <FeedPreview rules={feedRules} pulse={feedPulse} />
+            {/if}
+            {#if browserState && browserBridge && feedRules}
+              {#key site.id}
+                <OpenPairedBrowser bridge={browserBridge} state={browserState} siteId={site.id} saving={editingRule} />
+              {/key}
             {/if}
           {:else if page === 'Statistics'}
             <header class="page-heading" class:reveal={revealPage}>

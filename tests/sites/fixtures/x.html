@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>X Home fixture</title>
+<main><div data-testid="primaryColumn">
+  <div role="tablist" aria-label="Home timeline"><button id="for-you" aria-selected="true" role="tab">For you</button><button id="following" aria-selected="false" role="tab">Following</button></div>
+  <form id="composer"><textarea aria-label="Compose" data-testid="tweetTextarea_0"></textarea></form>
+  <section aria-labelledby="home-title"><h1 id="home-title">Home timeline</h1><div id="x-feed" aria-label="Timeline: Your Home Timeline"><article data-testid="tweet">Illustrative post</article></div></section>
+  <aside id="x-neighbor">Search, lists and messages</aside>
+  <button id="next" onclick="history.pushState({}, '', '/search')">Open search</button>
+</div></main>
+<script>
+  const forYou = document.querySelector('#for-you');
+  const following = document.querySelector('#following');
+  for (const [tab, other] of [[forYou, following], [following, forYou]]) tab.onclick = () => {
+    if (tab === following && new URL(location.href).searchParams.has('failed')) return;
+    tab.setAttribute('aria-selected', 'true'); other.setAttribute('aria-selected', 'false');
+  };
+</script>

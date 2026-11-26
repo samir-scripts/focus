@@ -20,6 +20,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   const messages = event<[object, object, (reply: unknown) => void]>();
   const removed = event<[]>();
   const sent: Request[] = [];
+  const opened: string[] = [];
   const port = { onMessage: inbox, onDisconnect: event<[]>(), postMessage: (request: Request) => sent.push(request), disconnect() {} };
   vi.stubGlobal('chrome', {
     runtime: { id: 'fixture', onMessage: messages, connectNative: () => port, getURL: () => 'chrome-extension://fixture/' },
@@ -33,7 +34,10 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
       getRegisteredContentScripts: (_query: object, done: (scripts: []) => void) => done([]),
       registerContentScripts: (_scripts: object[], done: () => void) => done(),
     },
-    tabs: { query: (_query: object, done: (tabs: []) => void) => done([]) },
+    tabs: {
+      query: (_query: object, done: (tabs: []) => void) => done([]),
+      create: ({ url }: { url: string }, done: (tab: object) => void) => { opened.push(url); done({ id: opened.length }); },
+    },
     alarms: { onAlarm: event<[]>(), create() {} },
   });
   // Reload the real worker after installing the per-test browser API boundary.
@@ -46,7 +50,7 @@ async function start(stored: Record<string, unknown>, grants: string[] = []) {
   async function waitFor(op: string) {
     await vi.waitFor(() => expect(sent.some((request) => request.op === op)).toBe(true));
   }
-  return { send, waitFor, messages, removed };
+  return { send, waitFor, messages, removed, sent, opened, inbox, disconnect: port.onDisconnect };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -160,4 +164,33 @@ it('keeps existing Shorts aliases while applying the Home rule only on the grant
   expect(state('https://m.youtube.com/')).toMatchObject({ enabled: true });
   expect(state('https://m.youtube.com/')).not.toHaveProperty('youtubeHome');
   expect(state('https://youtube.com/')).toMatchObject({ enabled: false });
+});
+
+it('opens a catalog destination once after acknowledgement, rejecting stale, expired and revoked requests', async () => {
+  const grants = ['https://www.youtube.com/*'];
+  const stored = { profile: credential, policy: snapshot(1, false), status: 'Disconnected' };
+  const bridge = await start(stored, grants);
+  await bridge.waitFor('hello'); bridge.send('hello', { body: { revision: 1 } });
+  await bridge.waitFor('snapshot'); bridge.send('snapshot', { body: { revision: 1 } });
+  await bridge.waitFor('applied'); bridge.send('applied');
+  await vi.waitFor(() => expect(stored.status).toBe('Connected'));
+  const expiresAt = Math.floor(Date.now() / 1000) + 6;
+  const make = (last: number) => ({ v: 5, event: 'browser_open', requestId: `9dde51fb-a37a-4e76-9d7f-4cdfb02ddb9${last}`, siteId: 'youtube', revision: 1, expiresAt });
+  const open = make(0);
+  bridge.inbox.emit(open);
+  await bridge.waitFor('browser_open_result');
+  expect(bridge.opened).toEqual(['https://www.youtube.com/']);
+  expect(bridge.sent.find((request) => request.op === 'browser_open_result')?.body).toEqual({ requestId: open.requestId, opened: true });
+  bridge.send('browser_open_result');
+  bridge.inbox.emit(open);
+  bridge.inbox.emit({ ...make(1), revision: 0 });
+  bridge.inbox.emit({ ...make(2), expiresAt: 0 });
+  bridge.inbox.emit({ ...make(3), siteId: 'https://example.com/' });
+  grants.length = 0;
+  bridge.inbox.emit(make(4));
+  await vi.waitFor(() => expect(bridge.sent.filter((result) => result.op === 'browser_open_result' &&
+    expect.objectContaining({ opened: false }).asymmetricMatch(result.body))).toHaveLength(3));
+  bridge.disconnect.emit();
+  bridge.inbox.emit(make(5));
+  expect(bridge.opened).toEqual(['https://www.youtube.com/']);
 });

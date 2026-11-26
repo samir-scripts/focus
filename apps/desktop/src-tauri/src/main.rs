@@ -74,6 +74,7 @@ fn main() {
         commands::start_browser_installation,
         commands::remove_browser_installation,
         commands::set_content_rules,
+        commands::open_paired_browser,
         commands::set_grayscale,
         commands::set_entry,
         commands::set_accessibility,
