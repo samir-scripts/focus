@@ -98,6 +98,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     await assert.rejects(() => admin('browser-open', profiles.get('chromium'), 'youtube', String(revision - 1)));
     const intent = (await admin('browser-open', profiles.get('chromium'), 'youtube', String(revision))).trim();
     await eventually('acknowledged tab creation', async () => (await admin('browser-open-state', intent)).trim() === 'true');
+    await eventually('Chromium automation observed the new tab', () => chrome.context.pages().length > existing);
     const added = chrome.context.pages().at(-1);
     assert.equal(chrome.context.pages().length, existing + 1);
     assert.equal((await fox.driver.getAllWindowHandles()).length, firefoxTabs);
@@ -106,6 +107,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     const intentFox = (await admin('browser-open', profiles.get('firefox'), 'youtube', String(revision))).trim();
     await eventually('Firefox reports tab creation', async () => (await admin('browser-open-state', intentFox)).trim() === 'true');
     assert.equal(chrome.context.pages().length, existing);
+    await eventually('Firefox automation observed the new tab', async () => (await fox.driver.getAllWindowHandles()).length > firefoxTabs);
     assert.equal((await fox.driver.getAllWindowHandles()).length, firefoxTabs + 1);
     await navigate(chrome);
     await show(chrome, { '#recommended': false, '#shorts-shelf': false });
