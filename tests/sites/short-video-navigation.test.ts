@@ -140,9 +140,54 @@ it('retains known discovery ownership when Off changes to Opened after canonical
 it('leaves a late individual-shaped viewer navigable when its entry is unknown', () => {
   route('/reel/example/');
   const { video } = viewer();
-  const entry = trackViewerEntry(document, /^\/reels\/?$/, /^\/reels?\/[\w-]+\/?$/, undefined, false);
+  const navigation = Object.assign(new EventTarget(), { currentEntry: { key: 'slot' } });
+  const entry = trackViewerEntry(document, /^\/reels\/?$/, /^\/reels?\/[\w-]+\/?$/, navigation, false);
   stop = startNavigationLock(document, 'openedVideos',
     (doc, pinned) => findInstagramViewer(doc, pinned, entry.current()));
   expect(wheel(video)).toBe(true);
+  const from = { url: location.href, key: 'slot' };
+  history.replaceState({}, '', '/reel/continuation/');
+  navigation.dispatchEvent(Object.assign(new Event('currententrychange'), { from, navigationType: 'replace' }));
+  expect(wheel(video)).toBe(true);
   entry.stop();
+});
+
+it('contains the separately mounted comments scroller but preserves unrelated drawers', async () => {
+  route('/reel/example/');
+  viewer();
+  stop = startNavigationLock(document, 'openedVideos', findInstagramViewer);
+  document.body.insertAdjacentHTML('beforeend', `<aside>
+    <div id="portal-comments" style="overflow-y:auto"><div>Comment and reply rows</div></div>
+    <footer><input placeholder="Add a comment…"></footer></aside>
+    <aside id="unrelated" style="overflow-y:auto">Unrelated drawer</aside>`);
+  const panel = document.querySelector<HTMLElement>('#portal-comments')!;
+  const unrelated = document.querySelector<HTMLElement>('#unrelated')!;
+  dimensions(panel, 100, 400);
+  dimensions(unrelated, 100, 400);
+  await vi.waitFor(() => expect(wheel(panel, -120)).toBe(false));
+  expect(wheel(panel)).toBe(true);
+  panel.scrollTop = 300;
+  expect(wheel(panel)).toBe(false);
+  expect(wheel(unrelated, -120)).toBe(true);
+  stop();
+  expect(wheel(panel)).toBe(true);
+  expect(panel.style.overscrollBehaviorY).not.toBe('contain');
+});
+
+it.each([
+  ['https://www.instagram.com/reel/example/', false],
+  ['https://www.instagram.com/reels/', true],
+  ['https://www.youtube.com/reel/example/', true],
+])('uses only an exact same-origin direct document URL for late Opened mode (%s)', (initial, allowed) => {
+  route('/reel/example/');
+  const { video } = viewer();
+  const measured = Object.create(window.performance) as Performance;
+  Object.defineProperty(measured, 'getEntriesByType', { value: () => [{ name: initial }] });
+  vi.stubGlobal('performance', measured);
+  const entry = trackViewerEntry(document, /^\/reels\/?$/, /^\/reels?\/[\w-]+\/?$/, undefined, false);
+  try {
+    stop = startNavigationLock(document, 'openedVideos',
+      (doc, pinned) => findInstagramViewer(doc, pinned, entry.current()));
+    expect(wheel(video)).toBe(allowed);
+  } finally { entry.stop(); vi.unstubAllGlobals(); }
 });

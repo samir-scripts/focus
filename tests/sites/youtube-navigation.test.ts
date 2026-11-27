@@ -49,3 +49,26 @@ it('leaves the discovery entry alone until All and does not pin an embedded Shor
   document.dispatchEvent(new Event('focus-route-change'));
   expect(wheel(video)).toBe(true);
 });
+
+it('finds a late mounted Shorts comments scroller without intercepting Close or the reply editor', async () => {
+  route('/shorts/opened');
+  shorts();
+  stop = startNavigationLock(document, 'openedVideos', findYouTubeViewer);
+  document.body.insertAdjacentHTML('beforeend', `<ytd-comments><button id="close">Close comments</button>
+    <ytd-item-section-renderer id="sections"><div id="contents" style="overflow-y:auto">
+    <ytd-comment-thread-renderer><textarea></textarea></ytd-comment-thread-renderer>
+    </div></ytd-item-section-renderer></ytd-comments>`);
+  const pane = document.querySelector<HTMLElement>('ytd-comments #contents')!;
+  Object.defineProperties(pane, { clientHeight: { value: 100 }, scrollHeight: { value: 400 } });
+  await vi.waitFor(() => expect(wheel(pane, -120)).toBe(false));
+  expect(wheel(pane)).toBe(true);
+  pane.scrollTop = 300;
+  expect(wheel(pane)).toBe(false);
+  expect(wheel(pane, -120)).toBe(true);
+  expect(click(document.getElementById('close')!)).toBe(true);
+  expect(pane.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', {
+    bubbles: true, cancelable: true, key: 'ArrowDown',
+  }))).toBe(true);
+  route('/watch?v=ordinary');
+  expect(wheel(pane)).toBe(true);
+});

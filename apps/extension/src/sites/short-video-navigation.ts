@@ -18,9 +18,13 @@ type NavigationSlots = EventTarget & { readonly currentEntry?: { readonly key: s
 export function trackViewerEntry(doc: Document, discovery: RegExp, opened: RegExp,
   navigation = (doc.defaultView as (Window & { navigation?: NavigationSlots }) | null)?.navigation,
   atStart = doc.readyState === 'loading') {
-  let { href } = new URL(doc.URL);
-  let entry: ViewerEntry = discovery.test(doc.location.pathname) ? 'discovery'
-    : atStart && opened.test(doc.location.pathname) ? 'opened' : 'unknown';
+  const initial = new URL(doc.URL);
+  let { href } = initial;
+  const measured = doc.defaultView?.performance.getEntriesByType?.('navigation')[0]?.name;
+  const loaded = measured && URL.canParse(measured) ? new URL(measured) : undefined;
+  const exactLoad = loaded?.origin === initial.origin && loaded.pathname === initial.pathname && loaded.search === initial.search;
+  let entry: ViewerEntry = discovery.test(initial.pathname) ? 'discovery'
+    : opened.test(initial.pathname) && (exactLoad || (!loaded && atStart)) ? 'opened' : 'unknown';
   let link: { href: string; expires: number } | undefined;
   const clicked = (event: MouseEvent) => {
     if (event.button || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -39,10 +43,12 @@ export function trackViewerEntry(doc: Document, discovery: RegExp, opened: RegEx
     if (discovery.test(url.pathname)) entry = 'discovery';
     else if (!opened.test(url.pathname) || previous?.origin !== url.origin || navigationType === 'traverse') entry = 'unknown';
     else if (link?.href === url.href && link.expires >= Date.now()) entry = 'opened';
-    else if (discovery.test(previous.pathname)
-      || (entry === 'discovery' && href === previous.href && navigationType === 'replace'
-        && !!from?.key && from.key === navigation?.currentEntry?.key)) entry = 'discovery';
-    else entry = 'opened';
+    else if (discovery.test(previous.pathname)) entry = 'discovery';
+    else if (opened.test(previous.pathname)) {
+      if (href !== previous.href || navigationType !== 'replace' || !from?.key || from.key !== navigation?.currentEntry?.key) {
+        entry = 'unknown';
+      }
+    } else entry = 'opened';
     href = url.href;
     link = undefined;
     doc.dispatchEvent(new Event('focus-route-change'));
@@ -68,12 +74,14 @@ export function trackViewerEntry(doc: Document, discovery: RegExp, opened: RegEx
 
 export const instagramEntry = { discovery: /^\/reels\/?$/, opened: /^\/reels?\/[\w-]+\/?$/ };
 export const youtubeEntry = { discovery: /^\/shorts\/?$/, opened: /^\/shorts\/[\w-]+\/?$/ };
+export const tiktokEntry = { discovery: /^\/(?:foryou\/?)?$/, opened: /^\/@[^/]+\/video\/\d+\/?$/ };
 
 export function shortVideoSite(hostname: string) {
   switch (hostname) {
     case 'www.instagram.com':
     case 'instagram.com': return 'instagram';
     case 'www.youtube.com': return 'youtube';
+    case 'www.tiktok.com': return 'tiktok';
   }
 }
 
@@ -99,6 +107,22 @@ function activeVideo(scroller: HTMLElement, selector = 'video') {
 }
 
 const instagramAdvance = '[role="toolbar"] > div[role="button"]';
+const instagramComposer = 'input[placeholder^="Add a comment" i], textarea[placeholder^="Add a comment" i], [role="textbox"][aria-label^="Add a comment" i]';
+
+function instagramComments(doc: Document, scroller: HTMLElement) {
+  let result: HTMLElement | undefined;
+  for (const editor of doc.querySelectorAll(instagramComposer)) {
+    if (editor.closest('main, [hidden], [inert], [aria-hidden="true"]')) continue;
+    let host = editor.parentElement;
+    for (let depth = 0; host && depth < 6; depth++, host = host.parentElement) {
+      if (host.contains(scroller) || host.querySelector('video') || host === doc.body) break;
+      const panes = Array.from(host.querySelectorAll<HTMLElement>('div')).filter((pane) => pane.clientHeight >= 36 && scrollableY(pane));
+      if (panes.length > 1 || (panes[0] && result && panes[0] !== result)) return;
+      if (panes[0]) { result = panes[0]; break; }
+    }
+  }
+  return result;
+}
 
 export function findInstagramViewer(doc: Document, pinned?: HTMLElement, entry: ViewerEntry = 'opened'): Viewer | undefined {
   const path = doc.location?.pathname ?? '';
@@ -112,7 +136,7 @@ export function findInstagramViewer(doc: Document, pinned?: HTMLElement, entry: 
   const toolbar = scroller.parentElement?.querySelector(':scope > div[role="toolbar"]');
   const controls = toolbar?.children.length === 2 && Array.from(toolbar.children).every((child) => child.matches('div[role="button"]'))
     ? toolbar : undefined;
-  return { scroller, video, entry, controls, advance: controls ? instagramAdvance : undefined };
+  return { scroller, video, entry, controls, advance: controls ? instagramAdvance : undefined, comments: instagramComments(doc, scroller) };
 }
 
 export function findYouTubeViewer(doc: Document, pinned?: HTMLElement, entry: ViewerEntry = 'opened'): Viewer | undefined {
@@ -123,16 +147,36 @@ export function findYouTubeViewer(doc: Document, pinned?: HTMLElement, entry: Vi
   if (!scroller || !snapScroller(scroller, pinned)) return;
   const video = activeVideo(scroller, 'ytd-reel-video-renderer video');
   const controls = scroller.closest('ytd-shorts');
-  if (video && controls) return { scroller, video, entry, controls, advance: '#navigation-button-up, #navigation-button-down' };
+  if (!video || !controls) return;
+  const panes = Array.from(doc.querySelectorAll<HTMLElement>('ytd-comments > ytd-item-section-renderer#sections > div#contents'))
+    .filter((pane) => pane.clientHeight > 0 && pane.querySelector('ytd-comment-thread-renderer'));
+  return { scroller, video, entry, controls, advance: '#navigation-button-up, #navigation-button-down',
+    comments: panes.length === 1 ? panes[0] : undefined };
+}
+
+export function findTikTokViewer(doc: Document, pinned?: HTMLElement, entry: ViewerEntry = 'opened'): Viewer | undefined {
+  const path = doc.location.pathname;
+  if (tiktokEntry.discovery.test(path)) entry = 'discovery';
+  else if (!tiktokEntry.opened.test(path)) return;
+  const scroller = doc.querySelector<HTMLElement>('main [data-e2e="anchoring-player-column"] #column-list-container');
+  if (!scroller || !snapScroller(scroller, pinned)) return;
+  const video = activeVideo(scroller, 'article[data-e2e="recommend-list-item-container"] [data-e2e="feed-video"] video');
+  const controls = scroller.closest('main');
+  if (video && controls) return { scroller, video, entry, controls,
+    advance: 'button:is([data-e2e="feed-navigation-prev"], [data-e2e="feed-navigation-next"])' };
 }
 
 const textEntry = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="slider"]';
 const verticalKeys: Record<string, number | undefined> = { ArrowDown: 1, ArrowUp: -1, PageDown: 1, PageUp: -1, End: 1, Home: -1 };
 
+function scrollableY(element: Element) {
+  return element.clientHeight > 0 && element.scrollHeight > element.clientHeight + 1
+    && /^(auto|scroll|overlay)$/.test(element.ownerDocument.defaultView?.getComputedStyle(element).overflowY ?? '');
+}
+
 function scrollPane(target: Element, scroller: HTMLElement, boundary: Element) {
   for (let node: Element | null = target; node && node !== scroller; node = node.parentElement) {
-    if (node.clientHeight > 0 && node.scrollHeight > node.clientHeight + 1
-      && /^(auto|scroll|overlay)$/.test(node.ownerDocument.defaultView?.getComputedStyle(node).overflowY ?? '')) return node;
+    if (scrollableY(node)) return node;
     if (node === boundary) return;
   }
 }
@@ -146,14 +190,25 @@ function consume(event: Event, cancel = true) {
   event.stopImmediatePropagation();
 }
 
-function pin(scroller: HTMLElement) {
-  const top = scroller.scrollTop;
-  const properties = [['scroll-snap-type', 'none'], ['overflow-y', 'hidden'], ['scroll-behavior', 'auto']] as const;
+function overrideStyles(node: HTMLElement, properties: readonly (readonly [string, string])[]) {
   const previous = properties.map(([name, value]) => {
-    const old = [scroller.style.getPropertyValue(name), scroller.style.getPropertyPriority(name)] as const;
-    scroller.style.setProperty(name, value, 'important');
+    const old = [node.style.getPropertyValue(name), node.style.getPropertyPriority(name)] as const;
+    node.style.setProperty(name, value, 'important');
     return old;
   });
+  return () => {
+    for (const [index, [name, value]] of properties.entries()) {
+      if (node.style.getPropertyValue(name) !== value || node.style.getPropertyPriority(name) !== 'important') continue;
+      const [old, priority] = previous[index];
+      if (old) node.style.setProperty(name, old, priority);
+      else node.style.removeProperty(name);
+    }
+  };
+}
+
+function pin(scroller: HTMLElement) {
+  const top = scroller.scrollTop;
+  const restoreStyles = overrideStyles(scroller, [['scroll-snap-type', 'none'], ['overflow-y', 'hidden'], ['scroll-behavior', 'auto']]);
   const win = scroller.ownerDocument.defaultView!;
   const restorePosition = (event?: Event) => {
     if ((event && event.target !== scroller) || scroller.scrollTop === top) return;
@@ -164,12 +219,7 @@ function pin(scroller: HTMLElement) {
   win.addEventListener('scroll', restorePosition, true);
   return () => {
     win.removeEventListener('scroll', restorePosition, true);
-    for (const [index, [name, value]] of properties.entries()) {
-      if (scroller.style.getPropertyValue(name) !== value || scroller.style.getPropertyPriority(name) !== 'important') continue;
-      const [old, priority] = previous[index];
-      if (old) scroller.style.setProperty(name, old, priority);
-      else scroller.style.removeProperty(name);
-    }
+    restoreStyles();
   };
 }
 
@@ -177,10 +227,13 @@ export function startNavigationLock(doc: Document, mode: NavigationLock, findVie
   const win = doc.defaultView!;
   let viewer: Viewer | undefined;
   let unpin: (() => void) | undefined;
+  let releaseComments: (() => void) | undefined;
   let touch: { id: number; x: number; y: number; originX: number; originY: number } | undefined;
   const release = () => {
     unpin?.();
     unpin = undefined;
+    releaseComments?.();
+    releaseComments = undefined;
     viewer = undefined;
     touch = undefined;
   };
@@ -191,6 +244,11 @@ export function startNavigationLock(doc: Document, mode: NavigationLock, findVie
       unpin?.();
       unpin = eligible && pin(eligible.scroller);
       touch = undefined;
+    }
+    if (eligible?.comments !== viewer?.comments) {
+      releaseComments?.();
+      releaseComments = eligible?.comments instanceof HTMLElement
+        ? overrideStyles(eligible.comments, [['overscroll-behavior-y', 'contain']]) : undefined;
     }
     viewer = eligible;
   };
@@ -271,12 +329,20 @@ export function startNavigationLock(doc: Document, mode: NavigationLock, findVie
   win.addEventListener('resize', reconcile, capture);
   doc.addEventListener('focus-route-change', reconcile, capture);
   doc.addEventListener('yt-navigate-finish', reconcile, capture);
-  const observer = new MutationObserver(reconcile);
+  let frame: number | undefined;
+  const observer = new MutationObserver(() => {
+    if (frame !== undefined) return;
+    frame = win.requestAnimationFrame(() => {
+      frame = undefined;
+      reconcile();
+    });
+  });
   observer.observe(doc, { subtree: true, childList: true, attributeFilter: ['class', 'hidden', 'aria-hidden', 'inert'] });
   reconcile();
   return () => {
     listeners.abort();
     observer.disconnect();
+    if (frame !== undefined) win.cancelAnimationFrame(frame);
     release();
   };
 }

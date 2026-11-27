@@ -23,16 +23,117 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     });
   }
   for (const [name, browser] of engines) {
-    await check(`${name}: grant the four canonical destinations through the extension`, async () => {
-      for (const label of ['YouTube', 'X / Twitter', 'Reddit', 'Instagram']) await setupAction(browser, 'select', label);
+    await check(`${name}: grant the five canonical destinations through the extension`, async () => {
+      for (const label of ['YouTube', 'X / Twitter', 'Reddit', 'Instagram', 'TikTok']) await setupAction(browser, 'select', label);
       await grant(browser);
       const profile = profiles.get(name);
       await eventually('canonical grants acknowledged', async () => {
         const current = await state();
         const p = current.profiles.find(p => p.id === profile);
         return p?.protocol === 7 && p.ackRevision === current.revision &&
-          ['https://x.com/*', 'https://www.reddit.com/*', 'https://www.youtube.com/*', 'https://www.instagram.com/*'].every(origin => p.origins.includes(origin));
+          ['https://x.com/*', 'https://www.reddit.com/*', 'https://www.youtube.com/*', 'https://www.instagram.com/*', 'https://www.tiktok.com/*']
+            .every(origin => p.origins.includes(origin));
       });
+    });
+  }
+  async function probe(browser, action) {
+    const script = (action) => {
+      const scroller = document.querySelector('#videos, #shorts-container, #column-list-container');
+      if (!scroller) return null;
+      const video = document.getElementById('first');
+      const pane = document.querySelector('#viewer-comments, ytd-comments #contents');
+      let allowed = true;
+      const wheel = (target, deltaY) => target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY }));
+      const key = (target, key) => target.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }));
+      if (action === 'wheel') allowed = wheel(video, 160);
+      else if (action === 'key') allowed = key(video, 'ArrowDown');
+      else if (action === 'next' || action === 'prev') {
+        allowed = document.getElementById(action).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      } else if (action === 'outside') allowed = wheel(document.getElementById('outside'), 160);
+      else if (action === 'ended') video.dispatchEvent(new Event('ended'));
+      else if (action === 'touch') {
+        const touch = (type, y, end = false) => {
+          const point = { identifier: 1, clientX: 20, clientY: y };
+          return video.dispatchEvent(Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+            touches: end ? [] : [point], changedTouches: [point],
+          }));
+        };
+        touch('touchstart', 240);
+        const moved = touch('touchmove', 120);
+        const ended = touch('touchend', 110, true);
+        allowed = moved || ended;
+      } else if (action === 'reply') allowed = key(document.getElementById('reply'), 'ArrowDown');
+      else if (action === 'comments-top' || action === 'comments-middle' || action === 'comments-bottom') {
+        if (!pane) return null;
+        const max = pane.scrollHeight - pane.clientHeight;
+        pane.scrollTop = action === 'comments-top' ? 0 : action === 'comments-bottom' ? max : max / 2;
+        allowed = wheel(pane, action === 'comments-top' ? -160 : 160);
+      } else if (action === 'back') history.back();
+      return { allowed, top: scroller.scrollTop, pinned: getComputedStyle(scroller).scrollSnapType === 'none',
+        replay: Number(document.getElementById('replay-count').value),
+        advance: Number(document.getElementById('advance-count').value) };
+    };
+    if (browser.context) return browser.page.evaluate(script, action);
+    await browser.driver.switchTo().window(browser.page);
+    return browser.driver.executeScript(script, action);
+  }
+  const videoSites = [
+    { site: 'instagram', opened: '/reel/fixture/', discovery: '/reels/', hideSuggestedHome: false, hideReelsDiscovery: false },
+    { site: 'youtube', opened: '/shorts/fixture', discovery: '/shorts/', hideShorts: false, hideHomeRecommendations: false },
+    { site: 'tiktok', opened: '/@fixture/video/123', discovery: '/' },
+  ];
+  for (const { opened, discovery, ...rules } of videoSites) {
+    const host = `www.${rules.site}.com`;
+    const open = (browser, path) => navigate(browser, `${path}?focus-viewer=1`, host);
+    const pinned = (browser, value) => eventually(`${host}: viewer ${value ? 'pinned' : 'restored'}`,
+      async () => (await probe(browser, 'state'))?.pinned === value);
+    await check(`${rules.site}: opened and discovery lock, advance inputs, late comments, close/back and Off`, async () => {
+      await edit({ ...rules, navigationMode: 'openedVideos' });
+      for (const [, browser] of engines) {
+        await open(browser, opened);
+        await pinned(browser, true);
+        for (const action of ['wheel', 'key', 'touch', 'next', 'prev']) {
+          assert.equal((await probe(browser, action)).allowed, false, action);
+        }
+        assert.equal((await probe(browser, 'outside')).allowed, true);
+        assert.equal((await probe(browser, 'ended')).replay, 1);
+        await eventually('automatic scroll attempt restored without suppressing replay', async () => (await probe(browser, 'state')).top === 0);
+        await click(browser, '#late');
+        await eventually('late comments boundary recognized', async () => (await probe(browser, 'comments-top'))?.allowed === false);
+        assert.equal((await probe(browser, 'comments-middle')).allowed, true);
+        assert.equal((await probe(browser, 'comments-bottom')).allowed, false);
+        assert.equal((await probe(browser, 'reply')).allowed, true);
+        assert.equal((await probe(browser, 'state')).advance, 1, 'comments did not reach the site advance handler');
+        await open(browser, discovery);
+        await pinned(browser, false);
+        assert.equal((await probe(browser, 'wheel')).allowed, true);
+      }
+      await edit({ ...rules, navigationMode: 'allShortVideoViewers' });
+      for (const [, browser] of engines) {
+        await pinned(browser, true);
+        assert.equal((await probe(browser, 'wheel')).allowed, false);
+        await click(browser, '#close');
+        await pinned(browser, false);
+        assert.equal((await probe(browser, 'next')).allowed, true);
+        await probe(browser, 'back');
+        await pinned(browser, true);
+      }
+      await edit({ ...rules, navigationMode: 'off' });
+      for (const [, browser] of engines) {
+        await pinned(browser, false);
+        assert.equal((await probe(browser, 'next')).allowed, true);
+      }
+      if (rules.site === 'tiktok') {
+        await edit({ ...rules, navigationMode: 'allShortVideoViewers' });
+        for (const [, browser] of engines) {
+          await open(browser, discovery);
+          await pinned(browser, true);
+          await removeOrigin(browser, `https://${host}/*`);
+          await pinned(browser, false);
+          assert.equal((await probe(browser, 'wheel')).allowed, true);
+        }
+        await edit({ ...rules, navigationMode: 'off' });
+      }
     });
   }
   await check('X: hide For you, open Following and fall back without touching protected routes', async () => {

@@ -2,7 +2,7 @@ import { startShortsFilter, startHomeRecommendationsFilter } from './sites/youtu
 import { startXFilter, type XMode } from './sites/x';
 import { startRedditFilter, type RedditMode } from './sites/reddit';
 import { startInstagramFilter, trackInstagramDiscovery, type InstagramRules } from './sites/instagram';
-import { findInstagramViewer, findYouTubeViewer, instagramEntry, youtubeEntry, shortVideoSite,
+import { findInstagramViewer, findYouTubeViewer, findTikTokViewer, instagramEntry, youtubeEntry, tiktokEntry, shortVideoSite,
   startNavigationLock, trackViewerEntry, type NavigationLock } from './sites/short-video-navigation';
 import type { FeedPolicy } from './sites/feed';
 
@@ -23,7 +23,8 @@ if (!scope.__focusRules) {
   const instagramDiscovery = trackInstagramDiscovery(document);
   const videoSite = location.protocol === 'https:' && shortVideoSite(location.hostname);
   const viewerAdapter = videoSite === 'instagram' ? { ...instagramEntry, find: findInstagramViewer }
-    : videoSite === 'youtube' ? { ...youtubeEntry, find: findYouTubeViewer } : undefined;
+    : videoSite === 'youtube' ? { ...youtubeEntry, find: findYouTubeViewer }
+    : videoSite === 'tiktok' ? { ...tiktokEntry, find: findTikTokViewer } : undefined;
   const viewerEntry = viewerAdapter && trackViewerEntry(document, viewerAdapter.discovery, viewerAdapter.opened);
   let navigation: NavigationLock | undefined;
   let stopNavigation: (() => void) | undefined;

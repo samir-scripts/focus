@@ -261,9 +261,15 @@ fn short_video_navigation_defaults_off_in_v7() {
 
 #[test]
 fn navigation_mode_switch_is_atomic_and_requires_v7() {
-    use focus_core::model::ContentRules;
+    use focus_core::model::{Browser, ContentRules};
     let temp = tempfile::tempdir().unwrap();
     let mut db = Db::open(&temp.path().join("focus.sqlite3")).unwrap();
+    let profile = "9dde51fb-a37a-4e76-9d7f-4cdfb02ddb90";
+    let token = "a".repeat(64);
+    db.begin_pair(profile, Browser::Chrome, "Local", &token).unwrap();
+    db.decide_pair(&db.state().unwrap().pending[0].id, true, None).unwrap();
+    db.hello(profile, false, &token, "v6", 6).unwrap();
+    db.applied(profile, "v6", 0, &[]).unwrap();
     let edit = |mode| -> ContentRules {
         serde_json::from_value(serde_json::json!({
             "site": "instagram", "hideSuggestedHome": true, "hideReelsDiscovery": false,
@@ -273,6 +279,10 @@ fn navigation_mode_switch_is_atomic_and_requires_v7() {
     db.set_content_rules(0, edit("openedVideos")).unwrap();
     assert_eq!(db.set_content_rules(0, edit("off")), Err(Error::Stale));
     assert!(matches!(db.snapshot(None, 6), Err(Error::VersionMismatch)));
+    assert_eq!(db.applied(profile, "v6", 1, &[]), Err(Error::VersionMismatch));
+    let v6 = db.state().unwrap().profiles.remove(0);
+    assert!(v6.update_required);
+    assert_eq!(v6.ack_revision, Some(0));
     db.set_content_rules(1, edit("allShortVideoViewers")).unwrap();
     let (revision, snapshot) = db.snapshot(None, 7).unwrap();
     assert_eq!(revision, 2);
@@ -285,6 +295,8 @@ fn navigation_mode_switch_is_atomic_and_requires_v7() {
     let site = snapshot.unwrap().0.into_iter().find(|site| site.id == "instagram").unwrap();
     assert!(!site.rules.contains_key("instagram.lock-all-short-video-viewers"));
     assert_eq!(site.rules["instagram.hide-suggested-home"], true);
+    assert!(!db.state().unwrap().profiles[0].update_required);
+    db.applied(profile, "v6", 3, &[]).unwrap();
 }
 
 #[test]

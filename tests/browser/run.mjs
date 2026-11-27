@@ -595,11 +595,13 @@ try {
   await command(executable('web-ext'), ['lint', '--source-dir', join(temp, 'firefox'), '--no-input']);
   display = await startDisplay();
   bus = await startAccessBus();
+  const viewerFixture = join(root, 'tests/sites/fixtures/short-video-navigation.html');
   proxy = await startFixtureProxy(fixturePath, temp, selective ? {
     'x.com': join(root, 'tests/sites/fixtures/x.html'),
     'www.reddit.com': join(root, 'tests/sites/fixtures/reddit.html'),
     'www.instagram.com': join(root, 'tests/sites/fixtures/instagram.html'),
-  } : {});
+    'www.tiktok.com': viewerFixture,
+  } : {}, selective ? viewerFixture : undefined);
   if (!firefoxOnly) chrome = await chromiumStart();
   if (!chromiumOnly) fox = await firefoxStart();
   const engines = [['chromium', chrome], ['firefox', fox]].filter(([, browser]) => browser);
@@ -616,7 +618,7 @@ try {
   const chromeId = profiles.get('chromium');
   const foxId = profiles.get('firefox');
   if (selective) {
-    results.fixture = 'X, Reddit and YouTube Home documents from the private loopback HTTPS fixture; no live sites';
+    results.fixture = 'X, Reddit, YouTube, Instagram and TikTok from private loopback HTTPS fixtures; no live sites';
     await runSelectiveFeed({ engines, profiles, admin, state, setupAction, grant, check, eventually, navigate, visible, removeOrigin, By });
   } else if (entry) {
     for (const [name, browser] of engines) {

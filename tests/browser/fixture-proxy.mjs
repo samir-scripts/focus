@@ -13,9 +13,10 @@ const execFileAsync = promisify(execFile);
 
 // HTTPS upgrades are normal for YouTube. Give only these disposable profiles
 // trust in the fixture and never dial the hostname supplied by a browser.
-export async function startFixtureProxy(fixturePath, directory, extraFixtures = {}) {
+export async function startFixtureProxy(fixturePath, directory, extraFixtures = {}, viewerFixturePath) {
   const fixture = await readFile(fixturePath);
   const extra = new Map(await Promise.all(Object.entries(extraFixtures).map(async ([name, path]) => [name, await readFile(path)])));
+  const viewerFixture = viewerFixturePath && await readFile(viewerFixturePath);
   const fixtureHosts = [...hosts, ...extra.keys()];
   const firefoxProfile = join(directory, 'firefox-trust');
   await mkdir(firefoxProfile);
@@ -70,7 +71,10 @@ export async function startFixtureProxy(fixturePath, directory, extraFixtures = 
       response.writeHead(302, { Location: `https://www.youtube.com/watch${url.search}`, 'Cache-Control': 'no-store' }).end();
       return;
     }
-    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(extra.get(url.hostname) ?? fixture);
+    const body = viewerFixture && url.searchParams.get('focus-viewer') === '1' &&
+      ['www.youtube.com', 'www.instagram.com', 'www.tiktok.com'].includes(url.hostname)
+      ? viewerFixture : extra.get(url.hostname) ?? fixture;
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(body);
   }
   const tls = httpsServer({ key, cert }, serve);
   const proxy = httpServer(serve);
