@@ -6,10 +6,13 @@ export const browsers = {
   chrome: 'Chrome', chromium: 'Chromium', brave: 'Brave', firefox: 'Firefox', zen: 'Zen',
 } as const;
 export type Browser = keyof typeof browsers;
+export type NavigationMode = 'off' | 'openedVideos' | 'allShortVideoViewers';
 export type ContentRules =
   | { site: 'x'; hideForYou: boolean; openFollowing: boolean }
   | { site: 'reddit'; hideRecommendations: boolean; hideAllHome: boolean }
-  | { site: 'youtube'; hideShorts: boolean; hideHomeRecommendations: boolean };
+  | { site: 'youtube'; hideShorts: boolean; hideHomeRecommendations: boolean; navigationMode: NavigationMode }
+  | { site: 'instagram'; hideSuggestedHome: boolean; hideReelsDiscovery: boolean; navigationMode: NavigationMode }
+  | { site: 'tiktok'; navigationMode: NavigationMode };
 export type Pair = { id: string; label: string; browser: Browser };
 export type Profile = Pair & { online: boolean; protocol?: number | null; updateRequired?: boolean; ackRevision: number | null; origins: string[] };
 export type InstallCapability = 'store' | 'managed' | 'managedPending' | 'managedCleanup' | 'managedOrphan' | 'missingArtifact' |

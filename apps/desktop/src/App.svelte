@@ -13,6 +13,7 @@
   import { browsers, nativeBrowserBridge, siteAccess, type BrowserBridge, type BrowserState, type ContentRules } from './browser';
   import SiteEntryEditor from './SiteEntryEditor.svelte';
   import FeedPreview from './FeedPreview.svelte';
+  import InstagramFeedPreview from './InstagramFeedPreview.svelte';
   import FeedRuleChoices from './FeedRuleChoices.svelte';
   import OpenPairedBrowser from './OpenPairedBrowser.svelte';
   import { normalizeHost } from '../../extension/src/protocol';
@@ -88,14 +89,20 @@
   let feedRules = $derived.by((): ContentRules | undefined => {
     if (pendingContent && pendingContent.site === siteId) return pendingContent;
     const rules = currentPolicy?.rules;
+    const navigationMode = rules?.[`${siteId}.lock-all-short-video-viewers`] ? 'allShortVideoViewers'
+      : rules?.[`${siteId}.lock-opened-videos`] ? 'openedVideos' : 'off';
     switch (siteId) {
       case 'x': return { site: 'x', hideForYou: rules?.['x.hide-for-you'] === true, openFollowing: rules?.['x.open-following'] === true };
       case 'reddit': return { site: 'reddit', hideRecommendations: rules?.['reddit.hide-recommendations'] === true,
         hideAllHome: rules?.['reddit.hide-all-home'] === true };
       case 'youtube': return { site: 'youtube', hideShorts: browserState?.hideShorts === true,
-        hideHomeRecommendations: rules?.['youtube.hide-home-recommendations'] === true };
+        hideHomeRecommendations: rules?.['youtube.hide-home-recommendations'] === true, navigationMode };
+      case 'instagram': return { site: 'instagram', hideSuggestedHome: rules?.['instagram.hide-suggested-home'] === true,
+        hideReelsDiscovery: rules?.['instagram.hide-reels-discovery'] === true, navigationMode };
+      case 'tiktok': return { site: 'tiktok', navigationMode };
     }
   });
+  let showRuleScope = $state(false);
   let adding = $state(false);
   let hostInput = $state('');
   let hostField: HTMLInputElement | undefined = $state();
@@ -646,7 +653,20 @@
             {/if}
             {#if browserState && (currentPolicy || feedRules)}
               <section class="details rule-row">
-                <h2>Content rules</h2>
+                {#if feedRules && 'navigationMode' in feedRules}
+                  <div class="rule-heading">
+                    <h2>Content rules</h2>
+                    <button type="button" class="rule-info" aria-label="Where content rules apply"
+                      aria-expanded={showRuleScope} aria-controls="rule-scope" aria-describedby="rule-scope"
+                      onfocus={() => { showRuleScope = true; }} onblur={() => { showRuleScope = false; }}
+                      onpointerenter={() => { showRuleScope = true; }} onpointerleave={(event) => {
+                        if (document.activeElement !== event.currentTarget) showRuleScope = false;
+                      }}
+                      onclick={() => { showRuleScope = true; }}
+                      onkeydown={(event) => { if (event.key === 'Escape') showRuleScope = false; }}>i</button>
+                    <span id="rule-scope" role="tooltip" hidden={!showRuleScope}>Rules apply in browser profiles with access to the exact site address.</span>
+                  </div>
+                {:else}<h2>Content rules</h2>{/if}
                 {#if currentPolicy}
                   {@const policy = currentPolicy}
                   <label class="preference">
@@ -664,13 +684,17 @@
                     <FeedRuleChoices rules={feedRules} busy={editingRule} save={saveFeed} />
                   {/key}
                 {/if}
-                <p>Rules apply only in browser profiles with access to the exact address.</p>
+                {#if !feedRules || !('navigationMode' in feedRules)}<p>Rules apply only in browser profiles with access to the exact address.</p>{/if}
               </section>
             {/if}
-            {#if browserState && feedRules}
-              <FeedPreview rules={feedRules} pulse={feedPulse} />
+            {#if browserState && feedRules && feedRules.site !== 'tiktok'}
+              {#if feedRules.site === 'instagram'}
+                <InstagramFeedPreview rules={feedRules} grayscale={currentPolicy?.grayscale === true} />
+              {:else}
+                <FeedPreview rules={feedRules} pulse={feedPulse} />
+              {/if}
             {/if}
-            {#if browserState && browserBridge && feedRules}
+            {#if browserState && browserBridge && feedRules && feedRules.site !== 'tiktok'}
               {#key site.id}
                 <OpenPairedBrowser bridge={browserBridge} state={browserState} siteId={site.id} saving={editingRule} />
               {/key}
@@ -1145,6 +1169,17 @@
   .origins { font-family: var(--font-code); font-size: 13px; }
   .browser-error { position: relative; color: var(--error); }
   .rule-row { border-block-start: 1px solid var(--divider); padding-block-start: 12px; }
+  .rule-heading { position: relative; display: flex; align-items: center; gap: 8px; }
+  .rule-info {
+    display: inline-grid; place-items: center; width: 22px; height: 22px;
+    border: 1px solid var(--edge); border-radius: 50%; padding: 0; font: inherit; line-height: 1;
+  }
+  .rule-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .rule-heading [role='tooltip'] {
+    position: absolute; z-index: 2; inset-block-start: 100%; inset-inline-start: 0;
+    max-width: min(32ch, 100%); padding: 6px 8px; border: 1px solid var(--edge);
+    border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font-size: 12px;
+  }
   .connection span { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--secondary); }
   .outline { min-height: 36px; border: 1px solid var(--edge); border-radius: var(--radius-control); padding-inline: 10px; }
   .outline:not(:hover, :active) { background: var(--surface); }

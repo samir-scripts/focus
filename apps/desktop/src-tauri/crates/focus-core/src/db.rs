@@ -172,7 +172,23 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 9 { return Err(Error::Database); }
+        if version(&db)? == 9 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 9 {
+                tx.execute_batch(include_str!("../migrations/010.sql"))?;
+                tx.pragma_update(None, "user_version", 10)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? == 10 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 10 {
+                tx.execute_batch(include_str!("../migrations/011.sql"))?;
+                tx.pragma_update(None, "user_version", 11)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 11 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 
@@ -401,6 +417,8 @@ impl Db {
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if version < 3 && requires_v3(&tx)? { return Err(Error::VersionMismatch); }
         if version < 5 && requires_v5(&tx)? { return Err(Error::VersionMismatch); }
+        if version < 6 && requires_v6(&tx)? { return Err(Error::VersionMismatch); }
+        if version < 7 && requires_v7(&tx)? { return Err(Error::VersionMismatch); }
         let revision = policy(&tx)?.0;
         let snapshot = if after == Some(revision) { None } else {
             Some((site_policies(&tx, version)?, accessibility(&tx)?))
@@ -554,6 +572,8 @@ impl Db {
         if (protocol == 1 && requires_update(&tx)?) || (protocol < 3 && requires_v3(&tx)?) { return Err(Error::VersionMismatch); }
         if protocol < 4 && requires_chromium_block(&tx, id)? { return Err(Error::VersionMismatch); }
         if protocol < 5 && requires_v5(&tx)? { return Err(Error::VersionMismatch); }
+        if protocol < 6 && requires_v6(&tx)? { return Err(Error::VersionMismatch); }
+        if protocol < 7 && requires_v7(&tx)? { return Err(Error::VersionMismatch); }
         if !self.1 && has_entry_policy(&tx)? { return Err(Error::VersionMismatch); }
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let mut check = tx.prepare("SELECT EXISTS(SELECT 1 FROM site_origin WHERE hostname=?1)")?;
@@ -582,22 +602,35 @@ impl Db {
 
     pub fn set_content_rules(&mut self, expected_revision: u64, rules: model::ContentRules) -> Result<()> {
         use model::ContentRules::*;
-        let (site, flags) = match rules {
+        use model::NavigationMode;
+        let (site, flags, navigation_mode) = match rules {
             X { hide_for_you: true, open_following: true } |
             Reddit { hide_recommendations: true, hide_all_home: true } => return Err(Error::Invalid),
             X { hide_for_you, open_following } =>
-                ("x", [("x.hide-for-you", hide_for_you), ("x.open-following", open_following)]),
+                ("x", Some([("x.hide-for-you", hide_for_you), ("x.open-following", open_following)]), None),
             Reddit { hide_recommendations, hide_all_home } =>
-                ("reddit", [("reddit.hide-recommendations", hide_recommendations), ("reddit.hide-all-home", hide_all_home)]),
-            Youtube { hide_shorts, hide_home_recommendations } =>
-                (model::YOUTUBE, [(model::HIDE_SHORTS, hide_shorts), ("youtube.hide-home-recommendations", hide_home_recommendations)]),
+                ("reddit", Some([("reddit.hide-recommendations", hide_recommendations), ("reddit.hide-all-home", hide_all_home)]), None),
+            Youtube { hide_shorts, hide_home_recommendations, navigation_mode } =>
+                (model::YOUTUBE, Some([(model::HIDE_SHORTS, hide_shorts), ("youtube.hide-home-recommendations", hide_home_recommendations)]), navigation_mode),
+            Instagram { hide_suggested_home, hide_reels_discovery, navigation_mode } =>
+                ("instagram", Some([("instagram.hide-suggested-home", hide_suggested_home), ("instagram.hide-reels-discovery", hide_reels_discovery)]), navigation_mode),
+            Tiktok { navigation_mode } => ("tiktok", None, Some(navigation_mode)),
         };
         let tx = self.0.transaction_with_behavior(Immediate)?;
         if policy(&tx)?.0 != expected_revision { return Err(Error::Stale); }
         let mut changed = 0;
-        for (id, enabled) in flags {
+        for (id, enabled) in flags.into_iter().flatten() {
             changed += tx.execute("UPDATE site_rule SET enabled=?3 WHERE site_id=?1 AND rule_id=?2 AND enabled<>?3",
                 params![site, id, enabled])?;
+        }
+        if let Some(mode) = navigation_mode {
+            for (suffix, enabled) in [
+                (".lock-opened-videos", mode == NavigationMode::OpenedVideos),
+                (".lock-all-short-video-viewers", mode == NavigationMode::AllShortVideoViewers),
+            ] {
+                changed += tx.execute("UPDATE site_rule SET enabled=?3
+                    WHERE site_id=?1 AND rule_id=?1||?2 AND enabled<>?3", params![site, suffix, enabled])?;
+            }
         }
         if changed != 0 { bump(&tx, site)?; }
         tx.commit()?;
@@ -625,6 +658,8 @@ impl Db {
             let update_required = requires_update(&tx)?;
             let v3_required = requires_v3(&tx)?;
             let v5_required = requires_v5(&tx)?;
+            let v6_required = requires_v6(&tx)?;
+            let v7_required = requires_v7(&tx)?;
             let block = has_block_policy(&tx)?;
             let entry_unsupported = !self.1 && has_entry_policy(&tx)?;
             let mut q = tx.prepare("SELECT p.id,p.label,p.browser,r.session_id IS NOT NULL,r.ack_revision,r.origins,r.protocol
@@ -637,7 +672,8 @@ impl Db {
                     id: r.get(0)?, label: r.get(1)?, browser, online: r.get(3)?, ack_revision: r.get(4)?,
                     protocol: r.get(6)?,
                     update_required: r.get::<_, Option<u16>>(6)?.is_some_and(|v| entry_unsupported || (v == 1 && update_required)
-                        || (v < 3 && v3_required) || (v < 4 && block && !gecko) || (v < 5 && v5_required)),
+                        || (v < 3 && v3_required) || (v < 4 && block && !gecko) || (v < 5 && v5_required)
+                        || (v < 6 && v6_required) || (v < 7 && v7_required)),
                     origins: r.get::<_, Option<String>>(5)?.map(|value| serde_json::from_str(&value)).transpose()
                         .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(err)))?.unwrap_or_default(),
                 })
@@ -672,16 +708,17 @@ impl Db {
     }
 
     pub fn enqueue_browser_open(&mut self, profile: &str, site: &str, revision: u64) -> Result<String> {
-        let home = model::SITES.iter().find(|candidate| candidate.id == site).and_then(|site| site.home).ok_or(Error::Invalid)?;
+        let destination = model::SITES.iter().find(|candidate| candidate.id == site).ok_or(Error::Invalid)?;
+        let home = destination.home.ok_or(Error::Invalid)?;
         let end = home[8..].find('/').map_or(home.len(), |index| 8 + index);
         let origin = format!("{}/*", &home[..end]);
         let tx = self.0.transaction_with_behavior(Immediate)?;
         if policy(&tx)?.0 != revision { return Err(Error::Stale); }
         let now = model::now();
         let session: String = tx.query_row("SELECT r.session_id FROM profile_runtime r JOIN profile p ON p.id=r.profile_id
-            WHERE p.id=?1 AND NOT p.revoked AND r.expires_at>?2 AND r.protocol>=5 AND r.ack_revision=?3
+            WHERE p.id=?1 AND NOT p.revoked AND r.expires_at>?2 AND r.protocol>=?5 AND r.ack_revision=?3
             AND EXISTS(SELECT 1 FROM json_each(r.origins) WHERE value=?4)",
-            params![profile, now, revision, origin], |r| r.get(0)).optional()?.ok_or(Error::Unauthorized)?;
+            params![profile, now, revision, origin, destination.home_since.unwrap_or(5)], |r| r.get(0)).optional()?.ok_or(Error::Unauthorized)?;
         tx.execute("DELETE FROM paired_open WHERE expires_at<=?1", [now])?;
         let id = Uuid::new_v4().to_string();
         tx.execute("INSERT INTO paired_open(id, profile_id, session_id, site_id, revision, expires_at) VALUES(?1,?2,?3,?4,?5,?6)",
@@ -743,6 +780,16 @@ fn requires_v3(conn: &Connection) -> Result<bool> {
 fn requires_v5(conn: &Connection) -> Result<bool> {
     Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_rule WHERE enabled AND rule_id<>?1)",
         [model::HIDE_SHORTS], |r| r.get(0))?)
+}
+
+fn requires_v6(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_rule WHERE enabled AND site_id='instagram')", [], |r| r.get(0))?)
+}
+
+fn requires_v7(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM site_rule WHERE enabled
+        AND rule_id IN (site_id||'.lock-opened-videos', site_id||'.lock-all-short-video-viewers'))",
+        [], |r| r.get(0))?)
 }
 
 fn requires_update(conn: &Connection) -> Result<bool> {

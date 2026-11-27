@@ -199,6 +199,49 @@ describe('desktop shell', () => {
     expect(screen.getByText('Rules changed. Review the current setting and try again.')).toBeTruthy();
   });
 
+  it('previews Instagram choices immediately and restores the saved choices on rejection', async () => {
+    const pending = Promise.withResolvers<void>();
+    const save = vi.fn(async () => pending.promise);
+    render(App, { browserBridge: {
+      state: async () => ({ revision: 2, hideShorts: false, accessibility: { holdSeconds: 15, twoStepConfirmation: false },
+        pending: [], profiles: [], open: null, sites: [{
+          id: 'instagram', label: 'Instagram', hosts: ['instagram.com', 'www.instagram.com'], grayscale: false,
+          entry: { mode: 'allow' }, rules: { 'instagram.hide-reels-discovery': true },
+        }] }),
+      scan: async () => ({ supported: true, targets: [] }), install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
+      setContentRules: save, openPairedBrowser: async () => {}, setEntry: async () => {}, setGrayscale: async () => {},
+      setAccessibility: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
+    } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Instagram' }));
+    const suggested = await screen.findByRole<HTMLInputElement>('checkbox', { name: 'Hide suggested Home posts', description: 'Keep posts from accounts you follow.' });
+    const reels = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Hide Reels discovery', description: 'Keep individually opened reels playable.' });
+    const before = screen.getByRole('region', { name: 'Before' });
+    const after = screen.getByRole('region', { name: 'With rules' });
+    const baseline = before.innerHTML;
+    const saved = after.textContent;
+    expect(reels.checked).toBe(true);
+    await fireEvent.click(suggested);
+    expect(save).toHaveBeenCalledWith(2, { site: 'instagram', hideSuggestedHome: true, hideReelsDiscovery: true, navigationMode: 'off' });
+    expect(after.textContent).not.toBe(saved);
+    expect(before.innerHTML).toBe(baseline);
+    pending.reject('stale_revision');
+    await screen.findByText('Rules changed. Review the current setting and try again.');
+    await waitFor(() => expect(suggested.checked).toBe(false));
+    expect(after.textContent).toBe(saved);
+    expect(before.innerHTML).toBe(baseline);
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Off' }).checked).toBe(true);
+    await fireEvent.click(screen.getByRole('radio', { name: 'Opened videos' }));
+    expect(save).toHaveBeenLastCalledWith(2, {
+      site: 'instagram', hideSuggestedHome: false, hideReelsDiscovery: true, navigationMode: 'openedVideos',
+    });
+    const info = screen.getByRole('button', { name: 'Where content rules apply' });
+    await fireEvent.focus(info);
+    expect(screen.getByRole('tooltip').textContent).toBe('Rules apply in browser profiles with access to the exact site address.');
+    await fireEvent.keyDown(info, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
   it('shows the missing schemes and aliases instead of claiming partial grants are applied', async () => {
     render(App, { browserBridge: {
       state: async () => ({
@@ -226,27 +269,33 @@ describe('desktop shell', () => {
     expect(screen.queryByRole('checkbox', { name: /Hide Shorts/ })).toBeNull();
   });
 
-  it('opens only in the chosen eligible paired profile and waits for confirmation', async () => {
+  it.each([
+    ['YouTube', 'youtube', 'www.youtube.com', 5],
+    ['Instagram', 'instagram', 'www.instagram.com', 6],
+  ])('opens %s only in the chosen eligible paired profile and waits for confirmation', async (label, siteId, hostname, protocol) => {
     const results: unknown[] = [];
     const open = Promise.withResolvers<void>();
     const profile = { id: 'home', label: 'Home profile', browser: 'chrome' as const,
-      online: true, protocol: 5, ackRevision: 3, origins: ['https://www.youtube.com/*'] };
+      online: true, protocol, ackRevision: 3, origins: [`https://${hostname}/*`] };
     let workOrigins = profile.origins;
     render(App, { browserBridge: {
       state: async () => ({ revision: 3, hideShorts: false, accessibility: { holdSeconds: 15, twoStepConfirmation: false },
         sites: [], pending: [], open: null, profiles: [profile, { ...profile, id: 'work', label: 'Work profile', origins: workOrigins },
-          { ...profile, id: 'old', label: 'Old profile', protocol: 4 }] }),
+          { ...profile, id: 'old', label: 'Old profile', protocol: protocol - 1 },
+          { ...profile, id: 'alias', label: 'Alias only', origins: [`https://${hostname.replace(/^www\./, '')}/*`] }] }),
       openPairedBrowser: async (...args: unknown[]) => { results.push(args); await open.promise; },
       scan: async () => ({ supported: true, targets: [] }), install: async () => 'cancelled', removeInstallation: async () => 'cancelled',
       setContentRules: async () => {}, setEntry: async () => {}, setGrayscale: async () => {},
       setAccessibility: async () => {}, designateSite: async () => '', decidePair: async () => {}, revoke: async () => {},
     } });
     await fireEvent.click(screen.getByRole('button', { name: 'Sites' }));
+    await fireEvent.click(screen.getByRole('button', { name: label }));
     expect(screen.queryByRole('option', { name: /Old profile/ })).toBeNull();
+    expect(screen.queryByRole('option', { name: /Alias only/ })).toBeNull();
     const chooser = await screen.findByRole('combobox', { name: 'Browser profile' });
     await fireEvent.change(chooser, { target: { value: 'work' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Open in paired browser' }));
-    expect(results).toEqual([['work', 'youtube', 3]]);
+    expect(results).toEqual([['work', siteId, 3]]);
     expect(screen.queryByText('Opened in Work profile.')).toBeNull();
     open.resolve();
     expect(await screen.findByText('Opened in Work profile.')).toBeTruthy();
@@ -256,13 +305,13 @@ describe('desktop shell', () => {
     const recovery = screen.getByRole<HTMLButtonElement>('button', { name: 'Open in paired browser' });
     expect(recovery.disabled).toBe(true);
     await fireEvent.click(recovery);
-    expect(results).toEqual([['work', 'youtube', 3]]);
+    expect(results).toEqual([['work', siteId, 3]]);
     const remaining = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Browser profile' });
     expect(remaining.value).toBe('');
     await fireEvent.change(remaining, { target: { value: 'home' } });
     expect(recovery.disabled).toBe(false);
     await fireEvent.click(recovery);
-    expect(results).toEqual([['work', 'youtube', 3], ['home', 'youtube', 3]]);
+    expect(results).toEqual([['work', siteId, 3], ['home', siteId, 3]]);
   });
 
   it('edits site entry before pairing and shows Pause controls only while paused', async () => {

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Instagram content fixture</title>
+<div>
+  <div><a href="/">Home</a></div>
+  <div><a id="explore" href="/explore/">Explore</a></div>
+  <div><a id="messages" href="/direct/inbox/">Messages</a></div>
+  <div><span><div><a id="shortcut" href="/reels/">Reels</a></div></span></div>
+  <div><a id="home-copy" href="/">Home</a></div>
+  <div><a href="/">Home</a></div>
+  <div></div>
+</div>
+<main>
+  <section id="stories" aria-label="Stories">Stories</section>
+  <article id="followed"><header>Following</header><p>Followed post</p><a id="ordinary-reels" href="/reels/">Reels</a></article>
+  <article id="suggested"><header>Suggested for you</header><p>Suggested post</p></article>
+  <article id="owned"><div><div><a href="/sample/">Author</a><a href="/p/sample/">Post</a></div><div><div role="button">Follow</div></div></div><p>Recommended post</p></article>
+  <article id="paid"><div><div><a href="/sample/">Author</a><a href="/p/sample/">Post</a></div><div><div role="button">Follow</div></div></div><span>Sponsored</span></article>
+  <section id="people"><a href="/sample/">Account</a><div role="button">Follow</div></section>
+  <article id="ambiguous"><header>Suggested</header><p>Ambiguous post</p></article>
+  <section id="shelf" aria-label="Suggested reels"><a href="/reel/other/">Suggested reel</a></section>
+  <section id="feed" aria-label="Reels">Standalone Reels feed</section>
+  <section id="player" aria-label="Individual reel">
+    <video controls></video>
+    <button id="comments" type="button">Comments</button>
+    <button id="share" type="button">Share</button>
+  </section>
+  <section id="mixed-reels" aria-label="Suggested reels">
+    <article><a href="/reels/shared/">Selected reel</a><video controls></video></article>
+    <a href="/reel/another/">Next reel</a>
+  </section>
+</main>
+<button id="late" type="button">Add late recommendation</button>
+<button id="reuse" type="button">Reuse item as followed</button>
+<button id="to-feed" type="button">Open Reels feed</button>
+<button id="to-shared" type="button">Open shared reel</button>
+<button id="to-viewer" type="button">Open discovery viewer</button>
+<button id="push-viewer" type="button">Open another reel in a new history slot</button>
+<button id="to-unrelated" type="button">Visit Explore then a shared reel</button>
+<script>
+  document.querySelector('#late').onclick = () => {
+    const post = document.createElement('article');
+    post.id = 'late-post';
+    post.innerHTML = document.querySelector('#owned').innerHTML;
+    document.querySelector('main').append(post);
+  };
+  document.querySelector('#reuse').onclick = () => { document.querySelector('#late-post [role="button"]').textContent = 'Following'; };
+  document.querySelector('#to-feed').onclick = () => history.pushState({}, '', '/reels/');
+  document.querySelector('#to-shared').onclick = () => history.pushState({}, '', '/reel/shared/');
+  const renderViewer = () => {
+    document.querySelector('main').innerHTML = `
+      <div id="viewer">
+        <a id="viewer-current" href="/reels/sample/">Current reel</a>
+        <div><video id="viewer-video-1"></video></div>
+        <div><video id="viewer-video-2"></video></div>
+        ${'<div><video></video></div>'.repeat(5)}
+      </div>
+      <div id="viewer-controls"><button type="button">Comments</button><button type="button">Share</button></div>`;
+  };
+  const replaceViewerMetadata = () => history.replaceState({ viewer: true }, '', location.href);
+  const replaceViewerReel = () => {
+    history.replaceState(null, '', '/reels/second/');
+    document.querySelector('#viewer-current').href = '/reels/second/';
+  };
+  const canonicalize = () => {
+    history.replaceState({ discovery: true }, '', location.href);
+    history.replaceState(null, '', '/reels/sample/');
+    replaceViewerMetadata();
+    renderViewer();
+    replaceViewerReel();
+  };
+  document.querySelector('#to-viewer').onclick = () => { history.pushState(null, '', '/reels/'); canonicalize(); };
+  document.querySelector('#push-viewer').onclick = () => history.pushState(null, '', '/reels/third/');
+  document.querySelector('#to-unrelated').onclick = () => {
+    history.pushState(null, '', '/explore/');
+    history.pushState(null, '', '/reels/sample/');
+  };
+  if (location.pathname === '/reels/') canonicalize();
+  else if (location.pathname === '/reels/sample/') {
+    replaceViewerMetadata();
+    renderViewer();
+    replaceViewerReel();
+  }
+</script>
+</html>

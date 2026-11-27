@@ -1,6 +1,9 @@
 import { startShortsFilter, startHomeRecommendationsFilter } from './sites/youtube';
 import { startXFilter, type XMode } from './sites/x';
 import { startRedditFilter, type RedditMode } from './sites/reddit';
+import { startInstagramFilter, trackInstagramDiscovery, type InstagramRules } from './sites/instagram';
+import { findInstagramViewer, findYouTubeViewer, findTikTokViewer, instagramEntry, youtubeEntry, tiktokEntry, shortVideoSite,
+  startNavigationLock, trackViewerEntry, type NavigationLock } from './sites/short-video-navigation';
 import type { FeedPolicy } from './sites/feed';
 
 type ContentPolicy = FeedPolicy & { grayscale?: boolean };
@@ -15,6 +18,16 @@ if (!scope.__focusRules) {
   let redditMode: RedditMode | undefined;
   let stopReddit: (() => void) | undefined;
   let stopYouTubeHome: (() => void) | undefined;
+  let instagram: InstagramRules | undefined;
+  let stopInstagram: (() => void) | undefined;
+  const instagramDiscovery = trackInstagramDiscovery(document);
+  const videoSite = location.protocol === 'https:' && shortVideoSite(location.hostname);
+  const viewerAdapter = videoSite === 'instagram' ? { ...instagramEntry, find: findInstagramViewer }
+    : videoSite === 'youtube' ? { ...youtubeEntry, find: findYouTubeViewer }
+    : videoSite === 'tiktok' ? { ...tiktokEntry, find: findTikTokViewer } : undefined;
+  const viewerEntry = viewerAdapter && trackViewerEntry(document, viewerAdapter.discovery, viewerAdapter.opened);
+  let navigation: NavigationLock | undefined;
+  let stopNavigation: (() => void) | undefined;
   let receivedPolicy = false;
   let grayscale = false;
   const reflectGrayscale = () => {
@@ -24,7 +37,8 @@ if (!scope.__focusRules) {
   };
   const rootObserver = !document.documentElement ? new MutationObserver(reflectGrayscale) : undefined;
   rootObserver?.observe(document, { childList: true });
-  const set = (policy?: ContentPolicy) => {
+  const set = (policy?: ContentPolicy, initial = false) => {
+    instagramDiscovery.applyPolicy(policy?.instagram?.reels === true, initial);
     if (policy?.enabled && !stop) stop = startShortsFilter(document);
     if (!policy?.enabled && stop) { stop(); stop = undefined; }
     if (policy?.youtubeHome && !stopYouTubeHome) stopYouTubeHome = startHomeRecommendationsFilter(document);
@@ -39,15 +53,32 @@ if (!scope.__focusRules) {
       redditMode = policy?.reddit;
       stopReddit = redditMode ? startRedditFilter(document, redditMode) : undefined;
     }
+    if (instagram?.suggested !== policy?.instagram?.suggested || instagram?.reels !== policy?.instagram?.reels) {
+      stopInstagram?.();
+      instagram = policy?.instagram;
+      stopInstagram = instagram ? startInstagramFilter(document, instagram, instagramDiscovery) : undefined;
+    }
+    if (navigation !== policy?.navigation) {
+      stopNavigation?.();
+      navigation = policy?.navigation;
+      stopNavigation = navigation && viewerAdapter && viewerEntry ? startNavigationLock(document, navigation,
+        (doc, pinned) => viewerAdapter.find(doc, pinned, viewerEntry.current())) : undefined;
+    }
     grayscale = policy?.grayscale === true;
     reflectGrayscale();
   };
   chrome.runtime.onMessage.addListener((message: ContentPolicy & { type?: string }, _sender: unknown, respond: (value: object) => void) => {
-    if (message?.type === 'focus-policy') { receivedPolicy = true; set(message); respond({ ok: true }); }
+    if (message?.type === 'focus-policy') {
+      const initial = !receivedPolicy;
+      receivedPolicy = true;
+      set(message, initial);
+      respond({ ok: true });
+    }
     if (message?.type === 'focus-route-change') document.dispatchEvent(new Event('focus-route-change'));
   });
   chrome.runtime.sendMessage({ type: 'focus-content-state' }, (response: ContentPolicy | undefined) => {
     if (chrome.runtime.lastError || receivedPolicy) return;
-    set(response);
+    receivedPolicy = true;
+    set(response, true);
   });
 }

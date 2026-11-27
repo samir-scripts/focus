@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Disposable short-video viewer fixture</title>
+<style>
+  body { font: 16px sans-serif; margin: 16px; }
+  main, ytd-shorts, #direct-player { display: flex; align-items: flex-start; gap: 16px; }
+  #videos { width: 360px; height: 300px; overflow-y: auto; scroll-snap-type: y mandatory; }
+  #column-list-container, #shorts-container { width: 360px; height: 300px; overflow-y: auto; scroll-snap-type: y mandatory; }
+  article, ytd-reel-video-renderer { display: block; height: 300px; scroll-snap-align: start; }
+  [data-e2e="feed-video"] { height: 100%; }
+  video { width: 100%; height: 100%; background: #ddd; }
+  #action-bar { display: grid; gap: 5px; }
+  #action-bar [role=button], button { cursor: pointer; }
+  #viewer-comments { position: absolute; left: 400px; top: 160px; }
+  #viewer-comments, ytd-comments #contents { display: block; width: 240px; height: 100px; overflow-y: auto; }
+  #reply-space { height: 300px; }
+</style>
+<div id="fixture"></div>
+<button id="late">Mount comments</button>
+<button id="close">Close viewer</button>
+<a id="outside" href="#outside">Outside viewer</a>
+<output id="replay-count">0</output>
+<output id="advance-count">0</output>
+<script>
+  // Original fixture derived from sanitized DOM observations; no site media or markup copied.
+  const fixtures = {
+    'www.instagram.com': {
+      tag: 'main', scroller: '<div id="videos"></div>', id: 'videos',
+      cards: '<article><video controls></video></article>',
+      controls: '<div id="action-bar" role="toolbar"><div id="prev" role="button" tabindex="0">Previous</div><div id="next" role="button" tabindex="0">Next</div></div>',
+      protectedPath: '/stories/fixture/',
+    },
+    'www.youtube.com': {
+      tag: 'ytd-shorts', scroller: '<div id="shorts-container"></div>', id: 'shorts-container',
+      cards: '<ytd-reel-video-renderer><video controls></video></ytd-reel-video-renderer>',
+      controls: '<div id="action-bar"><div id="navigation-button-up"><button id="prev">Previous</button></div><div id="navigation-button-down"><button id="next">Next</button></div></div>',
+      protectedPath: '/watch?v=fixture',
+    },
+    'www.tiktok.com': {
+      tag: 'main', scroller: '<div data-e2e="anchoring-player-column"><div id="column-list-container"></div></div>', id: 'column-list-container',
+      cards: '<article data-e2e="recommend-list-item-container"><section data-e2e="feed-video"><video controls></video></section></article>',
+      controls: '<div id="action-bar"><button id="prev" data-e2e="feed-navigation-prev">Previous</button><button id="next" data-e2e="feed-navigation-next">Next</button></div>',
+      protectedPath: '/explore',
+    },
+  };
+  const layout = fixtures[location.hostname];
+  // Outside-main layout from the signed-in direct-link review, not the For You permalink.
+  const direct = location.hostname === 'www.tiktok.com' && /^\/@[^/]+\/video\/\d+\/?$/.test(location.pathname);
+  const viewer = document.createElement(direct ? 'div' : layout.tag);
+  if (direct) viewer.id = 'direct-player';
+  viewer.innerHTML = direct
+    ? '<div id="column-list-container" style="overflow-y:scroll"></div>'
+      + '<aside><div><button id="prev" data-e2e="feed-navigation-prev">Previous</button></div>'
+      + '<div><button id="next" data-e2e="feed-navigation-next">Next</button></div></aside>'
+    : layout.scroller + layout.controls;
+  document.getElementById('fixture').prepend(viewer);
+  const scroller = document.getElementById(layout.id);
+  scroller.innerHTML = layout.cards.repeat(3);
+  const video = scroller.querySelector('video');
+  video.id = 'first';
+  const advance = () => {
+    document.getElementById('advance-count').value++;
+    scroller.scrollTop += scroller.clientHeight;
+  };
+  document.getElementById('next').addEventListener('click', advance);
+  document.getElementById('prev').addEventListener('click', () => { scroller.scrollTop -= scroller.clientHeight; });
+  document.addEventListener('wheel', (event) => {
+    if (event.target.closest('video, #viewer-comments, ytd-comments')) advance();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' && !event.target.closest('textarea')) advance();
+  });
+  video.addEventListener('ended', () => {
+    document.getElementById('replay-count').value++;
+    advance();
+  });
+  document.getElementById('late').addEventListener('click', () => {
+    const contents = '<textarea id="reply" aria-label="Reply"></textarea><div id="reply-space">Comments</div>';
+    if (location.hostname === 'www.youtube.com') {
+      viewer.insertAdjacentHTML('afterend', `<ytd-comments><ytd-item-section-renderer id="sections"><div id="contents"><ytd-comment-thread-renderer>${contents}</ytd-comment-thread-renderer></div></ytd-item-section-renderer></ytd-comments>`);
+    } else if (direct) {
+      viewer.insertAdjacentHTML('afterend', `<aside><div id="viewer-comments"><div><div data-e2e="comment-level-1">${contents}</div></div></div></aside>`);
+    } else {
+      scroller.firstElementChild.insertAdjacentHTML('beforeend', `<div id="viewer-comments">${contents}</div>`);
+      if (location.hostname === 'www.tiktok.com') history.replaceState({}, '', '/@fixture/video/123?focus-viewer=1');
+    }
+  }, { once: true });
+  document.getElementById('close').addEventListener('click', () => history.pushState({}, '', layout.protectedPath));
+</script>

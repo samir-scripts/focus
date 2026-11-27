@@ -2,7 +2,7 @@
   import SiteMark from '@focus/ui/SiteMark.svelte';
   import type { ContentRules } from './browser';
 
-  let { rules, pulse }: { rules: ContentRules; pulse: number } = $props();
+  let { rules, pulse }: { rules: Exclude<ContentRules, { site: 'instagram' | 'tiktok' }>; pulse: number } = $props();
   const icons = {
     search: 'M10 9.5l4 4M11 7.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 0 1 7 0Z',
     up: 'M8 13V3M4 7l4-4l4 4', down: 'M8 3v10m-4-4l4 4l4-4',

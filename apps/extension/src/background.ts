@@ -3,6 +3,7 @@ import { grantedOrigins, siteOrigins } from './permissions';
 import { validSnapshot, validPolicySnapshot, VERSION, type Snapshot } from './protocol';
 import { SiteEntry } from './site-entry';
 import { exactDocumentOrigin, type FeedPolicy } from './sites/feed';
+import { shortVideoSite } from './sites/short-video-navigation';
 
 declare const chrome: any;
 const api = chrome;
@@ -103,6 +104,9 @@ async function reconcile() {
   const youtubeHome = current?.sites.find((site) => site.id === 'youtube')?.rules['youtube.hide-home-recommendations'] === true;
   const x = current?.sites.find((site) => site.id === 'x')?.rules;
   const reddit = current?.sites.find((site) => site.id === 'reddit')?.rules;
+  const instagram = current?.sites.find((site) => site.id === 'instagram')?.rules;
+  const suggested = instagram?.['instagram.hide-suggested-home'] === true;
+  const reels = instagram?.['instagram.hide-reels-discovery'] === true;
   const xMode = x?.['x.open-following'] ? 'following' : x?.['x.hide-for-you'] ? 'hide' : undefined;
   const redditMode = reddit?.['reddit.hide-all-home'] ? 'all' : reddit?.['reddit.hide-recommendations'] ? 'recommendations' : undefined;
   const youtubeOrigins = enabled ? siteOrigins('youtube').filter((origin) => !origin.includes('://youtu.be/')) : [];
@@ -112,9 +116,19 @@ async function reconcile() {
     const { hostname } = new URL(origin);
     if (hostname === 'x.com' && xMode) activeContent.set(origin, { x: xMode });
     if (hostname === 'www.reddit.com' && redditMode) activeContent.set(origin, { reddit: redditMode });
+    if (origin.startsWith('https://') && (hostname === 'www.instagram.com' || hostname === 'instagram.com') && (suggested || reels)) {
+      activeContent.set(origin, { instagram: { suggested, reels } });
+    }
     const shorts = youtubeOrigins.includes(origin);
     const home = hostname === 'www.youtube.com' && youtubeHome;
     if (home || shorts) activeContent.set(origin, { enabled: shorts, ...(home ? { youtubeHome: true } : {}) });
+    const site = origin.startsWith('https://') ? shortVideoSite(hostname) : undefined;
+    if (site) {
+      const rules = current?.sites.find((policy) => policy.id === site)?.rules;
+      const navigation = rules?.[`${site}.lock-all-short-video-viewers`] ? 'allShortVideoViewers'
+        : rules?.[`${site}.lock-opened-videos`] ? 'openedVideos' : undefined;
+      if (navigation) activeContent.set(origin, { ...activeContent.get(origin), navigation });
+    }
   }
   grayOrigins = new Set(profile ? (policy?.sites ?? []).flatMap((site) => 'grayscale' in site && site.grayscale
     ? grants.filter((origin) => site.hosts.includes(new URL(origin).hostname))

@@ -38,6 +38,14 @@ describe('protocol snapshot compatibility', () => {
     expect(validPolicySnapshot(policy)).toBe(true);
     expect(validPolicySnapshot({ ...policy, sites: [{ ...site, rules: { 'x.hide-for-you': false } }] })).toBe(false);
   });
+  it('accepts all four independent Instagram selections', () => {
+    for (const suggested of [false, true]) for (const reels of [false, true]) {
+      const site = { id: 'instagram', label: 'Instagram', hosts: ['instagram.com', 'www.instagram.com'],
+        grayscale: false, entry: { mode: 'allow' },
+        rules: { 'instagram.hide-suggested-home': suggested, 'instagram.hide-reels-discovery': reels } };
+      expect(validPolicySnapshot({ revision: 8, sites: [site], accessibility: { holdSeconds: 15, twoStepConfirmation: false } })).toBe(true);
+    }
+  });
   it('rejects conflicting X rules', () => {
     expect(validSnapshot({ revision: 8, sites: [{ id: 'x', label: 'X / Twitter', hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
       grayscale: false, entry: { mode: 'allow' }, rules: { 'x.hide-for-you': true, 'x.open-following': true } }] })).toBe(false);
