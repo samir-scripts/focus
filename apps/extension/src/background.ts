@@ -121,6 +121,11 @@ async function reconcile() {
     const shorts = youtubeOrigins.includes(origin);
     const home = hostname === 'www.youtube.com' && youtubeHome;
     if (home || shorts) activeContent.set(origin, { enabled: shorts, ...(home ? { youtubeHome: true } : {}) });
+    if (origin.startsWith('https://') && (hostname === 'www.instagram.com' || hostname === 'instagram.com')) {
+      const navigation = instagram?.['instagram.lock-all-short-video-viewers'] ? 'allShortVideoViewers'
+        : instagram?.['instagram.lock-opened-videos'] ? 'openedVideos' : undefined;
+      if (navigation) activeContent.set(origin, { ...activeContent.get(origin), navigation });
+    }
   }
   grayOrigins = new Set(profile ? (policy?.sites ?? []).flatMap((site) => 'grayscale' in site && site.grayscale
     ? grants.filter((origin) => site.hosts.includes(new URL(origin).hostname))

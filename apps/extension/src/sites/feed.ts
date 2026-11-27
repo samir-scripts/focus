@@ -1,8 +1,12 @@
 import type { XMode } from './x';
 import type { RedditMode } from './reddit';
 import type { InstagramRules } from './instagram';
+import type { NavigationLock } from './short-video-navigation';
 
-export type FeedPolicy = { enabled?: boolean; x?: XMode; reddit?: RedditMode; youtubeHome?: boolean; instagram?: InstagramRules };
+export type FeedPolicy = {
+  enabled?: boolean; x?: XMode; reddit?: RedditMode; youtubeHome?: boolean;
+  instagram?: InstagramRules; navigation?: NavigationLock;
+};
 
 const marker = 'data-focus-feed-hidden';
 

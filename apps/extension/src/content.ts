@@ -2,6 +2,7 @@ import { startShortsFilter, startHomeRecommendationsFilter } from './sites/youtu
 import { startXFilter, type XMode } from './sites/x';
 import { startRedditFilter, type RedditMode } from './sites/reddit';
 import { startInstagramFilter, trackInstagramDiscovery, type InstagramRules } from './sites/instagram';
+import { findInstagramViewer, instagramEntry, startNavigationLock, trackViewerEntry, type NavigationLock } from './sites/short-video-navigation';
 import type { FeedPolicy } from './sites/feed';
 
 type ContentPolicy = FeedPolicy & { grayscale?: boolean };
@@ -19,6 +20,10 @@ if (!scope.__focusRules) {
   let instagram: InstagramRules | undefined;
   let stopInstagram: (() => void) | undefined;
   const instagramDiscovery = trackInstagramDiscovery(document);
+  const reelsViewer = ['www.instagram.com', 'instagram.com'].includes(location.hostname)
+    ? trackViewerEntry(document, instagramEntry.discovery, instagramEntry.opened) : undefined;
+  let navigation: NavigationLock | undefined;
+  let stopNavigation: (() => void) | undefined;
   let receivedPolicy = false;
   let grayscale = false;
   const reflectGrayscale = () => {
@@ -48,6 +53,12 @@ if (!scope.__focusRules) {
       stopInstagram?.();
       instagram = policy?.instagram;
       stopInstagram = instagram ? startInstagramFilter(document, instagram, instagramDiscovery) : undefined;
+    }
+    if (navigation !== policy?.navigation) {
+      stopNavigation?.();
+      navigation = policy?.navigation;
+      stopNavigation = navigation && reelsViewer ? startNavigationLock(document, navigation,
+        (doc, pinned) => findInstagramViewer(doc, pinned, reelsViewer.current())) : undefined;
     }
     grayscale = policy?.grayscale === true;
     reflectGrayscale();
