@@ -211,8 +211,8 @@ fn selective_rules_are_atomic_and_require_v5_only_when_active() {
     let store = db.as_mut().unwrap();
     assert_eq!(store.set_content_rules(0, ContentRules::X { hide_for_you: true, open_following: true }), Err(Error::Invalid));
     assert_eq!(store.set_content_rules(0, ContentRules::Reddit { hide_recommendations: true, hide_all_home: true }), Err(Error::Invalid));
-    store.set_content_rules(0, ContentRules::Youtube { hide_shorts: true, hide_home_recommendations: true }).unwrap();
-    assert_eq!(store.set_content_rules(0, ContentRules::Youtube { hide_shorts: false, hide_home_recommendations: false }), Err(Error::Stale));
+    store.set_content_rules(0, ContentRules::Youtube { hide_shorts: true, hide_home_recommendations: true, navigation_mode: None }).unwrap();
+    assert_eq!(store.set_content_rules(0, ContentRules::Youtube { hide_shorts: false, hide_home_recommendations: false, navigation_mode: None }), Err(Error::Stale));
     assert_eq!(request(&mut old, &mut db, 4, "snapshot", json!({"afterRevision":0}))["error"]["code"], "version_mismatch");
     assert_eq!(request(&mut old, &mut db, 4, "applied", json!({"revision":1,"origins":[]}))["error"]["code"], "version_mismatch");
     let profile = db.as_ref().unwrap().state().unwrap().profiles.remove(0);
@@ -223,7 +223,7 @@ fn selective_rules_are_atomic_and_require_v5_only_when_active() {
     assert_eq!(snapshot["body"]["sites"][0]["rules"], json!({"youtube.hide-shorts":true,"youtube.hide-home-recommendations":true}));
     assert_eq!(request(&mut current, &mut db, 5, "applied", json!({"revision":1,"origins":["https://www.youtube.com/*"]}))["ok"], true);
     let mut db = Db::open(&path).unwrap();
-    db.set_content_rules(1, ContentRules::Youtube { hide_shorts: true, hide_home_recommendations: false }).unwrap();
+    db.set_content_rules(1, ContentRules::Youtube { hide_shorts: true, hide_home_recommendations: false, navigation_mode: None }).unwrap();
     assert_eq!(db.policy().unwrap(), (2, true));
     assert!(db.snapshot(None, 4).is_ok());
 }
@@ -257,6 +257,34 @@ fn short_video_navigation_defaults_off_in_v7() {
             assert_eq!(site.rules.get(&format!("{}.{mode}", site.id)), Some(&false));
         }
     }
+}
+
+#[test]
+fn navigation_mode_switch_is_atomic_and_requires_v7() {
+    use focus_core::model::ContentRules;
+    let temp = tempfile::tempdir().unwrap();
+    let mut db = Db::open(&temp.path().join("focus.sqlite3")).unwrap();
+    let edit = |mode| -> ContentRules {
+        serde_json::from_value(serde_json::json!({
+            "site": "instagram", "hideSuggestedHome": true, "hideReelsDiscovery": false,
+            "navigationMode": mode
+        })).unwrap()
+    };
+    db.set_content_rules(0, edit("openedVideos")).unwrap();
+    assert_eq!(db.set_content_rules(0, edit("off")), Err(Error::Stale));
+    assert!(matches!(db.snapshot(None, 6), Err(Error::VersionMismatch)));
+    db.set_content_rules(1, edit("allShortVideoViewers")).unwrap();
+    let (revision, snapshot) = db.snapshot(None, 7).unwrap();
+    assert_eq!(revision, 2);
+    let site = snapshot.unwrap().0.into_iter().find(|site| site.id == "instagram").unwrap();
+    assert_eq!(site.rules["instagram.lock-opened-videos"], false);
+    assert_eq!(site.rules["instagram.lock-all-short-video-viewers"], true);
+    assert_eq!(site.rules["instagram.hide-suggested-home"], true);
+    db.set_content_rules(2, edit("off")).unwrap();
+    let (_, snapshot) = db.snapshot(None, 6).unwrap();
+    let site = snapshot.unwrap().0.into_iter().find(|site| site.id == "instagram").unwrap();
+    assert!(!site.rules.contains_key("instagram.lock-all-short-video-viewers"));
+    assert_eq!(site.rules["instagram.hide-suggested-home"], true);
 }
 
 #[test]
