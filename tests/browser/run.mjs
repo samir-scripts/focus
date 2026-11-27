@@ -199,6 +199,9 @@ async function chromiumStart() {
 async function firefoxStart() {
   const options = new firefox.Options();
   if (entry) options.enableBidi();
+  // Desktop Firefox otherwise hides the native Touch constructor on devices
+  // without touch hardware. Exercise real DOM events, not page-world expandos.
+  if (selective) options.setPreference('dom.w3c_touch_events.enabled', 1);
   options.setProfile(proxy.firefoxProfile);
   options.setPreference('extensions.webextensions.uuids', JSON.stringify({ 'focus@focus-local': firefoxUuid }));
   options.setPreference('network.proxy.type', 1);
@@ -263,6 +266,14 @@ async function firefoxStart() {
     }
     return browser;
   } catch (error) {
+    if (selective) {
+      const url = await driver.getCurrentUrl().catch(() => '');
+      const title = await command('xdotool', ['getactivewindow', 'getwindowname'], { DISPLAY: display.name }).catch(() => '');
+      console.error('Firefox setup bootstrap:', {
+        setupUrlReached: url === `moz-extension://${firefoxUuid}/setup.html`,
+        urlScheme: url.split(':', 1)[0], activeWindow: title.trim(),
+      });
+    }
     await driver.quit().catch(() => {});
     throw error;
   }
@@ -572,7 +583,30 @@ async function fixture(browser, hidden) {
   }
 }
 async function removeOrigin(browser, origin) {
-  assert.equal(await browser.setup.evaluate(async origin => chrome.permissions.remove({ origins: [origin] }), origin), true);
+  if (browser.context) {
+    assert.equal(await browser.setup.evaluate(async origin => chrome.permissions.remove({ origins: [origin] }), origin), true);
+  } else {
+    await browser.driver.switchTo().newWindow('tab');
+    const addonsTab = await browser.driver.getWindowHandle();
+    try {
+      await focusWindow('firefox');
+      await prompt('ctrl+l');
+      await command('xdotool', ['type', '--clearmodifiers', 'about:addons'], { DISPLAY: display.name });
+      await prompt('Return');
+      await firefoxUi('click', 'page tab', 'Extensions');
+      await firefoxUi('click', 'link', 'focus.');
+      await firefoxUi('click', 'page tab', 'Permissions|Permissions and data');
+      // Firefox labels optional origins with the scheme as well as the host.
+      await firefoxUi('click', 'toggle button', `Access your data for ${new URL(origin).origin}`);
+    } finally {
+      try {
+        await browser.driver.switchTo().window(addonsTab);
+        await browser.driver.close();
+      } finally {
+        await browser.driver.switchTo().window(browser.page);
+      }
+    }
+  }
 }
 async function ack(id, revision, origins) {
   await eventually('current acknowledged grants', async () => {

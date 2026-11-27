@@ -43,6 +43,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       const video = document.getElementById('first');
       const pane = document.querySelector('#viewer-comments, ytd-comments #contents');
       let allowed = true;
+      let touchMove, touchEnd;
       const wheel = (target, deltaY) => target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY }));
       const key = (target, key) => target.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }));
       if (action === 'wheel') allowed = wheel(video, 160);
@@ -53,15 +54,14 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       else if (action === 'ended') video.dispatchEvent(new Event('ended'));
       else if (action === 'touch') {
         const touch = (type, y, end = false) => {
-          const point = { identifier: 1, clientX: 20, clientY: y };
-          return video.dispatchEvent(Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
-            touches: end ? [] : [point], changedTouches: [point],
+          const point = new Touch({ identifier: 1, target: video, clientX: 20, clientY: y });
+          return video.dispatchEvent(new TouchEvent(type, {
+            bubbles: true, cancelable: true, touches: end ? [] : [point], changedTouches: [point],
           }));
         };
         touch('touchstart', 240);
-        const moved = touch('touchmove', 120);
-        const ended = touch('touchend', 110, true);
-        allowed = moved || ended;
+        touchMove = touch('touchmove', 120);
+        touchEnd = touch('touchend', 110, true);
       } else if (action === 'reply') allowed = key(document.getElementById('reply'), 'ArrowDown');
       else if (action === 'comments-top' || action === 'comments-middle' || action === 'comments-bottom') {
         if (!pane) return null;
@@ -69,7 +69,8 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
         pane.scrollTop = action === 'comments-top' ? 0 : action === 'comments-bottom' ? max : max / 2;
         allowed = wheel(pane, action === 'comments-top' ? -160 : 160);
       } else if (action === 'back') history.back();
-      return { allowed, top: scroller.scrollTop, pinned: getComputedStyle(scroller).scrollSnapType === 'none',
+      return { allowed, touchMove, touchEnd, top: scroller.scrollTop, pinned: getComputedStyle(scroller).scrollSnapType === 'none',
+        commentsReady: !!pane && (scroller.contains(pane) || getComputedStyle(pane).overscrollBehaviorY === 'contain'),
         replay: Number(document.getElementById('replay-count').value),
         advance: Number(document.getElementById('advance-count').value) };
     };
@@ -89,21 +90,33 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       async () => (await probe(browser, 'state'))?.pinned === value);
     await check(`${rules.site}: opened and discovery lock, advance inputs, late comments, close/back and Off`, async () => {
       await edit({ ...rules, navigationMode: 'openedVideos' });
-      for (const [, browser] of engines) {
+      for (const [engine, browser] of engines) {
         await open(browser, opened);
         await pinned(browser, true);
-        for (const action of ['wheel', 'key', 'touch', 'next', 'prev']) {
-          assert.equal((await probe(browser, action)).allowed, false, action);
+        for (const action of ['wheel', 'key', 'next', 'prev']) {
+          assert.equal((await probe(browser, action)).allowed, false, `${engine}: ${action}`);
         }
+        const { touchMove, touchEnd } = await probe(browser, 'touch');
+        assert.equal(touchMove, false, `${engine}: touchmove`);
+        assert.equal(touchEnd, false, `${engine}: touchend`);
         assert.equal((await probe(browser, 'outside')).allowed, true);
-        assert.equal((await probe(browser, 'ended')).replay, 1);
+        const afterEnd = await probe(browser, 'ended');
+        assert.equal(afterEnd.replay, 1);
+        assert.equal(afterEnd.advance, 1, `${engine}: only ended reached the advance handler`);
         await eventually('automatic scroll attempt restored without suppressing replay', async () => (await probe(browser, 'state')).top === 0);
         await click(browser, '#late');
-        await eventually('late comments boundary recognized', async () => (await probe(browser, 'comments-top'))?.allowed === false);
-        assert.equal((await probe(browser, 'comments-middle')).allowed, true);
-        assert.equal((await probe(browser, 'comments-bottom')).allowed, false);
-        assert.equal((await probe(browser, 'reply')).allowed, true);
-        assert.equal((await probe(browser, 'state')).advance, 1, 'comments did not reach the site advance handler');
+        if (browser.context) {
+          await browser.page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true)))));
+        } else {
+          await browser.driver.executeAsyncScript((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))));
+        }
+        await eventually(`${engine}: late comments mounted and scoped`, async () => (await probe(browser, 'state'))?.commentsReady);
+        const beforeComments = (await probe(browser, 'state')).advance;
+        assert.equal((await probe(browser, 'comments-top')).allowed, false, `${engine}: comments top`);
+        assert.equal((await probe(browser, 'comments-middle')).allowed, true, `${engine}: comments interior`);
+        assert.equal((await probe(browser, 'comments-bottom')).allowed, false, `${engine}: comments bottom`);
+        assert.equal((await probe(browser, 'reply')).allowed, true, `${engine}: reply editor`);
+        assert.equal((await probe(browser, 'state')).advance - beforeComments, 0, `${engine}: comments reached the site advance handler`);
         await open(browser, discovery);
         await pinned(browser, false);
         assert.equal((await probe(browser, 'wheel')).allowed, true);
@@ -125,10 +138,16 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       }
       if (rules.site === 'tiktok') {
         await edit({ ...rules, navigationMode: 'allShortVideoViewers' });
-        for (const [, browser] of engines) {
+        const origin = `https://${host}/*`;
+        for (const [engine, browser] of engines) {
           await open(browser, discovery);
           await pinned(browser, true);
-          await removeOrigin(browser, `https://${host}/*`);
+          const grants = async () => (await state()).profiles.find(p => p.id === profiles.get(engine)).origins;
+          const before = await grants();
+          assert(before.includes(origin), `${engine}: exact origin granted before revocation`);
+          await removeOrigin(browser, origin);
+          await eventually(`${engine}: exact origin revocation acknowledged`, async () => !(await grants()).includes(origin));
+          assert.deepEqual((await grants()).sort(), before.filter((grant) => grant !== origin).sort());
           await pinned(browser, false);
           assert.equal((await probe(browser, 'wheel')).allowed, true);
         }
@@ -234,9 +253,14 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     }
     const chrome = engines.find(([name]) => name === 'chromium')[1];
     const revision = (await state()).revision;
-    const intent = (await admin('browser-open', profiles.get('chromium'), 'instagram', String(revision))).trim();
-    await eventually('Instagram Home opened in the selected profile', async () => (await admin('browser-open-state', intent)).trim() === 'true');
-    const tab = chrome.context.pages().at(-1);
+    const [tab] = await Promise.all([
+      chrome.context.waitForEvent('page'),
+      (async () => {
+        const intent = (await admin('browser-open', profiles.get('chromium'), 'instagram', String(revision))).trim();
+        await eventually('Instagram Home opened in the selected profile', async () => (await admin('browser-open-state', intent)).trim() === 'true');
+      })(),
+    ]);
+    assert.notEqual(tab, chrome.page);
     await tab.waitForURL(`https://${host}/`);
     await tab.close();
     await show(chrome, { '#owned': false });
