@@ -50,7 +50,8 @@
   if (direct) viewer.id = 'direct-player';
   viewer.innerHTML = direct
     ? '<div id="column-list-container" style="overflow-y:scroll"></div>'
-      + '<button id="prev" data-e2e="feed-navigation-prev">Previous</button><button id="next" data-e2e="feed-navigation-next">Next</button>'
+      + '<aside><div><button id="prev" data-e2e="feed-navigation-prev">Previous</button></div>'
+      + '<div><button id="next" data-e2e="feed-navigation-next">Next</button></div></aside>'
     : layout.scroller + layout.controls;
   document.getElementById('fixture').prepend(viewer);
   const scroller = document.getElementById(layout.id);

@@ -194,12 +194,15 @@ export function findTikTokViewer(doc: Document, pinned?: HTMLElement, entry: Vie
   const main = scroller.closest('main');
   if (main) return { scroller, video, entry, controls: main, advance: tiktokAdvance };
 
-  const controls = scroller.parentElement;
-  if (controls?.localName !== 'div') return;
-  const buttons = controls.querySelectorAll(`:scope > ${tiktokAdvance}`);
+  const parent = scroller.parentElement;
+  if (parent?.localName !== 'div') return;
+  // Signed-in direct links put the navigation buttons inside the next sibling ASIDE.
+  const asides = parent.querySelectorAll(':scope > aside');
+  const controls = scroller.nextElementSibling;
+  if (!controls || asides.length !== 1 || controls !== asides[0]) return;
+  const buttons = controls.querySelectorAll(tiktokAdvance);
   if (buttons.length !== 2 || buttons[0].getAttribute('data-e2e') === buttons[1].getAttribute('data-e2e')) return;
-  return { scroller, video, entry, controls,
-    advance: `${tiktokAdvance}:is(${tiktokScroller} ~ button, button:has(~ ${tiktokScroller}))`,
+  return { scroller, video, entry, controls, advance: tiktokAdvance,
     comments: tiktokDirectComments(doc, scroller) };
 }
 

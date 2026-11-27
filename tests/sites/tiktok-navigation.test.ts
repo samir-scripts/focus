@@ -40,7 +40,9 @@ function directLayout() {
   document.body.innerHTML = `<main><button data-e2e="feed-navigation-next">Unrelated</button></main>
     <div><div id="column-list-container" style="scroll-snap-type:y mandatory;overflow-y:scroll">
       ${'<article data-e2e="recommend-list-item-container"><section data-e2e="feed-video"><video></video></section></article>'.repeat(2)}
-    </div><button data-e2e="feed-navigation-prev">Previous</button><button data-e2e="feed-navigation-next">Next</button></div>`;
+    </div><aside><div><button data-e2e="feed-navigation-prev">Previous</button></div>
+      <div><button data-e2e="feed-navigation-next">Next</button></div></aside>
+    <button id="outside-navigation" data-e2e="feed-navigation-next">Unrelated sibling</button></div>`;
   const scroller = document.getElementById('column-list-container')!;
   const videos = scroller.querySelectorAll('video');
   Object.defineProperties(scroller, { clientHeight: { value: 600 }, scrollHeight: { value: 1200 } });
@@ -61,7 +63,8 @@ it.each(['openedVideos', 'allShortVideoViewers'] as const)('retains the direct v
   stop = startNavigationLock(document, mode, findTikTokViewer);
   expect(wheel(videos[0])).toBe(false);
   expect(selection()).toBe(0);
-  expect([...parent.querySelectorAll('button')].map(click)).toEqual([false, false]);
+  expect([...parent.querySelectorAll('aside button')].map(click)).toEqual([false, false]);
+  expect(click(document.getElementById('outside-navigation')!)).toBe(true);
   expect(click(document.querySelector('main button')!)).toBe(true);
   history.replaceState({}, '', '/explore');
   document.dispatchEvent(new Event('focus-route-change'));
