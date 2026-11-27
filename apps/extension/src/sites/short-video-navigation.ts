@@ -5,7 +5,7 @@ type Viewer = {
   scroller: HTMLElement;
   video: HTMLVideoElement;
   entry: ViewerEntry;
-  advance: string;
+  advance?: string;
   controls?: Element;
   comments?: Element;
 };
@@ -67,6 +67,15 @@ export function trackViewerEntry(doc: Document, discovery: RegExp, opened: RegEx
 }
 
 export const instagramEntry = { discovery: /^\/reels\/?$/, opened: /^\/reels?\/[\w-]+\/?$/ };
+export const youtubeEntry = { discovery: /^\/shorts\/?$/, opened: /^\/shorts\/[\w-]+\/?$/ };
+
+export function shortVideoSite(hostname: string) {
+  switch (hostname) {
+    case 'www.instagram.com':
+    case 'instagram.com': return 'instagram';
+    case 'www.youtube.com': return 'youtube';
+  }
+}
 
 function snapScroller(element: HTMLElement, pinned?: HTMLElement) {
   if (element === pinned) return true;
@@ -89,7 +98,7 @@ function activeVideo(scroller: HTMLElement, selector = 'video') {
   return active;
 }
 
-const instagramAdvance = 'button:is([aria-label="Next reel" i], [aria-label="Previous reel" i]), [role="button"]:is([aria-label="Next reel" i], [aria-label="Previous reel" i])';
+const instagramAdvance = '[role="toolbar"] > div[role="button"]';
 
 export function findInstagramViewer(doc: Document, pinned?: HTMLElement, entry: ViewerEntry = 'opened'): Viewer | undefined {
   const path = doc.location?.pathname ?? '';
@@ -99,7 +108,22 @@ export function findInstagramViewer(doc: Document, pinned?: HTMLElement, entry: 
   if (scrollers.length !== 1) return;
   const scroller = scrollers[0];
   const video = activeVideo(scroller);
-  if (video) return { scroller, video, entry, advance: instagramAdvance, controls: scroller.parentElement ?? undefined };
+  if (!video) return;
+  const toolbar = scroller.parentElement?.querySelector(':scope > div[role="toolbar"]');
+  const controls = toolbar?.children.length === 2 && Array.from(toolbar.children).every((child) => child.matches('div[role="button"]'))
+    ? toolbar : undefined;
+  return { scroller, video, entry, controls, advance: controls ? instagramAdvance : undefined };
+}
+
+export function findYouTubeViewer(doc: Document, pinned?: HTMLElement, entry: ViewerEntry = 'opened'): Viewer | undefined {
+  const path = doc.location.pathname;
+  if (youtubeEntry.discovery.test(path)) entry = 'discovery';
+  else if (!youtubeEntry.opened.test(path)) return;
+  const scroller = doc.querySelector<HTMLElement>('ytd-shorts #shorts-container');
+  if (!scroller || !snapScroller(scroller, pinned)) return;
+  const video = activeVideo(scroller, 'ytd-reel-video-renderer video');
+  const controls = scroller.closest('ytd-shorts');
+  if (video && controls) return { scroller, video, entry, controls, advance: '#navigation-button-up, #navigation-button-down' };
 }
 
 const textEntry = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="slider"]';
@@ -187,7 +211,7 @@ export function startNavigationLock(doc: Document, mode: NavigationLock, findVie
   };
   const isAdvance = (event: Event) => {
     const target = event.target as Element | null;
-    if (!viewer?.scroller.isConnected || !target?.closest) return false;
+    if (!viewer?.advance || !viewer.scroller.isConnected || !target?.closest) return false;
     const control = target.closest(viewer.advance);
     return !!control && (viewer.controls ?? viewer.scroller).contains(control);
   };
@@ -202,9 +226,6 @@ export function startNavigationLock(doc: Document, mode: NavigationLock, findVie
   };
   const click = (event: MouseEvent) => {
     if (isAdvance(event)) consume(event);
-  };
-  const ended = (event: Event) => {
-    if (event.target === viewer?.video) consume(event, false);
   };
   const touchstart = (event: TouchEvent) => {
     const point = event.touches[0];
@@ -237,7 +258,6 @@ export function startNavigationLock(doc: Document, mode: NavigationLock, findVie
   win.addEventListener('wheel', wheel, { ...capture, passive: false });
   win.addEventListener('keydown', key, capture);
   win.addEventListener('click', click, capture);
-  win.addEventListener('ended', ended, capture);
   win.addEventListener('touchstart', touchstart, { ...capture, passive: true });
   win.addEventListener('touchmove', touchmove, { ...capture, passive: false });
   win.addEventListener('touchend', touchend, { ...capture, passive: false });

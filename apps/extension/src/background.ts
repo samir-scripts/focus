@@ -3,6 +3,7 @@ import { grantedOrigins, siteOrigins } from './permissions';
 import { validSnapshot, validPolicySnapshot, VERSION, type Snapshot } from './protocol';
 import { SiteEntry } from './site-entry';
 import { exactDocumentOrigin, type FeedPolicy } from './sites/feed';
+import { shortVideoSite } from './sites/short-video-navigation';
 
 declare const chrome: any;
 const api = chrome;
@@ -121,9 +122,11 @@ async function reconcile() {
     const shorts = youtubeOrigins.includes(origin);
     const home = hostname === 'www.youtube.com' && youtubeHome;
     if (home || shorts) activeContent.set(origin, { enabled: shorts, ...(home ? { youtubeHome: true } : {}) });
-    if (origin.startsWith('https://') && (hostname === 'www.instagram.com' || hostname === 'instagram.com')) {
-      const navigation = instagram?.['instagram.lock-all-short-video-viewers'] ? 'allShortVideoViewers'
-        : instagram?.['instagram.lock-opened-videos'] ? 'openedVideos' : undefined;
+    const site = origin.startsWith('https://') ? shortVideoSite(hostname) : undefined;
+    if (site) {
+      const rules = current?.sites.find((policy) => policy.id === site)?.rules;
+      const navigation = rules?.[`${site}.lock-all-short-video-viewers`] ? 'allShortVideoViewers'
+        : rules?.[`${site}.lock-opened-videos`] ? 'openedVideos' : undefined;
       if (navigation) activeContent.set(origin, { ...activeContent.get(origin), navigation });
     }
   }

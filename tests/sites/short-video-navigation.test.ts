@@ -22,10 +22,11 @@ function dimensions(element: Element, height: number, fullHeight: number, top = 
 function viewer() {
   // Original fixture with the observed Instagram main > snap scroller structure.
   document.body.innerHTML = `<main><div style="scroll-snap-type: y mandatory; overflow-y: auto">
-    <article><video></video><button>Share</button><button aria-label="Next reel">Next</button>
-    <button aria-label="Previous reel">Previous</button><button aria-label="Close">Close</button>
+    <article><video></video><button>Share</button><button aria-label="Close">Close</button>
     <section style="overflow-y: auto"><textarea></textarea></section></article>
-    <article><video></video></article></div></main><nav><a href="/">Home</a></nav>`;
+    <article><video></video></article></div>
+    <div role="toolbar"><div role="button" tabindex="0"><svg></svg></div><div role="button" tabindex="0"><svg></svg></div></div></main>
+    <nav><a href="/">Home</a></nav>`;
   const scroller = document.querySelector<HTMLElement>('main > div')!;
   const [video, nextVideo] = Array.from(scroller.querySelectorAll('video'));
   const comments = scroller.querySelector('section')!;
@@ -34,7 +35,7 @@ function viewer() {
   dimensions(nextVideo, 600, 600, 600);
   dimensions(comments, 100, 300);
   return { scroller, video, comments, input: comments.querySelector('textarea')!, share: scroller.querySelector('button')!,
-    next: scroller.querySelector('[aria-label="Next reel"]')!, previous: scroller.querySelector('[aria-label="Previous reel"]')!,
+    previous: document.querySelector('[role="toolbar"] > :first-child')!, next: document.querySelector('[role="toolbar"] > :last-child')!,
     close: scroller.querySelector('[aria-label="Close"]')!, home: document.querySelector('nav a')! };
 }
 
@@ -52,19 +53,20 @@ it('pins an opened reel without consuming playback, Close, text entry or outside
   expect(click(share)).toBe(true);
   expect(click(close)).toBe(true);
   expect(wheel(home)).toBe(true);
-  const advance = vi.fn();
-  video.addEventListener('ended', advance);
+  const replayState = vi.fn(() => {
+    scroller.scrollTop = 600;
+    scroller.dispatchEvent(new Event('scroll'));
+  });
+  video.addEventListener('ended', replayState);
   video.dispatchEvent(new Event('ended'));
-  expect(advance).not.toHaveBeenCalled();
-  scroller.scrollTop = 600;
-  scroller.dispatchEvent(new Event('scroll'));
+  expect(replayState).toHaveBeenCalledTimes(1);
   expect(scroller.scrollTop).toBe(0);
   stop();
   expect(wheel(video)).toBe(true);
   expect(click(next)).toBe(true);
   expect(scroller.style.scrollSnapType).toBe('y mandatory');
   video.dispatchEvent(new Event('ended'));
-  expect(advance).toHaveBeenCalledTimes(1);
+  expect(replayState).toHaveBeenCalledTimes(2);
 });
 
 it('keeps native comment scrolling while containing both boundaries and site advance handlers', () => {
