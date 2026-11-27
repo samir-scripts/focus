@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>focus. · desktop palette review</title>
+<link rel="stylesheet" href="../../../packages/ui/src/tokens.css">
+<style>
+@font-face{font-family:'Focus Bitmap Solid';src:url('../../../packages/ui/src/assets/FocusBitmap-DisplaySolid.ttf') format('truetype');font-weight:800}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font:400 15px/1.45 var(--font-ui);font-synthesis:none;scrollbar-color:var(--edge) var(--canvas);overflow-wrap:anywhere}
+::selection{color:var(--on-accent);background:var(--accent)}
+button,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--edge);border-radius:3px;padding:5px 9px;max-width:100%;min-height:32px}
+button:not(:disabled),select{cursor:pointer}
+button:not(:disabled):hover,button.primary{background:var(--accent);color:var(--on-accent)}
+button:disabled{color:var(--muted)}
+input{accent-color:var(--accent);margin:3px 0 0;width:16px;height:16px}
+small,p{color:var(--muted)}
+p{margin:4px 0 12px}
+header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--divider);background:var(--canvas)}
+.lights{display:flex;gap:5px}.lights span{width:10px;height:10px;border:1px solid var(--edge);border-radius:100%}
+.wordmark{font:700 23px/1 var(--font-wordmark);border-color:transparent;background:transparent;display:flex;gap:7px;align-items:center}
+nav{display:flex;justify-content:end;gap:5px;flex-wrap:wrap}nav button{background:transparent;border-color:transparent}nav button[aria-current=page]{border-bottom-color:var(--accent);font-weight:700}
+.layout{display:grid;grid-template-columns:196px minmax(0,1fr);min-height:calc(100vh - 50px)}
+aside{background:var(--rail);padding:16px 12px;border-inline-end:1px solid var(--divider)}
+aside button{display:block;text-align:left;width:100%;min-height:42px;border-color:transparent;background:transparent;margin:2px 0}
+aside button[aria-pressed=true]{background:var(--selected);color:var(--ink);font-weight:700}
+main{padding:20px clamp(16px,4vw,42px);min-width:0}
+h1{font:800 33px/1.18 var(--font-display);margin:0 0 3px}
+#settings h1{font-family:'Focus Bitmap Solid',var(--font-display)}
+h2{font-size:19px;margin:15px 0 6px;border-bottom:1px solid var(--divider);padding-bottom:4px}
+h3{font-size:15px;margin:8px 0 3px}
+.review{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:8px 0 14px}.review label{display:grid;gap:3px}
+fieldset{margin:0;padding:0;border:0;min-width:0}legend{font-weight:700;padding:0}
+.examples,.title-row,.home-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:18px}
+.art{justify-self:end;width:min(100%,145px);height:auto;color:var(--accent)}
+.sample{background:var(--surface);padding:9px 12px;border:1px solid var(--edge);border-radius:3px}
+.swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0 10px}
+.swatches span{display:block;min-height:30px;border:1px solid var(--edge);background:var(--chip)}
+.swatches small{display:block;line-height:1.2;margin-top:4px}
+.choice{display:grid;grid-template-columns:16px minmax(0,1fr);gap:0 9px;margin:6px 0}.choice small{grid-column:2}
+.home-grid{grid-template-columns:minmax(0,2fr) minmax(0,3fr)}
+.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center}.calendar button{padding:2px;min-height:26px}.calendar [aria-pressed=true]{background:var(--selected);font-weight:700}
+[hidden]{display:none!important}
+@media(max-width:635px){header{grid-template-columns:auto 1fr}header .lights{display:none}.layout,.home-grid{display:block}aside{border-inline-end:0;border-bottom:1px solid var(--divider);padding:8px 14px}aside button{display:inline-block;width:auto;min-height:32px}main{padding-top:14px}.examples{grid-template-columns:1fr}}
+@media(max-width:340px){header{grid-template-columns:1fr}nav{justify-content:start}.title-row{grid-template-columns:minmax(0,1fr) minmax(0,72px)}}
+@media(forced-colors:active){.art,.swatches span{display:none}button[aria-current=page],button[aria-pressed=true]{border-color:Highlight}}
+</style>
+<header>
+  <div class="lights" aria-hidden="true"><span></span><span></span><span></span></div>
+  <button type="button" class="wordmark" data-view="home"><svg width="22" height="19" viewBox="0 0 22 19" aria-hidden="true"><path fill="currentColor" d="M6 0h12v8h2v2h2v7h-2v2H2v-2H0v-7h2V8h4zm2 2v6h8V2zm-4 9v2h14v-2zm2 4v2h10v-2z"/></svg>focus.</button>
+  <nav aria-label="Focus views"><button data-view="sites">Sites</button><button data-view="settings" aria-current="page">Settings</button></nav>
+</header>
+<div class="layout" id="shell">
+  <aside id="rail" aria-label="Section navigation"></aside>
+  <main>
+    <div class="title-row">
+      <div><h1 id="heading">Settings</h1><p>Offline review specimen · sample data is fixture</p></div>
+      <svg class="art" viewBox="0 0 150 92" role="img" aria-label="Faceted typewriter color study, not product artwork"><path fill="var(--secondary)" d="M89 3h32l17 13 8 20-7 22-18 13H86L67 58l-7-22 11-23z"/><path fill="var(--rail)" stroke="var(--ink)" stroke-width="2" d="M40 8h51l-6 39H34z"/><path fill="var(--ink)" d="M44 16h37v2H44zm-2 7h30v2H42zM21 41h81l16 15-7 26H17L4 70l5-18z"/><path fill="currentColor" d="M22 44h78l11 12-15 13H8l6-15zm77 27 14-12-6 19H98z"/><path fill="var(--on-accent)" d="M26 48h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zM23 54h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zm12 0h8v3h-8zM33 61h46v4H33z"/></svg>
+    </div>
+    <div class="review" aria-label="Palette comparison controls">
+      <label>Color set<select id="source"><option value="proposed">Proposed</option><option value="incumbent">Incumbent tokens</option></select></label>
+      <label>Appearance<select id="mode"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      <label>Light family<select id="light"></select></label>
+      <label>Dark family<select id="dark"></select></label>
+    </div>
+    <section id="settings">
+      <h2 id="category">Appearance</h2>
+      <div id="appearance"><h3>Active palette</h3><div id="swatches" class="swatches" aria-label="Five active color roles"></div>
+        <div class="examples"><div class="sample"><strong>Examples on surface</strong><label class="choice"><input type="checkbox" checked>Show print illustrations<small>Fixture control; does not change app preferences.</small></label></div></div>
+      </div>
+      <div id="category-detail" hidden><p id="category-copy"></p></div>
+    </section>
+    <section id="sites" hidden>
+      <h2 id="site-name">YouTube</h2><p id="hostname">youtube.com</p>
+      <h3>Browser access</h3><p>No browsers connected · fixture</p>
+      <h2>Content rules</h2><label class="choice"><input type="checkbox">Hide suggested feeds<small>Fixture selection only; no browser policy changes.</small></label>
+      <button id="browser-settings">Browser settings</button>
+      <h2>Site entry</h2><fieldset><legend>When you open this site</legend><label class="choice"><input name="entry" type="radio" checked>Allow<small>Open the site normally.</small></label><label class="choice"><input name="entry" type="radio" disabled>Pause<small>Example only; unavailable in this review.</small></label><label class="choice"><input name="entry" type="radio" disabled>Block</label></fieldset>
+    </section>
+    <section id="home" hidden>
+      <div class="home-grid"><div><h2>Calendar</h2><strong>November 2026 · fixture</strong><div class="calendar" id="calendar"></div><p id="day">Selected: November 27</p>
+      <h2>Sessions</h2><p>No session history in this specimen.</p><button disabled>Start in Grace</button></div>
+      <div><h2>Reading</h2><strong>Field notes on printed color</strong><p>Studio journal · fixture headline</p><strong>How to compare local palettes</strong><p>Design notebook · fixture headline</p></div></div>
+    </section>
+  </main>
+</div>
+<script src="palette.js"></script>
+<script>
+const el = id => document.getElementById(id);
+const root = document.documentElement;
+const system = matchMedia('(prefers-color-scheme: dark)');
+const incumbent = ['sage','cobalt','plum'];
+const saved = {proposed:{light:'sage',dark:'cobalt'},incumbent:{light:'sage',dark:'cobalt'}};
+const slots = ['light','dark'];
+const chips = [['canvas','Canvas'],['rail','Rail'],['ink','Text ink'],['accent','Action'],['secondary','Secondary']];
+const source = el('source');
+function fillSelectors() {
+  for (const slot of slots) {
+    const ids = source.value === 'incumbent' ? incumbent : Object.keys(palettes);
+    el(slot).replaceChildren(...ids.map(id => new Option(palettes[id][0],id,id===saved[source.value][slot],id===saved[source.value][slot])));
+  }
+}
+function paint() {
+  const mode=el('mode').value;
+  const dark = mode === 'system' ? system.matches : mode === 'dark';
+  const id=saved[source.value][dark?'dark':'light'];
+  root.dataset.theme=mode;
+  root.dataset.activePalette=id;
+  root.dataset.paletteLight=saved[source.value].light;
+  root.dataset.paletteDark=saved[source.value].dark;
+  const roles=paletteRoles(id,dark);
+  for(const [role,value] of Object.entries(roles)) {
+    if(source.value==='incumbent') root.style.removeProperty('--'+role);
+    else root.style.setProperty('--'+role,value);
+  }
+}
+for(const [role,name] of chips){const part=document.createElement('div');const chip=document.createElement('span');chip.style.setProperty('--chip',`var(--${role})`);chip.setAttribute('aria-hidden','true');const label=document.createElement('small');label.textContent=name;part.append(chip,label);el('swatches').append(part);}
+for(const slot of slots)el(slot).addEventListener('change',()=>{saved[source.value][slot]=el(slot).value;paint();});
+source.addEventListener('change',()=>{fillSelectors();paint();});
+el('mode').addEventListener('change',paint);system.addEventListener('change',paint);
+document.querySelector('.sample input').addEventListener('change',event=>{document.querySelector('.art').style.visibility=event.target.checked?'visible':'hidden';});
+const settings=['Appearance','Accessibility','Browser settings','Reading','Data retention'];
+const sites=[['YouTube','youtube.com'],['Instagram','instagram.com'],['TikTok','tiktok.com']];
+let category='Appearance', site=0;
+function show(view){
+  for(const name of ['home','settings','sites']) el(name).hidden=name!==view;
+  for(const button of document.querySelectorAll('[data-view]')) if(button.dataset.view===view)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  el('heading').textContent={settings:'Settings',sites:'Sites',home:'Home'}[view];
+  el('heading').style.fontFamily=view==='settings'?"'Focus Bitmap Solid', var(--font-display)":'';
+  el('shell').classList.toggle('layout',view!=='home');
+  const rail=el('rail');rail.hidden=view==='home';rail.replaceChildren();
+  if(view==='home')return;
+  const title=document.createElement('strong');title.textContent=view==='settings'?'Settings':'Site library';rail.append(title);
+  const choices=view==='settings'?settings:sites.map(([name])=>name);
+  for(const [i,name] of choices.entries()){
+    const button=document.createElement('button');button.textContent=name;
+    button.setAttribute('aria-pressed',view==='settings'?name===category:i===site);
+    button.onclick=()=>{if(view==='settings')category=name;else site=i;show(view);rail.querySelectorAll('button')[i].focus();};rail.append(button);
+  }
+  el('category').textContent=category;el('appearance').hidden=category!=='Appearance';el('category-detail').hidden=category==='Appearance';
+  el('category-copy').textContent=category+' · layout specimen only';
+  [el('site-name').textContent,el('hostname').textContent]=sites[site];
+}
+for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{if(button.dataset.view==='settings')category='Appearance';show(button.dataset.view);};
+el('browser-settings').onclick=()=>{category='Browser settings';show('settings');};
+for(const day of ['S','M','T','W','T','F','S']){const label=document.createElement('span');label.textContent=day;el('calendar').append(label);}
+for(let i=1;i<=30;i++){const button=document.createElement('button');button.textContent=i;button.setAttribute('aria-label','November '+i);button.setAttribute('aria-pressed',i===27);button.onclick=()=>{el('calendar').querySelector('[aria-pressed=true]').setAttribute('aria-pressed','false');button.setAttribute('aria-pressed','true');el('day').textContent='Selected: November '+i;};el('calendar').append(button);}
+fillSelectors();paint();show('settings');
+</script>
+</html>
