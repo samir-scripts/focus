@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ContentRules } from './browser';
+  import type { ContentRules, NavigationMode } from './browser';
 
   let { rules, busy, save }: { rules: ContentRules; busy: boolean; save: (rules: ContentRules, pointer: boolean) => void } = $props();
   const labels = {
@@ -8,13 +8,19 @@
     youtube: [['Hide Home recommendations', 'Remove suggested videos from Home.'], ['Hide Shorts shelves and discovery', 'Keep directly opened Shorts playable.']],
     instagram: [['Hide suggested Home posts', 'Keep posts from accounts you follow.'], ['Hide Reels discovery', 'Keep individually opened reels playable.']],
   };
+  const modes: readonly [NavigationMode, string, string?][] = [
+    ['off', 'Off'],
+    ['openedVideos', 'Opened videos', 'Keep an individually opened video selected.'],
+    ['allShortVideoViewers', 'All short-video viewers', 'Also keep the active video selected in discovery feeds.'],
+  ];
   let pointer = false;
   let independent = $derived(rules.site === 'youtube' || rules.site === 'instagram');
   let selected = $derived(rules.site === 'youtube' ? [rules.hideHomeRecommendations, rules.hideShorts]
     : rules.site === 'instagram' ? [rules.hideSuggestedHome, rules.hideReelsDiscovery]
     : rules.site === 'x' ? [!rules.hideForYou && !rules.openFollowing, rules.hideForYou, rules.openFollowing]
-    : [!rules.hideRecommendations && !rules.hideAllHome, rules.hideRecommendations, rules.hideAllHome]);
+    : rules.site === 'reddit' ? [!rules.hideRecommendations && !rules.hideAllHome, rules.hideRecommendations, rules.hideAllHome] : []);
   function change(index: number, event: Event & { currentTarget: HTMLInputElement }) {
+    if (rules.site === 'tiktok') return;
     const checked = event.currentTarget.checked;
     const next: ContentRules = rules.site === 'youtube'
       ? { ...rules, ...(index === 0 ? { hideHomeRecommendations: checked } : { hideShorts: checked }) }
@@ -26,6 +32,7 @@
   }
 </script>
 
+{#if rules.site !== 'tiktok'}
 <fieldset aria-label={rules.site === 'instagram' ? 'Instagram content rules' : independent ? 'Discovery' : 'Home feed'} disabled={busy} class:instagram={rules.site === 'instagram'}>
   {#each labels[rules.site] as [label, hint], index (label)}
     <label onpointerdown={() => { pointer = true; }} onpointercancel={() => { pointer = false; }}>
@@ -36,6 +43,24 @@
     </label>
   {/each}
 </fieldset>
+{/if}
+{#if 'navigationMode' in rules}
+  <fieldset class="navigation" disabled={busy}>
+    <legend>Limit short-video navigation</legend>
+    {#each modes as [mode, label, hint] (mode)}
+      <label onpointerdown={() => { pointer = true; }} onpointercancel={() => { pointer = false; }}>
+        <input type="radio" name="short-video-navigation" aria-label={label}
+          aria-describedby={hint ? `navigation-${mode}` : undefined} checked={rules.navigationMode === mode}
+          onkeydown={() => { pointer = false; }} onchange={() => {
+            if ('navigationMode' in rules) save({ ...rules, navigationMode: mode }, pointer);
+            pointer = false;
+          }} />
+        <span><strong>{label}</strong>{#if hint}<small id={`navigation-${mode}`}>{hint}</small>{/if}</span>
+      </label>
+    {/each}
+  </fieldset>
+  <small class="comments">Comments and replies can still scroll.</small>
+{/if}
 
 <style>
   fieldset { border: 0; padding: 0; margin: 4px 0 0; min-width: 0; }
@@ -44,6 +69,10 @@
   input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   small { color: var(--muted); font-size: 12px; }
   .instagram small { display: block; }
+  .navigation legend { padding: 0; font-size: 14px; font-weight: 700; }
+  .navigation label { align-items: start; min-height: 0; padding-block: 3px; }
+  .navigation small { display: block; margin-top: 1px; }
+  .comments { display: block; margin: 3px 0 0 23px; }
   @media (forced-colors: none) {
     input {
       appearance: none; display: grid; place-items: center;

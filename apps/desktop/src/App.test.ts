@@ -222,7 +222,7 @@ describe('desktop shell', () => {
     const saved = after.textContent;
     expect(reels.checked).toBe(true);
     await fireEvent.click(suggested);
-    expect(save).toHaveBeenCalledWith(2, { site: 'instagram', hideSuggestedHome: true, hideReelsDiscovery: true });
+    expect(save).toHaveBeenCalledWith(2, { site: 'instagram', hideSuggestedHome: true, hideReelsDiscovery: true, navigationMode: 'off' });
     expect(after.textContent).not.toBe(saved);
     expect(before.innerHTML).toBe(baseline);
     pending.reject('stale_revision');
@@ -230,9 +230,14 @@ describe('desktop shell', () => {
     await waitFor(() => expect(suggested.checked).toBe(false));
     expect(after.textContent).toBe(saved);
     expect(before.innerHTML).toBe(baseline);
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Off' }).checked).toBe(true);
+    await fireEvent.click(screen.getByRole('radio', { name: 'Opened videos' }));
+    expect(save).toHaveBeenLastCalledWith(2, {
+      site: 'instagram', hideSuggestedHome: false, hideReelsDiscovery: true, navigationMode: 'openedVideos',
+    });
     const info = screen.getByRole('button', { name: 'Where content rules apply' });
     await fireEvent.focus(info);
-    expect(screen.getByRole('tooltip').textContent).toBe('Rules apply only in browser profiles with access to the exact address.');
+    expect(screen.getByRole('tooltip').textContent).toBe('Rules apply in browser profiles with access to the exact site address.');
     await fireEvent.keyDown(info, { key: 'Escape' });
     expect(screen.queryByRole('tooltip')).toBeNull();
   });

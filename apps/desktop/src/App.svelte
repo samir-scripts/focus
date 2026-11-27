@@ -89,14 +89,17 @@
   let feedRules = $derived.by((): ContentRules | undefined => {
     if (pendingContent && pendingContent.site === siteId) return pendingContent;
     const rules = currentPolicy?.rules;
+    const navigationMode = rules?.[`${siteId}.lock-all-short-video-viewers`] ? 'allShortVideoViewers'
+      : rules?.[`${siteId}.lock-opened-videos`] ? 'openedVideos' : 'off';
     switch (siteId) {
       case 'x': return { site: 'x', hideForYou: rules?.['x.hide-for-you'] === true, openFollowing: rules?.['x.open-following'] === true };
       case 'reddit': return { site: 'reddit', hideRecommendations: rules?.['reddit.hide-recommendations'] === true,
         hideAllHome: rules?.['reddit.hide-all-home'] === true };
       case 'youtube': return { site: 'youtube', hideShorts: browserState?.hideShorts === true,
-        hideHomeRecommendations: rules?.['youtube.hide-home-recommendations'] === true };
+        hideHomeRecommendations: rules?.['youtube.hide-home-recommendations'] === true, navigationMode };
       case 'instagram': return { site: 'instagram', hideSuggestedHome: rules?.['instagram.hide-suggested-home'] === true,
-        hideReelsDiscovery: rules?.['instagram.hide-reels-discovery'] === true };
+        hideReelsDiscovery: rules?.['instagram.hide-reels-discovery'] === true, navigationMode };
+      case 'tiktok': return { site: 'tiktok', navigationMode };
     }
   });
   let showRuleScope = $state(false);
@@ -650,7 +653,7 @@
             {/if}
             {#if browserState && (currentPolicy || feedRules)}
               <section class="details rule-row">
-                {#if siteId === 'instagram'}
+                {#if feedRules && 'navigationMode' in feedRules}
                   <div class="rule-heading">
                     <h2>Content rules</h2>
                     <button type="button" class="rule-info" aria-label="Where content rules apply"
@@ -661,7 +664,7 @@
                       }}
                       onclick={() => { showRuleScope = true; }}
                       onkeydown={(event) => { if (event.key === 'Escape') showRuleScope = false; }}>i</button>
-                    <span id="rule-scope" role="tooltip" hidden={!showRuleScope}>Rules apply only in browser profiles with access to the exact address.</span>
+                    <span id="rule-scope" role="tooltip" hidden={!showRuleScope}>Rules apply in browser profiles with access to the exact site address.</span>
                   </div>
                 {:else}<h2>Content rules</h2>{/if}
                 {#if currentPolicy}
@@ -681,17 +684,17 @@
                     <FeedRuleChoices rules={feedRules} busy={editingRule} save={saveFeed} />
                   {/key}
                 {/if}
-                {#if siteId !== 'instagram'}<p>Rules apply only in browser profiles with access to the exact address.</p>{/if}
+                {#if !feedRules || !('navigationMode' in feedRules)}<p>Rules apply only in browser profiles with access to the exact address.</p>{/if}
               </section>
             {/if}
-            {#if browserState && feedRules}
+            {#if browserState && feedRules && feedRules.site !== 'tiktok'}
               {#if feedRules.site === 'instagram'}
                 <InstagramFeedPreview rules={feedRules} grayscale={currentPolicy?.grayscale === true} />
               {:else}
                 <FeedPreview rules={feedRules} pulse={feedPulse} />
               {/if}
             {/if}
-            {#if browserState && browserBridge && feedRules}
+            {#if browserState && browserBridge && feedRules && feedRules.site !== 'tiktok'}
               {#key site.id}
                 <OpenPairedBrowser bridge={browserBridge} state={browserState} siteId={site.id} saving={editingRule} />
               {/key}

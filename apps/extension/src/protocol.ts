@@ -1,6 +1,6 @@
 import { catalog } from './sites/catalog';
 
-export const VERSION = 6;
+export const VERSION = 7;
 export type EntryPolicy = { mode: 'allow' } | { mode: 'block' } |
   { mode: 'pause'; seconds: number; finish: 'manual' | 'auto'; frequency: 'visit' | 'page' };
 export type SitePolicy = {

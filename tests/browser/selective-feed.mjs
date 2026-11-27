@@ -30,7 +30,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       await eventually('canonical grants acknowledged', async () => {
         const current = await state();
         const p = current.profiles.find(p => p.id === profile);
-        return p?.protocol === 6 && p.ackRevision === current.revision &&
+        return p?.protocol === 7 && p.ackRevision === current.revision &&
           ['https://x.com/*', 'https://www.reddit.com/*', 'https://www.youtube.com/*', 'https://www.instagram.com/*'].every(origin => p.origins.includes(origin));
       });
     });
