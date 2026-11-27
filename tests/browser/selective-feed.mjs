@@ -71,6 +71,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
       } else if (action === 'back') history.back();
       return { allowed, touchMove, touchEnd, top: scroller.scrollTop, pinned: getComputedStyle(scroller).scrollSnapType === 'none',
         commentsReady: !!pane && (scroller.contains(pane) || getComputedStyle(pane).overscrollBehaviorY === 'contain'),
+        permalink: location.pathname === '/@fixture/video/123',
         replay: Number(document.getElementById('replay-count').value),
         advance: Number(document.getElementById('advance-count').value) };
     };
@@ -89,6 +90,14 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
     const pinned = (browser, value) => eventually(`${host}: viewer ${value ? 'pinned' : 'restored'}`,
       async () => (await probe(browser, 'state'))?.pinned === value);
     await check(`${rules.site}: opened and discovery lock, advance inputs, late comments, close/back and Off`, async () => {
+      if (rules.site === 'tiktok') {
+        for (const [engine, browser] of engines) {
+          await open(browser, opened);
+          await pinned(browser, false);
+          assert.equal((await probe(browser, 'wheel')).allowed, true, `${engine}: Off allows advance`);
+          await eventually(`${engine}: Off changes selection`, async () => (await probe(browser, 'state')).top === 300);
+        }
+      }
       await edit({ ...rules, navigationMode: 'openedVideos' });
       for (const [engine, browser] of engines) {
         await open(browser, opened);
@@ -118,11 +127,22 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
         assert.equal((await probe(browser, 'reply')).allowed, true, `${engine}: reply editor`);
         assert.equal((await probe(browser, 'state')).advance - beforeComments, 0, `${engine}: comments reached the site advance handler`);
         await open(browser, discovery);
+        if (rules.site === 'tiktok') {
+          await click(browser, '#late'); // For You retains its DOM and replaces the URL with a permalink.
+          await eventually(`${engine}: comments permalink reached`, async () => (await probe(browser, 'state')).permalink);
+        }
         await pinned(browser, false);
         assert.equal((await probe(browser, 'wheel')).allowed, true);
       }
       await edit({ ...rules, navigationMode: 'allShortVideoViewers' });
       for (const [, browser] of engines) {
+        if (rules.site === 'tiktok') {
+          await open(browser, opened);
+          await pinned(browser, true);
+          assert.equal((await probe(browser, 'wheel')).allowed, false);
+          assert.equal((await probe(browser, 'state')).top, 0);
+          await open(browser, discovery);
+        }
         await pinned(browser, true);
         assert.equal((await probe(browser, 'wheel')).allowed, false);
         await click(browser, '#close');
@@ -140,7 +160,7 @@ export async function runSelectiveFeed({ engines, profiles, admin, state, setupA
         await edit({ ...rules, navigationMode: 'allShortVideoViewers' });
         const origin = `https://${host}/*`;
         for (const [engine, browser] of engines) {
-          await open(browser, discovery);
+          await open(browser, opened);
           await pinned(browser, true);
           const grants = async () => (await state()).profiles.find(p => p.id === profiles.get(engine)).origins;
           const before = await grants();

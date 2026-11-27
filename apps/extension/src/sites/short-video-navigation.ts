@@ -154,16 +154,53 @@ export function findYouTubeViewer(doc: Document, pinned?: HTMLElement, entry: Vi
     comments: panes.length === 1 ? panes[0] : undefined };
 }
 
+const tiktokScroller = '#column-list-container';
+const tiktokVideo = 'article[data-e2e="recommend-list-item-container"] [data-e2e="feed-video"] video';
+const tiktokAdvance = 'button:is([data-e2e="feed-navigation-prev"], [data-e2e="feed-navigation-next"])';
+const hiddenViewer = '[hidden], [inert], [aria-hidden="true"]';
+
+function tiktokDirectComments(doc: Document, scroller: HTMLElement) {
+  let pane: HTMLElement | undefined;
+  for (const row of doc.querySelectorAll<HTMLElement>('[data-e2e="comment-level-1"]')) {
+    if (scroller.contains(row) || row.closest(hiddenViewer) || !row.getClientRects().length
+      || doc.defaultView?.getComputedStyle(row).visibility !== 'visible') continue;
+    for (let node = row.parentElement; node && node !== doc.body && !node.contains(scroller); node = node.parentElement) {
+      if (!scrollableY(node)) continue;
+      if (pane && pane !== node) return;
+      pane = node;
+      break;
+    }
+  }
+  return pane;
+}
+
 export function findTikTokViewer(doc: Document, pinned?: HTMLElement, entry: ViewerEntry = 'opened'): Viewer | undefined {
   const path = doc.location.pathname;
   if (tiktokEntry.discovery.test(path)) entry = 'discovery';
   else if (!tiktokEntry.opened.test(path)) return;
-  const scroller = doc.querySelector<HTMLElement>('main [data-e2e="anchoring-player-column"] #column-list-container');
-  if (!scroller || !snapScroller(scroller, pinned)) return;
-  const video = activeVideo(scroller, 'article[data-e2e="recommend-list-item-container"] [data-e2e="feed-video"] video');
-  const controls = scroller.closest('main');
-  if (video && controls) return { scroller, video, entry, controls,
-    advance: 'button:is([data-e2e="feed-navigation-prev"], [data-e2e="feed-navigation-next"])' };
+  const candidates = doc.querySelectorAll<HTMLElement>(tiktokScroller);
+  let scroller: HTMLElement | undefined;
+  for (const candidate of candidates) {
+    const main = candidate.closest('main');
+    if (main ? !candidate.closest('[data-e2e="anchoring-player-column"]') : !tiktokEntry.opened.test(path)) continue;
+    if (candidate.closest(hiddenViewer) || doc.defaultView?.getComputedStyle(candidate).visibility !== 'visible'
+      || !snapScroller(candidate, pinned)) continue;
+    if (scroller) return;
+    scroller = candidate;
+  }
+  if (!scroller) return;
+  const video = activeVideo(scroller, tiktokVideo);
+  if (!video) return;
+  const main = scroller.closest('main');
+  if (main) return { scroller, video, entry, controls: main, advance: tiktokAdvance };
+
+  const controls = scroller.parentElement;
+  if (controls?.localName !== 'div') return;
+  const buttons = controls.querySelectorAll(`:scope > ${tiktokAdvance}`);
+  if (buttons.length !== 2 || buttons[0].getAttribute('data-e2e') === buttons[1].getAttribute('data-e2e')) return;
+  return { scroller, video, entry, controls,
+    advance: `${tiktokAdvance}:is(${tiktokScroller} ~ button, button:has(~ ${tiktokScroller}))`,
+    comments: tiktokDirectComments(doc, scroller) };
 }
 
 const textEntry = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="slider"]';

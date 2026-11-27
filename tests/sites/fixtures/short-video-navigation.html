@@ -3,7 +3,7 @@
 <title>Disposable short-video viewer fixture</title>
 <style>
   body { font: 16px sans-serif; margin: 16px; }
-  main, ytd-shorts { display: flex; align-items: flex-start; gap: 16px; }
+  main, ytd-shorts, #direct-player { display: flex; align-items: flex-start; gap: 16px; }
   #videos { width: 360px; height: 300px; overflow-y: auto; scroll-snap-type: y mandatory; }
   #column-list-container, #shorts-container { width: 360px; height: 300px; overflow-y: auto; scroll-snap-type: y mandatory; }
   article, ytd-reel-video-renderer { display: block; height: 300px; scroll-snap-align: start; }
@@ -44,8 +44,14 @@
     },
   };
   const layout = fixtures[location.hostname];
-  const viewer = document.createElement(layout.tag);
-  viewer.innerHTML = layout.scroller + layout.controls;
+  // Outside-main layout from the signed-in direct-link review, not the For You permalink.
+  const direct = location.hostname === 'www.tiktok.com' && /^\/@[^/]+\/video\/\d+\/?$/.test(location.pathname);
+  const viewer = document.createElement(direct ? 'div' : layout.tag);
+  if (direct) viewer.id = 'direct-player';
+  viewer.innerHTML = direct
+    ? '<div id="column-list-container" style="overflow-y:scroll"></div>'
+      + '<button id="prev" data-e2e="feed-navigation-prev">Previous</button><button id="next" data-e2e="feed-navigation-next">Next</button>'
+    : layout.scroller + layout.controls;
   document.getElementById('fixture').prepend(viewer);
   const scroller = document.getElementById(layout.id);
   scroller.innerHTML = layout.cards.repeat(3);
@@ -71,8 +77,11 @@
     const contents = '<textarea id="reply" aria-label="Reply"></textarea><div id="reply-space">Comments</div>';
     if (location.hostname === 'www.youtube.com') {
       viewer.insertAdjacentHTML('afterend', `<ytd-comments><ytd-item-section-renderer id="sections"><div id="contents"><ytd-comment-thread-renderer>${contents}</ytd-comment-thread-renderer></div></ytd-item-section-renderer></ytd-comments>`);
+    } else if (direct) {
+      viewer.insertAdjacentHTML('afterend', `<aside><div id="viewer-comments"><div><div data-e2e="comment-level-1">${contents}</div></div></div></aside>`);
     } else {
       scroller.firstElementChild.insertAdjacentHTML('beforeend', `<div id="viewer-comments">${contents}</div>`);
+      if (location.hostname === 'www.tiktok.com') history.replaceState({}, '', '/@fixture/video/123?focus-viewer=1');
     }
   }, { once: true });
   document.getElementById('close').addEventListener('click', () => history.pushState({}, '', layout.protectedPath));
