@@ -180,7 +180,15 @@ impl Db {
             }
             tx.commit()?;
         }
-        if version(&db)? != 10 { return Err(Error::Database); }
+        if version(&db)? == 10 {
+            let tx = db.transaction_with_behavior(Immediate)?;
+            if version(&tx)? == 10 {
+                tx.execute_batch(include_str!("../migrations/011.sql"))?;
+                tx.pragma_update(None, "user_version", 11)?;
+            }
+            tx.commit()?;
+        }
+        if version(&db)? != 11 { return Err(Error::Database); }
         Ok(Self(db, false))
     }
 

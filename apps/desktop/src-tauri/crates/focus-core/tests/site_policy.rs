@@ -246,6 +246,20 @@ fn instagram_defaults_are_visible_only_to_v6_clients() {
 }
 
 #[test]
+fn short_video_navigation_defaults_off_in_v7() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Db::open(&temp.path().join("focus.sqlite3")).unwrap();
+    let (_, snapshot) = db.snapshot(None, 7).unwrap();
+    for site in snapshot.unwrap().0.into_iter().filter(|site| {
+        matches!(site.id.as_str(), "instagram" | "youtube" | "tiktok")
+    }) {
+        for mode in ["lock-opened-videos", "lock-all-short-video-viewers"] {
+            assert_eq!(site.rules.get(&format!("{}.{mode}", site.id)), Some(&false));
+        }
+    }
+}
+
+#[test]
 fn instagram_choices_require_v6_until_both_are_disabled() {
     use focus_core::model::{Browser, ContentRules};
     use serde_json::json;
