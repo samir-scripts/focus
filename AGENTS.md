@@ -8,17 +8,17 @@ Follow the [roadmap](docs/roadmap.md) in order and stop at every review gate. Th
 
 ## Design contract
 
-Read [DESIGN.md](DESIGN.md) for visual and accessibility requirements. Use the shared UI package and [CSS tokens](packages/ui/src/tokens.css) for the executable theme, spacing, type and motion. Apply the approved productivity target only in the owning slice. Until then, preserve the baseline toolbar geometry and drag regions, Sites layout, read-only popup and Statistics empty state. Keep Pause and Block guarded in normal builds.
+Read [DESIGN.md](DESIGN.md) for visual and accessibility requirements. For desktop redesign work, start with the [approved packet queue](docs/design/desktop-redesign/README.md) and open only the owning packet. Preserve platform drag regions, the read-only popup, honest data states, and normal-build Pause and Block guards.
 
 For Slice 4A Sites changes, follow the [approved preview and selection contract](docs/design/content/4a-selective-feeds-plan.md). Selected library rows use solid fill and bold text without a side edge or inset shadow; keyboard focus stays distinct.
 
-For future visual work, follow the approved [PS1-inspired direction and review gate](docs/design/productivity/ps1-visual-direction.md). Use stepped pixel edges, faceted original artwork and real bitmap key legends. Keep body text and controls clear, use solid paper on 3F surfaces and respect motion preferences. Ask before adding an accent, decorative mark or visual treatment.
+For new artwork, follow the [PS1-inspired direction and review gate](docs/design/productivity/ps1-visual-direction.md): stepped pixel edges, original faceted artwork, bitmap key legends and motion preferences. Ask before adding any visible treatment outside the approved packet.
 
 Follow the [illustrated 3D.1–3D.3 implementation plan](docs/design/productivity/3d-typewriter-plan.md). Get explicit user approval of the live standalone 3D.2 viewer before mounting it on Home in 3D.3.
 
 For 3F, follow the [approved dashboard and Glance Reading plan](docs/design/productivity/3f-glance-reading-plan.md).
 
-For historical captures and the toner check, read the [Dither UI review](docs/design/dither-ui/README.md). For flake geometry changes, run `python3 -B apps/desktop/tools/test_paper_stock.py` and keep the masks in sync with `apps/desktop/tools/build-paper-stock.py`.
+Use the [Dither UI review](docs/design/dither-ui/README.md) as a baseline, not a redesign target. For legacy flake geometry changes, run `python3 -B apps/desktop/tools/test_paper_stock.py` and keep the masks in sync with `apps/desktop/tools/build-paper-stock.py`.
 
 ## Development and verification
 
