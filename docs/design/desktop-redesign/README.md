@@ -25,13 +25,20 @@
 13. [D1 grace-history-contract](D1.md)
 14. [D2 screen-time-contract](D2.md)
 
-UI packets run serially; start each from current reviewed dev containing its prerequisites, never the previous candidate branch. D1 may run after 00 alongside one UI session; D2 follows reviewed D1 and never overlaps it. Use distinct sessions, worktrees and branches. Refresh the base and revalidate if it moves. The [roadmap](../../roadmap.md) and [repository rules](../../../AGENTS.md) still govern product scope. Grace stays read-only. Neither contract enables runtime access or a collector.
+UI packets run serially; start each from current reviewed dev containing its prerequisites, never the previous candidate branch. D1 requires packet 00 reviewed and integrated on its base; D2 requires reviewed D1 integrated on its base. Run at most one contract session alongside one UI session. Use distinct sessions, worktrees and branches. Refresh the base and revalidate if it moves. The [roadmap](../../roadmap.md) and [repository rules](../../../AGENTS.md) still govern product scope. Grace stays read-only. Neither contract enables runtime access or a collector.
 
 ## Review and publication
 
 1. Use using-superpowers, using-agent-skills and ask-matt to route the session; executing-plans for the owning packet, writing-for-agents for its handoff, verification-before-completion for the gate. Start OMP in Ghostty/tmux with read-only prewalk; record pane, cwd, branch, base, ordered todos and model before and at first edit.
-2. Verify the clean export against the SHA manifest. Run the frozen [replay.cjs](approved/replay.cjs) with Node; use fresh browser storage, replay the packet route and state, and capture the result. Named stills and GIFs prove only their indexed states.
-3. Run the packet gates. Capture the actual native candidate against the frozen replay at 960×640, the 635px reflow breakpoint and 200% zoom; verify keyboard, contrast, all affected palette pairs, reduced motion, forced colors and native window controls. Keep applicable packaged browser gates. For contract-only changes, capture synthetic fixture checks; do not depict an unimplemented native feature.
+2. Verify the clean export against the SHA manifest. Run the frozen [replay.cjs](approved/replay.cjs) from the repository root in separate shells:
+
+   ```sh
+   node docs/design/desktop-redesign/approved/replay.cjs desktop 14912
+   node docs/design/desktop-redesign/approved/replay.cjs sites 14900
+   ```
+
+   Use fresh browser storage and the [local routes](evidence.md#local-replay), not raw HTML file URLs: the replay serves root-relative assets and the desktop `/site` iframe. Named captures prove only their indexed states.
+3. Run the packet gates. Capture the actual native candidate against the frozen replay at 960×640, the 635px reflow breakpoint and 200% zoom; verify keyboard, contrast, all affected palette pairs, reduced motion, forced colors and native window controls. Keep applicable packaged browser gates. For 04, capture the isolated renderer fixture without requiring later routes. For contract-only changes, capture synthetic fixture checks; do not depict an unimplemented native feature.
 4. Record base, candidate commit/tree, changed paths, command output, screenshot/GIF and SHA, platform and blockers. Commit locally, return to shell, and hand off to Codex for independent clean-export replay and review. Do not touch hosted refs during implementation.
 5. November 28 approval covers the design and capture-first fresh PR path. Obtain explicit publication approval for the verified candidate before publishing each PR. For packet 00, publish a fresh PR only after that approval, then close rejected PR #2 as superseded after approved publication. Do not reuse or close #2 first.
 
