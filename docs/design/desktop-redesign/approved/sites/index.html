@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>focus. · Site logo study</title>
+    <script type="module" crossorigin src="./assets/index-DRW-YkIn.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BkJj9tf4.css">
+  <style>.shell .stock{display:none!important}.rule-row fieldset small{display:block}.rule-row fieldset label{align-items:flex-start}.shell nav button.brand{padding-inline:12px}.shell .nav-items button,.shell button.outline,.shell .library button,.shell button.brand{transition:background-color 280ms ease-out,color 280ms ease-out,transform 80ms ease-out}.shell :is(.nav-items,.library) button:active,.shell button.brand:active{transform:translateY(1px)}.shell .nav-items button:hover,.shell .library li button:hover,.shell button.brand:hover,.shell button.outline:hover{background:var(--accent);color:var(--on-accent)}.rule-row .preference{align-items:flex-start}.rule-row .preference .choice-mark{margin-top:2px}@media(prefers-reduced-motion:reduce){.shell button{transition:none!important;transform:none!important}}</style><style>
+.shell .toolbar{--home-target:150px;--navigation-width:124px}
+.shell .brand svg{flex:none}.shell .nav-items{--sites-target:36px;--nav-gap:2px;width:124px;padding-inline:4px 8px}
+.shell .nav-items button,.shell .nav-items button:first-child{box-sizing:border-box;width:36px;min-width:36px;height:36px;flex:none;padding:0}
+.shell .nav-items button{background:transparent!important;isolation:isolate}
+.shell .nav-items button::before{content:"";position:absolute;inset:3px;z-index:-1;border-radius:3px;background:transparent;transition:background-color 280ms ease-out}
+.shell .nav-items button:is(:hover,:active)::before{background:var(--accent)}
+.pixel-nav{display:block;flex:none}
+.shell .site-title-row .impression.margin{display:none}
+.shell .site-heading{column-gap:12px;grid-template-rows:auto auto;align-content:center}
+.shell .site-heading .site-mark{grid-column:1;grid-row:1 / span 2;align-self:center;justify-self:start;overflow:visible;width:80px;height:76px}
+.shell .site-heading h1{grid-column:2;align-self:end}.shell .site-heading .host{align-self:start}
+.header-model{display:block;width:80px;height:74px;image-rendering:pixelated;cursor:grab;touch-action:none;animation:header-bob 3.5s ease-in-out infinite}
+.header-model:active{cursor:grabbing}.header-model:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@keyframes header-bob{0%,100%{transform:translateY(1.4px)}50%{transform:translateY(-1.4px)}}
+.toner-paused .header-model{animation:none}
+@media(max-width:635px){.shell .site-heading .site-mark,.header-model{width:60px;height:56px}.shell .site-heading{column-gap:8px}}
+@media(prefers-reduced-motion:reduce){.header-model,.shell .nav-items button::before{animation:none;transition:none}}
+@media(forced-colors:active){.shell .site-heading .site-mark{display:none}.shell .site-heading{grid-template-columns:0 auto;column-gap:0}.pixel-nav{fill:ButtonText}}
+</style><script>(function fixture(sites){
+localStorage.setItem('focus.palette.light','cobalt');localStorage.setItem('focus.appearance','light');
+let first=true;
+const state={revision:1,sites:sites.map(s=>({...s,rules:{},grayscale:false,entry:{mode:'allow'}})),accessibility:{holdSeconds:3,twoStepConfirmation:false},hideShorts:false,profiles:[],pending:[],entryAvailable:false};
+state.sites.push({id:'custom:example.org',label:'example.org',hosts:['example.org'],grayscale:false,rules:{},entry:{mode:'allow'}});const model=false;
+window.previewProps={sessionsWindow:model,browserBridge:model?null:{
+state:async()=>{const entry=first;first=false;return structuredClone({...state,open:entry?{siteId:new URLSearchParams(location.search).get('site')||'linkedin'}:null})},
+setContentRules:async(rev,f)=>{const site=state.sites.find(s=>s.id===f.site);for(const [prop,flag] of Object.entries({hideHomeRecommendations:'hide-home-recommendations',hideSuggestedHome:'hide-suggested-home',hideReelsDiscovery:'hide-reels-discovery',hideRecommendations:'hide-recommendations',hideAllHome:'hide-all-home',hideForYou:'hide-for-you',openFollowing:'open-following'}))if(prop in f)site.rules[f.site+'.'+flag]=f[prop];if('hideShorts' in f)state.hideShorts=f.hideShorts;site.rules[f.site+'.lock-opened-videos']=f.navigationMode==='openedVideos';site.rules[f.site+'.lock-all-short-video-viewers']=f.navigationMode==='allShortVideoViewers';state.revision++},
+setGrayscale:async(r,id,on)=>{state.sites.find(s=>s.id===id).grayscale=on;state.revision++},scan:async()=>({supported:false,targets:[]}),
+designateSite:async(host)=>{const id='custom:'+host;if(!state.sites.some(s=>s.id===id))state.sites.push({id,label:host,hosts:[host],grayscale:false,rules:{},entry:{mode:'allow'}});state.revision++;return id}
+},openSessions:()=>location.assign('/model')};
+})([{"id":"youtube","label":"YouTube","hosts":["youtube.com","www.youtube.com","m.youtube.com","youtu.be"],"home":"https://www.youtube.com/","rules":[{"id":"youtube.hide-shorts","label":"Hide Shorts shelves and discovery"},{"id":"youtube.hide-home-recommendations","label":"Hide Home recommendations","since":5},{"id":"youtube.lock-opened-videos","label":"Opened videos","since":7},{"id":"youtube.lock-all-short-video-viewers","label":"All short-video viewers","since":7}]},{"id":"reddit","label":"Reddit","hosts":["reddit.com","www.reddit.com","old.reddit.com"],"home":"https://www.reddit.com/","rules":[{"id":"reddit.hide-recommendations","label":"Hide recommendations","since":5},{"id":"reddit.hide-all-home","label":"Hide all Home feeds","since":5}]},{"id":"instagram","label":"Instagram","hosts":["instagram.com","www.instagram.com"],"home":"https://www.instagram.com/","homeSince":6,"rules":[{"id":"instagram.hide-suggested-home","label":"Hide suggested Home posts","since":6},{"id":"instagram.hide-reels-discovery","label":"Hide Reels discovery","since":6},{"id":"instagram.lock-opened-videos","label":"Opened videos","since":7},{"id":"instagram.lock-all-short-video-viewers","label":"All short-video viewers","since":7}]},{"id":"x","label":"X / Twitter","hosts":["x.com","www.x.com","twitter.com","www.twitter.com"],"home":"https://x.com/home","rules":[{"id":"x.hide-for-you","label":"Hide For you","since":5},{"id":"x.open-following","label":"Open Following instead","since":5}]},{"id":"facebook","label":"Facebook","hosts":["facebook.com","www.facebook.com"],"rules":[]},{"id":"tiktok","label":"TikTok","hosts":["tiktok.com","www.tiktok.com"],"rules":[{"id":"tiktok.lock-opened-videos","label":"Opened videos","since":7},{"id":"tiktok.lock-all-short-video-viewers","label":"All short-video viewers","since":7}]},{"id":"linkedin","label":"LinkedIn","hosts":["linkedin.com","www.linkedin.com"],"rules":[]},{"id":"whatsapp","label":"WhatsApp Web","hosts":["web.whatsapp.com"],"rules":[]},{"id":"google-search","label":"Google Search","hosts":["google.com","www.google.com"],"rules":[]}])</script><style>
+.shell .site-title-row .site-heading{grid-template-rows:auto auto;padding-top:8px}
+.shell .site-heading .site-mark{grid-column:1;grid-row:1;align-self:center;position:relative;height:0}
+.shell .site-heading .site-mark canvas{position:absolute;left:0;top:0;translate:0 -50%}
+.shell .site-heading h1{grid-column:2;grid-row:1;align-self:center}
+.shell .site-heading .host{grid-column:2;grid-row:2}
+.pixel-library{display:block;flex:none;color:inherit;shape-rendering:crispEdges}
+#theme-proof{position:fixed;right:12px;bottom:10px;z-index:5;display:flex;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--edge);border-radius:3px;background:var(--surface);color:var(--ink);font:400 12px var(--font-ui)}
+#theme-proof select{font:inherit;background:var(--canvas);color:var(--ink);border:1px solid var(--edge);border-radius:2px}
+@media(max-width:635px){#theme-proof{bottom:4px;right:4px;padding:3px 5px;gap:4px}}
+@media(forced-colors:active){.shell .site-heading .site-mark{display:none}}
+</style></head>
+  <body>
+    <div id="app"></div><aside id="theme-proof" aria-label="Mockup theme controls"><label for="study-palette">Preview theme</label><select id="study-palette"></select><select id="study-mode" aria-label="Preview appearance"><option value="light">Light</option><option value="dark">Dark</option></select></aside><script type="application/json" id="preview-palettes">{
+  "sage": {
+    "light": {
+      "canvas": "#F4F5ED",
+      "surface": "#FCFBF4",
+      "rail": "#DBE6D5",
+      "selected": "#C7D9C2",
+      "ink": "#233429",
+      "accent": "#2D583E",
+      "secondary": "#A33E32",
+      "muted": "#3d4e41",
+      "edge": "#546657",
+      "divider": "#8e9f8c",
+      "on-accent": "#FCFBF4"
+    },
+    "dark": {
+      "canvas": "#1D2822",
+      "surface": "#26332B",
+      "rail": "#304035",
+      "selected": "#3A5041",
+      "ink": "#EBF2E4",
+      "accent": "#B7D9A9",
+      "secondary": "#ECA38E",
+      "muted": "#cfd8ca",
+      "edge": "#b6c1b3",
+      "divider": "#78897a",
+      "on-accent": "#1D2822"
+    }
+  },
+  "cobalt": {
+    "light": {
+      "canvas": "#F3F5FA",
+      "surface": "#FBFCFF",
+      "rail": "#E0E7F6",
+      "selected": "#CDD9F5",
+      "ink": "#131C41",
+      "accent": "#233FAD",
+      "secondary": "#A51C60",
+      "muted": "#313a5e",
+      "edge": "#4b5577",
+      "divider": "#8c97b6",
+      "on-accent": "#FBFCFF"
+    },
+    "dark": {
+      "canvas": "#191F32",
+      "surface": "#222A40",
+      "rail": "#2B3550",
+      "selected": "#364563",
+      "ink": "#EDF1FF",
+      "accent": "#A7BEFF",
+      "secondary": "#FF90BF",
+      "muted": "#d0d5e6",
+      "edge": "#b6bdd0",
+      "divider": "#76819a",
+      "on-accent": "#191F32"
+    }
+  },
+  "plum": {
+    "light": {
+      "canvas": "#F7F1F5",
+      "surface": "#FDF9FC",
+      "rail": "#E9DCE8",
+      "selected": "#DFCBDF",
+      "ink": "#35263A",
+      "accent": "#6D386C",
+      "secondary": "#9A4D26",
+      "muted": "#504054",
+      "edge": "#68586c",
+      "divider": "#a491a5",
+      "on-accent": "#FDF9FC"
+    },
+    "dark": {
+      "canvas": "#2A202E",
+      "surface": "#352938",
+      "rail": "#423146",
+      "selected": "#503D53",
+      "ink": "#F5EAF3",
+      "accent": "#E0B5E0",
+      "secondary": "#F1AE81",
+      "muted": "#dbced9",
+      "edge": "#c4b6c3",
+      "divider": "#8a7a8b",
+      "on-accent": "#2A202E"
+    }
+  },
+  "olive-khaki": {
+    "light": {
+      "canvas": "#EDE8DB",
+      "surface": "#F7F4EA",
+      "rail": "#D8CDB7",
+      "selected": "#C4B69A",
+      "ink": "#303329",
+      "accent": "#414D32",
+      "secondary": "#795031",
+      "muted": "#48483b",
+      "edge": "#5c5a4b",
+      "divider": "#908872",
+      "on-accent": "#F7F4EA"
+    },
+    "dark": {
+      "canvas": "#292C25",
+      "surface": "#32362D",
+      "rail": "#3A3D32",
+      "selected": "#47503E",
+      "ink": "#EDE8DB",
+      "accent": "#C6D3AF",
+      "secondary": "#DAC09A",
+      "muted": "#d2d0c2",
+      "edge": "#bbbaac",
+      "divider": "#818575",
+      "on-accent": "#292C25"
+    }
+  },
+  "oat-espresso": {
+    "light": {
+      "canvas": "#F0EEE9",
+      "surface": "#F8F5EF",
+      "rail": "#E6DCC8",
+      "selected": "#D3C6B0",
+      "ink": "#3B2E28",
+      "accent": "#664434",
+      "secondary": "#4E6158",
+      "muted": "#53463e",
+      "edge": "#695c51",
+      "divider": "#9e9180",
+      "on-accent": "#F8F5EF"
+    },
+    "dark": {
+      "canvas": "#29221F",
+      "surface": "#332B27",
+      "rail": "#3B2E28",
+      "selected": "#4B3B33",
+      "ink": "#F0EEE9",
+      "accent": "#E2C2A1",
+      "secondary": "#B7CBBD",
+      "muted": "#d6d1cc",
+      "edge": "#bfb8b2",
+      "divider": "#857a73",
+      "on-accent": "#29221F"
+    }
+  },
+  "cocoa-blush": {
+    "light": {
+      "canvas": "#F6EEEA",
+      "surface": "#FCF6F2",
+      "rail": "#E6D7D1",
+      "selected": "#D9C4BC",
+      "ink": "#4A3835",
+      "accent": "#784650",
+      "secondary": "#67556D",
+      "muted": "#614e4b",
+      "edge": "#75625e",
+      "divider": "#a7938d",
+      "on-accent": "#FCF6F2"
+    },
+    "dark": {
+      "canvas": "#2C2324",
+      "surface": "#392C2D",
+      "rail": "#463437",
+      "selected": "#584148",
+      "ink": "#F3E7E1",
+      "accent": "#EAB8BC",
+      "secondary": "#D4C0DB",
+      "muted": "#daccc9",
+      "edge": "#c5b5b3",
+      "divider": "#8e7b7e",
+      "on-accent": "#2C2324"
+    }
+  },
+  "graphite-clay": {
+    "light": {
+      "canvas": "#F9F7F0",
+      "surface": "#FDFBF5",
+      "rail": "#D8D2C2",
+      "selected": "#DBC4AF",
+      "ink": "#373633",
+      "accent": "#78462E",
+      "secondary": "#435F52",
+      "muted": "#514d47",
+      "edge": "#686158",
+      "divider": "#a29284",
+      "on-accent": "#FDFBF5"
+    },
+    "dark": {
+      "canvas": "#282827",
+      "surface": "#313130",
+      "rail": "#3B3A38",
+      "selected": "#49433C",
+      "ink": "#F9F7F0",
+      "accent": "#E5AD89",
+      "secondary": "#B7CDB9",
+      "muted": "#dddad3",
+      "edge": "#c4c1ba",
+      "divider": "#87827b",
+      "on-accent": "#282827"
+    }
+  }
+}
+</script>
+  <script defer src="./logos.js"></script></body>
+</html>
