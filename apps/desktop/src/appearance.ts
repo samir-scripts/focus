@@ -1,4 +1,4 @@
-export const palettes = { sage: 'Sage', cobalt: 'Cobalt', plum: 'Plum' } as const;
+export const palettes = { sage: 'Sage', cobalt: 'Cobalt', plum: 'Plum', 'olive-khaki': 'Olive & Khaki', 'oat-espresso': 'Oat & Espresso', 'cocoa-blush': 'Cocoa & Blush', 'graphite-clay': 'Graphite & Clay' } as const;
 
 export type Mode = 'system' | 'light' | 'dark';
 export type PaletteMode = Exclude<Mode, 'system'>;
@@ -30,7 +30,7 @@ function read(key: string): string | null {
 
 function readPalette(mode: PaletteMode): Palette {
   const value = read(keys[mode]);
-  return value === 'cobalt' || value === 'plum' ? value : 'sage';
+  return value && Object.hasOwn(palettes, value) ? value as Palette : 'sage';
 }
 
 export function readAppearance(): Appearance {

@@ -430,6 +430,22 @@ describe('desktop shell', () => {
     expect(document.documentElement.dataset.theme).toBe('system');
   });
 
+  it('moves palette focus without saving and restores the trigger on Escape', async () => {
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
+    const trigger = screen.getByRole('button', { name: /^Light palette/ });
+    await fireEvent.click(trigger);
+    expect(document.activeElement?.textContent).toContain('Sage');
+    await fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toContain('Cobalt');
+    expect(window.localStorage.getItem('focus.palette.light')).toBeNull();
+    expect(trigger.textContent).toContain('Sage');
+    await fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('edits the inactive palette independently and restores both choices', async () => {
     window.localStorage.setItem('focus.appearance', 'dark');
     const shell = render(App);
@@ -456,12 +472,12 @@ describe('desktop shell', () => {
 
   it('discards an unknown palette without discarding the other preference', async () => {
     window.localStorage.setItem('focus.palette.light', 'unknown');
-    window.localStorage.setItem('focus.palette.dark', 'plum');
+    window.localStorage.setItem('focus.palette.dark', 'graphite-clay');
     render(App);
     await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     await fireEvent.click(screen.getByRole('link', { name: 'Appearance' }));
     expect(screen.getByRole('button', { name: /^Light palette/ }).textContent).toContain('Sage');
-    expect(screen.getByRole('button', { name: /^Dark palette/ }).textContent).toContain('Plum');
+    expect(screen.getByRole('button', { name: /^Dark palette/ }).textContent).toContain('Graphite & Clay');
   });
 
   it('uses solid paper on 3F views and retains animated stock on Sites and Statistics', async () => {
