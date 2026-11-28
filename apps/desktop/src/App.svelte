@@ -291,9 +291,18 @@
 
   $effect(() => {
     const root = document.documentElement;
+    // Apply theme colors together instead of transitioning controls from the old palette.
+    root.dataset.themeUpdate = '';
     root.dataset.theme = appearance.mode;
     root.dataset.paletteLight = appearance.light;
     root.dataset.paletteDark = appearance.dark;
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => delete root.dataset.themeUpdate);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      delete root.dataset.themeUpdate;
+    };
   });
 
   function setMode(mode: Mode) {
@@ -304,6 +313,26 @@
   function setPalette(mode: PaletteMode, palette: Palette) {
     appearance[mode] = palette;
     saveAppearance(mode, palette);
+  }
+
+  async function togglePalette(mode: PaletteMode) {
+    if (openPalette === mode) { openPalette = null; return; }
+    openPalette = mode;
+    await tick();
+    document.getElementById(`${mode}-palette-${appearance[mode]}`)?.focus();
+  }
+
+  function paletteKey(event: KeyboardEvent, mode: PaletteMode, id: Palette) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      openPalette = null;
+      document.getElementById(`${mode}-palette-trigger`)?.focus();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const index = paletteIds.indexOf(id);
+      const next = (index + (event.key === 'ArrowDown' ? 1 : -1) + paletteIds.length) % paletteIds.length;
+      document.getElementById(`${mode}-palette-${paletteIds[next]}`)?.focus();
+    }
   }
 
   function setPrintIllustrations(enabled: boolean) {
@@ -743,11 +772,11 @@
               </div>
               {#each paletteModes as { value, label }}
                 <div class="palette-picker">
-                  <button type="button" class="palette-trigger" aria-expanded={openPalette === value}
-                    aria-controls={`${value}-palettes`} onclick={() => openPalette = openPalette === value ? null : value}>
+                  <button type="button" id={`${value}-palette-trigger`} class="palette-trigger" aria-expanded={openPalette === value}
+                    aria-controls={`${value}-palettes`} onclick={() => togglePalette(value)}>
                     <span>{label}</span>
                     <span class="palette-value">
-                      <span class="swatch" data-swatch={`${appearance[value]}-${value}`} aria-hidden="true"></span>
+                      <span class="swatches" data-swatch={`${appearance[value]}-${value}`} aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
                       {palettes[appearance[value]]}
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"
                         aria-hidden="true" focusable="false"><path d="m2.5 4.5 3.5 3.5 3.5-3.5" /></svg>
@@ -755,13 +784,13 @@
                   </button>
                   <fieldset class="palette-options" id={`${value}-palettes`} aria-label={label} hidden={openPalette !== value}>
                     {#each paletteIds as id}
-                      <label class="preference">
-                        <input type="radio" name={`${value}-palette`} value={id} checked={appearance[value] === id}
-                          onchange={() => setPalette(value, id)} />
-                        <span class="choice-mark" aria-hidden="true"></span>
-                        <span class="swatch" data-swatch={`${id}-${value}`} aria-hidden="true"></span>
+                      <button type="button" role="radio" id={`${value}-palette-${id}`} class="palette-option" aria-checked={appearance[value] === id}
+                        tabindex="-1" onclick={() => { setPalette(value, id); openPalette = null; document.getElementById(`${value}-palette-trigger`)?.focus(); }}
+                        onkeydown={(event) => paletteKey(event, value, id)}>
+                        <span class="swatches" data-swatch={`${id}-${value}`} aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
                         <span>{palettes[id]}</span>
-                      </label>
+                        {#if appearance[value] === id}<span class="palette-check" aria-hidden="true">✓</span>{/if}
+                      </button>
                     {/each}
                   </fieldset>
                 </div>
@@ -1204,6 +1233,10 @@
   .appearances label:focus-within { z-index: 1; outline: 2px solid var(--accent); outline-offset: 3px; }
   .appearances input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
 
+  :global(html[data-theme-update]) button,
+  :global(html[data-theme-update]) .appearances label { transition: none; }
+
+  .palette-picker { position: relative; }
   .palette-picker, .effect-preference { border-block-end: 1px solid var(--divider); }
   .appearances + .palette-picker { margin-block-start: 12px; }
   .palette-trigger {
@@ -1213,22 +1246,29 @@
     flex-wrap: wrap;
     padding: 6px 8px;
     font-size: 14px;
+    color: var(--ink);
   }
   .palette-trigger:focus-visible { outline-offset: -2px; }
   .palette-trigger:is(:hover, :active):focus-visible { outline-color: var(--on-accent); }
   .palette-trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
   .palette-value { display: inline-flex; align-items: center; gap: 8px; }
-  .swatch {
-    display: inline-grid;
-    place-items: center;
-    flex: none;
-    width: 22px;
-    height: 14px;
-    border: 1px solid var(--swatch-ink);
-    background: var(--swatch-paper);
-  }
-  .swatch::after { content: ''; width: 10px; height: 2px; background: var(--swatch-ink); }
-  .palette-options { margin: 0; padding-inline-start: 8px; }
+  .swatches { display: inline-flex; flex: none; width: 55px; height: 14px; border: 1px solid var(--edge); }
+  .swatches i { flex: 1; }
+  [data-swatch$='-light'] i:nth-child(1) { background: var(--light-paper); }
+  [data-swatch$='-light'] i:nth-child(2) { background: var(--light-rail); }
+  [data-swatch$='-light'] i:nth-child(3) { background: var(--light-ink); }
+  [data-swatch$='-light'] i:nth-child(4) { background: var(--light-accent); }
+  [data-swatch$='-light'] i:nth-child(5) { background: var(--light-secondary); }
+  [data-swatch$='-dark'] i:nth-child(1) { background: var(--dark-paper); }
+  [data-swatch$='-dark'] i:nth-child(2) { background: var(--dark-rail); }
+  [data-swatch$='-dark'] i:nth-child(3) { background: var(--dark-ink); }
+  [data-swatch$='-dark'] i:nth-child(4) { background: var(--dark-accent); }
+  [data-swatch$='-dark'] i:nth-child(5) { background: var(--dark-secondary); }
+  .palette-options { position: absolute; z-index: 5; right: 0; top: 100%; box-sizing: border-box; width: min(235px, 100%); margin: 0; padding: 4px; border: 1px solid var(--edge); background: var(--surface); }
+  .palette-options[hidden] { display: none; }
+  .palette-option { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 4px 8px; text-align: left; color: var(--ink); background: transparent; }
+  .palette-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--selected); }
+  .palette-check { margin-inline-start: auto; }
   .preference {
     display: flex;
     align-items: center;
@@ -1238,7 +1278,6 @@
     font-size: 14px;
     cursor: pointer;
   }
-  .palette-options .preference:has(:checked) { background: var(--selected); }
   .preference:hover { text-decoration: underline; text-underline-offset: 3px; }
   .preference input { flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .accessibility-seconds { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
@@ -1254,13 +1293,11 @@
       inline-size: 16px; block-size: 16px; border: 1px solid var(--ink);
       background: var(--surface); pointer-events: none;
     }
-    .preference input[type='radio'] + .choice-mark { border-radius: 50%; }
     .preference input:checked + .choice-mark { background: var(--ink); }
     .preference input:checked + .choice-mark::after { content: ''; display: block; background: var(--surface); }
     .preference input[type='checkbox']:checked + .choice-mark::after {
       inline-size: 10px; block-size: 9px; clip-path: polygon(0 45%, 18% 27%, 39% 51%, 81% 4%, 100% 22%, 39% 92%);
     }
-    .preference input[type='radio']:checked + .choice-mark::after { inline-size: 6px; block-size: 6px; border-radius: 50%; }
     .preference input:focus-visible + .choice-mark { outline: 2px solid var(--accent); outline-offset: 3px; }
     .preference input:disabled + .choice-mark { opacity: .55; }
     .preference:has(input:disabled) { cursor: default; }
