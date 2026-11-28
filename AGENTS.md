@@ -10,6 +10,8 @@ Follow the [roadmap](docs/roadmap.md) in order and stop at every review gate. Th
 
 Read [DESIGN.md](DESIGN.md) for visual and accessibility requirements. For desktop redesign work, start with the [approved packet queue](docs/design/desktop-redesign/README.md) and open only the owning packet. Preserve platform drag regions, the read-only popup, honest data states, and normal-build Pause and Block guards.
 
+For the approved redesign, use solid desktop surfaces, Focus Bitmap type, pixel SVG navigation, and bounded theme-aware 3D artwork. Show each palette's canvas, rail, ink, action, and secondary swatches inside the open dropdown so users can compare them before saving. Follow the owning packet for motion, responsive behavior, and the exact visual reference.
+
 For Slice 4A Sites changes, follow the [approved preview and selection contract](docs/design/content/4a-selective-feeds-plan.md). Selected library rows use solid fill and bold text without a side edge or inset shadow; keyboard focus stays distinct.
 
 For new artwork, follow the [PS1-inspired direction and review gate](docs/design/productivity/ps1-visual-direction.md): stepped pixel edges, original faceted artwork, bitmap key legends and motion preferences. Ask before adding any visible treatment outside the approved packet.

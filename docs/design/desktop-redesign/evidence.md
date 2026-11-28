@@ -27,6 +27,8 @@ On each origin `/` serves its frozen `index.html` and `/assets/...` resolves aga
 
 Label new evidence with route, appearance, palette, state, viewport, candidate tree and SHA. Use a fresh trace where a still or partial GIF cannot establish equivalence.
 
+The [earlier short-video Sites proof](approved/earlier-sites/short-video-navigation.html) preserves the approved control layout separately. Its [still](approved/earlier-sites/sites-960x640.png) and [recording](approved/earlier-sites/navigation-walkthrough.gif) accompany packet 06. The embedded 14812 replay supplies the current fixture posts and site art.
+
 ## Licensing report
 
 - **Verified fixture origin and documented notices:** Focus Bitmap and Mona fonts, original Focus assets, typewriter GLB/rest image and shell build assets are local archive copies. See [notices](../../../THIRD_PARTY_NOTICES.md) for original Regular/Bold, Mona-derived faces, OFL terms and viewer licensing. Use canonical source assets with notices; archived bundles are not a runtime dependency.
